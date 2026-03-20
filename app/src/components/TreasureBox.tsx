@@ -42,6 +42,11 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   const physicsActive = boxState === 'OPEN' || boxState === 'HOVER_CLOSE';
 
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mouseDownBodyRef = useRef<any>(null);
+  const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
+  const didDragRef = useRef(false);
+  const longPressFiredRef = useRef(false);
+  const pendingLinkRef = useRef<string | null>(null);
   const spawnIndexRef = useRef(0);
   const animFrameRef = useRef<number>(0);
   const spawnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -247,20 +252,48 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     });
     Matter.Composite.add(engine.world, mouseConstraint);
 
-    // Long press for story
+    // Item interaction: quick-click → open link, drag → move, long-press → story
     Matter.Events.on(mouseConstraint, 'mousedown', (e: any) => {
       const body = e.source.body;
+      didDragRef.current = false;
+      longPressFiredRef.current = false;
+      mouseDownBodyRef.current = body?.itemData ? body : null;
+      mouseDownPosRef.current = body?.itemData
+        ? { x: mouse.position.x, y: mouse.position.y }
+        : null;
       if (body?.itemData) {
         longPressRef.current = setTimeout(() => {
+          longPressFiredRef.current = true;
           setActiveStory(body.itemData);
         }, 800);
       }
     });
     Matter.Events.on(mouseConstraint, 'mouseup', () => {
-      if (longPressRef.current) clearTimeout(longPressRef.current);
+      if (longPressRef.current) {
+        clearTimeout(longPressRef.current);
+        longPressRef.current = null;
+      }
+      const body = mouseDownBodyRef.current;
+      if (body?.itemData && !didDragRef.current && !longPressFiredRef.current) {
+        const link = body.itemData.link;
+        if (link) {
+          pendingLinkRef.current = link;
+        }
+      }
+      mouseDownBodyRef.current = null;
+      mouseDownPosRef.current = null;
     });
     Matter.Events.on(mouseConstraint, 'mousemove', () => {
-      if (longPressRef.current) clearTimeout(longPressRef.current);
+      if (!mouseDownPosRef.current) return;
+      const dx = mouse.position.x - mouseDownPosRef.current.x;
+      const dy = mouse.position.y - mouseDownPosRef.current.y;
+      if (dx * dx + dy * dy > 25) {
+        didDragRef.current = true;
+        if (longPressRef.current) {
+          clearTimeout(longPressRef.current);
+          longPressRef.current = null;
+        }
+      }
     });
 
     // Collision sounds
@@ -568,8 +601,13 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     // CLOSING and SLAMMING: ignore clicks (animation in progress)
   }, [boxState]);
 
-  // Click on canvas (not on a body) → close the drawer
+  // Click on canvas — open pending link or close drawer
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (pendingLinkRef.current) {
+      window.open(pendingLinkRef.current, '_blank', 'noopener,noreferrer');
+      pendingLinkRef.current = null;
+      return;
+    }
     if (boxState !== 'OPEN' && boxState !== 'HOVER_CLOSE') return;
     const canvas = canvasRef.current;
     if (!canvas) return;
