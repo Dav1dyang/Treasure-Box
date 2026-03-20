@@ -301,12 +301,13 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
         </div>
       )}
 
-      {/* TODO: Add active area / crop adjustment controls here.
-         The drawer sprite has an `activeArea` (bounding box of actual pixels)
-         that's auto-detected during generation. Allow users to manually tweak
-         the crop/visible area of the drawer here, overriding the auto-detected
-         bounds. This lets users fine-tune how much padding surrounds the drawer
-         and adjust the effective aspect ratio of the rendered widget. */}
+      {/* TODO: Drawer display size controls.
+         BoxConfig.drawerDisplaySize stores the fixed pixel frame size for the
+         AI-generated drawer (default 420×280). Add W/H sliders here so users
+         can adjust the drawer render size independently of the embed container.
+         The activeArea from DrawerImages can inform a "fit to content" preset
+         that auto-calculates optimal display size from the sprite's actual
+         non-transparent pixel bounds. */}
 
       {/* Embed Code Output */}
       <div>
