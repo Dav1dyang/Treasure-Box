@@ -14,7 +14,6 @@ import type { TreasureItem, BoxConfig, SoundPreset, DrawerImages, EmbedSettings 
 import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
 import EmbedConfigurator from '@/components/EmbedConfigurator';
-import { extractContourFromImage } from '@/lib/contour';
 
 const DEFAULT_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'> = {
   title: 'My Treasure Box',
@@ -101,6 +100,7 @@ export default function EditorPage() {
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<'items' | 'config' | 'embed'>('items');
   const [removingBg, setRemovingBg] = useState<string | null>(null);
+  const [bgError, setBgError] = useState<string | null>(null);
   const [isTransparentBg, setIsTransparentBg] = useState(true);
   const [configStatus, setConfigStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
@@ -146,44 +146,33 @@ export default function EditorPage() {
     const file = e.target.files[0];
     const id = `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     setSaving(true);
+    setBgError(null);
     const originalUrl = await uploadImage(user.uid, file, `${id}_original`);
     let processedUrl = originalUrl;
+    let contourPoints: { x: number; y: number }[] | undefined;
     try {
       setRemovingBg(id);
       const formData = new FormData();
       formData.append('image', file);
       const res = await fetch('/api/remove-bg', { method: 'POST', body: formData });
       if (res.ok) {
-        const bgRemoved = res.headers.get('X-Bg-Removed') === 'true';
-        if (bgRemoved) {
-          const blob = await res.blob();
+        const data = await res.json();
+        if (data.error) {
+          setBgError(data.error);
+        }
+        if (data.bgRemoved && data.image) {
+          // Convert base64 PNG to Blob and upload to Firebase Storage
+          const byteString = atob(data.image);
+          const bytes = new Uint8Array(byteString.length);
+          for (let i = 0; i < byteString.length; i++) bytes[i] = byteString.charCodeAt(i);
+          const blob = new Blob([bytes], { type: 'image/png' });
           processedUrl = await uploadProcessedImage(user.uid, blob, id);
+          if (data.contourPoints) {
+            contourPoints = data.contourPoints;
+          }
         }
       }
-    } catch { /* fallback */ } finally { setRemovingBg(null); }
-    // Extract contour from bg-removed image's alpha channel for physics shapes
-    let contourPoints: { x: number; y: number }[] | undefined;
-    if (processedUrl !== originalUrl) {
-      try {
-        const contourRes = await fetch(processedUrl);
-        const contourBlob = await contourRes.blob();
-        const img = new Image();
-        const blobUrl = URL.createObjectURL(contourBlob);
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = reject;
-          img.src = blobUrl;
-        });
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, img.width, img.height);
-        URL.revokeObjectURL(blobUrl);
-        contourPoints = extractContourFromImage(imageData);
-      } catch { /* fallback to rectangle physics */ }
-    }
+    } catch { /* fallback to original */ } finally { setRemovingBg(null); }
     const newItem: TreasureItem = {
       id, imageUrl: processedUrl, originalImageUrl: originalUrl,
       label: file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '),
@@ -311,6 +300,7 @@ export default function EditorPage() {
                   )}
                 </div>
                 {removingBg && <div className="text-[10px] mb-3 animate-pulse" style={{ color: 'var(--tb-highlight)' }}>removing background...</div>}
+                {bgError && <div className="text-[10px] mb-3" style={{ color: '#c44' }}>bg removal failed: {bgError}</div>}
                 <div className="space-y-2">
                   {items.map(item => (
                     <div key={item.id} className="p-3 transition-colors" style={{ border: '1px solid var(--tb-border-subtle)' }}>
