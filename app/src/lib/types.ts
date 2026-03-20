@@ -115,31 +115,31 @@ export type SoundPreset = 'metallic' | 'wooden' | 'glass' | 'paper' | 'silent';
 
 // ===== Embed Settings =====
 
-export type EmbedMode = 'contained' | 'floating' | 'fullpage';
+export type EmbedMode = 'overlay' | 'contained';
 
 export type AnchorCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
 
 export interface EmbedPosition {
-  anchor: AnchorCorner;
-  xPercent: number;  // 0-100, offset percentage from anchor corner
-  yPercent: number;  // 0-100, offset percentage from anchor corner
+  anchor: AnchorCorner;       // nearest corner (auto-calculated from drag)
+  offsetX: number;            // px from anchor corner's X edge
+  offsetY: number;            // px from anchor corner's Y edge
 }
 
 export interface EmbedSettings {
   mode: EmbedMode;
-  width: number;           // pixels (contained/floating)
-  height: number;          // pixels (contained/floating)
-  position: EmbedPosition; // floating + fullpage pin position
-  previewUrl?: string;     // user's website URL for full-page preview
+  width: number;              // drawer element width (px)
+  height: number;             // drawer element height (px)
+  position: EmbedPosition;    // overlay positioning
+  domCollide?: boolean;       // optional: items collide with DOM elements
 }
 
 export const DEFAULT_EMBED_SETTINGS: EmbedSettings = {
-  mode: 'contained',
-  width: 500,
-  height: 500,
+  mode: 'overlay',
+  width: 350,
+  height: 300,
   position: {
     anchor: 'bottom-right',
-    xPercent: 5,
-    yPercent: 5,
+    offsetX: 32,
+    offsetY: 32,
   },
 };

@@ -572,39 +572,26 @@ export default function EditorPage() {
                 : config?.backgroundColor || 'var(--tb-bg)',
             }}>
             {config && tab === 'embed' ? (
-              // Embed tab: fake website placeholder behind the drawer
+              // Embed tab: preview with mock website background
               <div className="w-full h-full relative" style={{ background: 'var(--tb-bg)' }}>
                 <MockWebsitePlaceholder />
 
-                {config.embedSettings?.mode === 'floating' ? (
-                  // Floating box positioned by anchor
-                  <div
-                    className="absolute"
-                    style={{
-                      width: Math.min(config.embedSettings.width * 0.4, 250),
-                      height: Math.min(config.embedSettings.height * 0.4, 250),
-                      ...(config.embedSettings.position.anchor.includes('bottom') ? { bottom: `${config.embedSettings.position.yPercent}%` } : { top: `${config.embedSettings.position.yPercent}%` }),
-                      ...(config.embedSettings.position.anchor.includes('right') ? { right: `${config.embedSettings.position.xPercent}%` } : { left: `${config.embedSettings.position.xPercent}%` }),
-                    }}
-                  >
-                    <TreasureBox items={items} config={config} />
-                  </div>
-                ) : config.embedSettings?.mode === 'fullpage' ? (
-                  // Full-page mode: box at pin position
+                {config.embedSettings?.mode === 'overlay' || !config.embedSettings || config.embedSettings.mode !== 'contained' ? (
+                  // Overlay mode: box positioned by anchor + pixel offsets (scaled to preview)
                   <>
                     <div
                       className="absolute"
                       style={{
-                        width: Math.min(config.embedSettings.width * 0.35, 220),
-                        height: Math.min(config.embedSettings.height * 0.35, 220),
-                        ...(config.embedSettings.position.anchor.includes('bottom') ? { bottom: `${config.embedSettings.position.yPercent}%` } : { top: `${config.embedSettings.position.yPercent}%` }),
-                        ...(config.embedSettings.position.anchor.includes('right') ? { right: `${config.embedSettings.position.xPercent}%` } : { left: `${config.embedSettings.position.xPercent}%` }),
+                        width: Math.min((config.embedSettings?.width ?? 350) * 0.35, 220),
+                        height: Math.min((config.embedSettings?.height ?? 300) * 0.35, 220),
+                        ...(config.embedSettings?.position.anchor.includes('bottom') ? { bottom: Math.min((config.embedSettings?.position.offsetY ?? 32) * 0.1, 40) } : { top: Math.min((config.embedSettings?.position.offsetY ?? 32) * 0.1, 40) }),
+                        ...(config.embedSettings?.position.anchor.includes('right') ? { right: Math.min((config.embedSettings?.position.offsetX ?? 32) * 0.1, 40) } : { left: Math.min((config.embedSettings?.position.offsetX ?? 32) * 0.1, 40) }),
                       }}
                     >
                       <TreasureBox items={items} config={config} />
                     </div>
                     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[8px] px-2 py-1" style={{ ...S.ghost, background: 'var(--tb-bg)', border: '1px solid var(--tb-border-subtle)' }}>
-                      items will fly across the host page
+                      items fly across the host page when opened
                     </div>
                   </>
                 ) : (
