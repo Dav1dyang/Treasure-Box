@@ -215,7 +215,8 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
 
       const item = items[idx];
       const x = centerX + (Math.random() - 0.5) * 100;
-      const size = 50 + Math.random() * 10;
+      const itemScale = item.scale ?? 1;
+      const size = (50 + Math.random() * 10) * itemScale;
 
       let body: Matter.Body & { itemData?: TreasureItem };
 
@@ -276,7 +277,7 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
       const item = body.itemData;
       if (!item) return;
 
-      const size = 52;
+      const size = 52 * (item.scale ?? 1);
       const img = imagesRef.current.get(item.id);
 
       ctx.save();

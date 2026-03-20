@@ -53,6 +53,23 @@ function VolumeBar({ volume, onChange }: { volume: number; onChange: (v: number)
   );
 }
 
+function ScaleControl({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="flex items-center gap-[6px]">
+      <span className="text-[9px] shrink-0" style={{ color: 'var(--tb-fg-faint)' }}>size</span>
+      <input
+        type="range" min={0.5} max={2} step={0.1}
+        value={value}
+        onChange={e => onChange(Number(e.target.value))}
+        style={{ width: 80, accentColor: 'var(--tb-accent)' }}
+      />
+      <span className="text-[9px] min-w-[24px] text-right" style={{ color: 'var(--tb-fg-faint)' }}>
+        {value.toFixed(1)}&times;
+      </span>
+    </div>
+  );
+}
+
 function RotationControl({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   // Snap to nearest 90° if within 8° threshold
   const snap = (v: number) => {
@@ -308,7 +325,7 @@ export default function EditorPage() {
                     <div key={item.id} className="p-3 transition-colors" style={{ border: '1px solid var(--tb-border-subtle)' }}>
                       <div className="grid grid-cols-[56px_1fr_20px] gap-3">
                         <div className="w-14 h-14 flex items-center justify-center overflow-hidden shrink-0" style={{ background: 'var(--tb-bg-muted)' }}>
-                          <img src={item.imageUrl} alt={item.label} className="max-w-full max-h-full object-contain transition-transform" style={{ transform: `rotate(${item.rotation ?? 0}deg)` }} />
+                          <img src={item.imageUrl} alt={item.label} className="max-w-full max-h-full object-contain transition-transform" style={{ transform: `rotate(${item.rotation ?? 0}deg) scale(${item.scale ?? 1})` }} />
                         </div>
                         <div className="flex flex-col gap-[6px] min-w-0">
                           <input value={item.label} onChange={e => handleUpdateItem(item.id, { label: e.target.value })} placeholder="label"
@@ -318,6 +335,7 @@ export default function EditorPage() {
                           <textarea value={item.story || ''} onChange={e => handleUpdateItem(item.id, { story: e.target.value })} placeholder="story (shown on long-press)" rows={2}
                             className="w-full bg-transparent text-[10px] pb-[2px] outline-none resize-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
                           <RotationControl value={item.rotation ?? 0} onChange={v => handleUpdateItem(item.id, { rotation: v })} />
+                          <ScaleControl value={item.scale ?? 1} onChange={v => handleUpdateItem(item.id, { scale: v })} />
                         </div>
                         <button onClick={() => handleDeleteItem(item.id)} className="text-sm self-start cursor-pointer leading-none" style={S.ghost}>&times;</button>
                       </div>

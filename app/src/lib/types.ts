@@ -72,6 +72,7 @@ export interface TreasureItem {
   link?: string;
   order: number;
   rotation?: number;         // initial rotation in degrees (-25 to 25), default random
+  scale?: number;            // size multiplier (0.5-2.0), default 1
   // Contour points for irregular physics shape (normalized 0-1)
   contourPoints?: { x: number; y: number }[];
   createdAt: number;
