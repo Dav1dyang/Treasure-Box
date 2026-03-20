@@ -29,11 +29,13 @@ interface Props {
   onItemsReturned?: () => void;
   /** When set, TreasureBox uses full-scene edge walls and positions drawer at anchor */
   overlayPreview?: OverlayPreviewConfig;
+  /** When true, skips min-h constraint for iframe/contained embeds */
+  embedded?: boolean;
 }
 
 const ALL_BOX_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
 
-export default function TreasureBox({ items, config, backgroundColor, fullpageMode, onItemsEscaped, onItemsReturned, overlayPreview }: Props) {
+export default function TreasureBox({ items, config, backgroundColor, fullpageMode, onItemsEscaped, onItemsReturned, overlayPreview, embedded }: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
@@ -732,7 +734,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   return (
     <div
       ref={sceneRef}
-      className={`relative w-full h-full select-none ${overlayPreview ? '' : 'min-h-[400px]'} overflow-hidden`}
+      className={`relative w-full h-full select-none ${(overlayPreview || embedded) ? '' : 'min-h-[400px]'} overflow-hidden`}
       style={{ background: isTransparent ? 'transparent' : bg }}
     >
       {/* Drawer area — below canvas when open so items render on top */}

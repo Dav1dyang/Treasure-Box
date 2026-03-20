@@ -14,6 +14,13 @@ function EmbedContent() {
   const embedMode = searchParams.get('mode') || 'contained';
   const scaleParam = searchParams.get('scale');
 
+  // Padding params for contained mode (default 0 for backward compat)
+  const pt = Math.max(0, Math.min(60, parseInt(searchParams.get('pt') || '0', 10) || 0));
+  const pr = Math.max(0, Math.min(60, parseInt(searchParams.get('pr') || '0', 10) || 0));
+  const pb = Math.max(0, Math.min(60, parseInt(searchParams.get('pb') || '0', 10) || 0));
+  const pl = Math.max(0, Math.min(60, parseInt(searchParams.get('pl') || '0', 10) || 0));
+  const hasPadding = pt > 0 || pr > 0 || pb > 0 || pl > 0;
+
   const [config, setConfig] = useState<BoxConfig | null>(null);
   const [items, setItems] = useState<TreasureItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -96,16 +103,24 @@ function EmbedContent() {
     ? { ...config, contentScale: scaleOverride }
     : config;
 
+  const isContained = !isOverlay;
+  const paddingStyle = (isContained && hasPadding)
+    ? { padding: `${pt}px ${pr}px ${pb}px ${pl}px` }
+    : undefined;
+
   return (
-    <div className="w-full h-screen overflow-hidden">
-      <TreasureBox
-        items={items}
-        config={effectiveConfig}
-        backgroundColor={bg}
-        fullpageMode={isOverlay}
-        onItemsEscaped={isOverlay ? handleItemsEscaped : undefined}
-        onItemsReturned={isOverlay ? handleItemsReturned : undefined}
-      />
+    <div className="w-full h-screen overflow-hidden" style={paddingStyle}>
+      <div className="w-full h-full">
+        <TreasureBox
+          items={items}
+          config={effectiveConfig}
+          backgroundColor={bg}
+          fullpageMode={isOverlay}
+          embedded={isContained}
+          onItemsEscaped={isOverlay ? handleItemsEscaped : undefined}
+          onItemsReturned={isOverlay ? handleItemsReturned : undefined}
+        />
+      </div>
     </div>
   );
 }

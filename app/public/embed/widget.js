@@ -45,7 +45,17 @@
   if (mode === 'contained') {
     var container = document.getElementById('treasure-box-embed') || script.parentElement;
     if (!container) return;
-    var iframe = createIframe(width, height);
+    // Read padding attributes
+    var padTop = parseInt(script.getAttribute('data-pad-top') || '0', 10) || 0;
+    var padRight = parseInt(script.getAttribute('data-pad-right') || '0', 10) || 0;
+    var padBottom = parseInt(script.getAttribute('data-pad-bottom') || '0', 10) || 0;
+    var padLeft = parseInt(script.getAttribute('data-pad-left') || '0', 10) || 0;
+    var padParams = '';
+    if (padTop > 0) padParams += '&pt=' + padTop;
+    if (padRight > 0) padParams += '&pr=' + padRight;
+    if (padBottom > 0) padParams += '&pb=' + padBottom;
+    if (padLeft > 0) padParams += '&pl=' + padLeft;
+    var iframe = createIframe(width, height, padParams ? padParams.substring(1) : '');
     iframe.style.maxWidth = '100%';
     container.appendChild(iframe);
     return;

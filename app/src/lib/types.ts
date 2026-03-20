@@ -116,6 +116,19 @@ export const DEFAULT_DRAWER_DISPLAY_SIZE = { width: 420, height: 280 };
 
 export type SoundPreset = 'metallic' | 'wooden' | 'glass' | 'paper' | 'silent';
 
+// ===== Embed Padding =====
+
+export interface EmbedPadding {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+export const DEFAULT_EMBED_PADDING: EmbedPadding = {
+  top: 16, right: 16, bottom: 8, left: 16,
+};
+
 // ===== Embed Settings =====
 
 export type EmbedMode = 'overlay' | 'contained';
@@ -136,6 +149,7 @@ export interface EmbedSettings {
   domCollide?: boolean;       // optional: items collide with DOM elements
   previewUrl?: string;        // optional: user's website URL for preview background
   embedScale?: number;        // 0.5-2.0, proportionally controls widget size (default 1.0)
+  padding?: EmbedPadding;     // contained mode: CSS inset padding around active area
 }
 
 export const DEFAULT_EMBED_SETTINGS: EmbedSettings = {

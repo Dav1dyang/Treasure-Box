@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import type { BoxConfig, EmbedSettings, EmbedMode } from '@/lib/types';
-import { DEFAULT_EMBED_SETTINGS } from '@/lib/types';
+import type { BoxConfig, EmbedSettings, EmbedMode, EmbedPadding } from '@/lib/types';
+import { DEFAULT_EMBED_SETTINGS, DEFAULT_EMBED_PADDING } from '@/lib/types';
 
 const BASE_W = 350;
 const BASE_H = 300;
@@ -55,8 +55,10 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
   const [urlInput, setUrlInput] = useState(settings.previewUrl || '');
   const [aspectLocked, setAspectLocked] = useState(false);
   const [aspectRatio, setAspectRatio] = useState(settings.width / settings.height);
+  const [paddingExpanded, setPaddingExpanded] = useState(false);
 
   const embedScale = settings.embedScale ?? 1;
+  const padding = settings.padding || { top: 0, right: 0, bottom: 0, left: 0 };
 
   const update = useCallback((patch: Partial<EmbedSettings>) => {
     onSettingsChange({ ...settings, ...patch });
@@ -97,7 +99,13 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
 
     if (settings.mode === 'contained') {
       const scaleParam = embedScale !== 1 ? `&scale=${embedScale}` : '';
-      return `<iframe\n  src="${baseUrl}/embed?box=${userId}&bg=${bg}${scaleParam}"\n  width="${settings.width}" height="${settings.height}"\n  style="border:none;overflow:hidden"\n  loading="lazy"\n  allow="accelerometer"\n></iframe>`;
+      const padParams = [
+        padding.top > 0 ? `&pt=${padding.top}` : '',
+        padding.right > 0 ? `&pr=${padding.right}` : '',
+        padding.bottom > 0 ? `&pb=${padding.bottom}` : '',
+        padding.left > 0 ? `&pl=${padding.left}` : '',
+      ].join('');
+      return `<iframe\n  src="${baseUrl}/embed?box=${userId}&bg=${bg}${scaleParam}${padParams}"\n  width="${settings.width}" height="${settings.height}"\n  style="border:none;overflow:hidden"\n  loading="lazy"\n  allow="accelerometer"\n></iframe>`;
     }
 
     // overlay — use data-scale as the primary sizing attribute
@@ -257,6 +265,54 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
             <span>{aspectLocked ? '=' : '~'}</span>
             <span>{aspectLocked ? 'aspect locked' : 'lock aspect ratio'}</span>
           </button>
+        </div>
+      )}
+
+      {/* Contained: Padding Controls */}
+      {settings.mode === 'contained' && (
+        <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
+          <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>padding</label>
+          {/* Uniform slider */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[9px] w-8 shrink-0" style={S.ghost}>all</span>
+            <input type="range" min={0} max={60} step={2}
+              value={padding.top}
+              onChange={e => {
+                const v = Number(e.target.value);
+                update({ padding: { top: v, right: v, bottom: v, left: v } });
+              }}
+              className="flex-1"
+              style={{ accentColor: 'var(--tb-accent)' }} />
+            <span className="text-[10px] w-10 text-right" style={S.accent}>{padding.top}px</span>
+          </div>
+          {/* Expand toggle */}
+          <button
+            onClick={() => setPaddingExpanded(!paddingExpanded)}
+            className="flex items-center gap-[6px] cursor-pointer text-[9px] mt-1 mb-2"
+            style={paddingExpanded ? S.accent : S.ghost}
+          >
+            <span>{paddingExpanded ? '▾' : '▸'}</span>
+            <span>individual sides</span>
+          </button>
+          {/* Individual sliders */}
+          {paddingExpanded && (
+            <div className="space-y-2 mt-2">
+              {(['top', 'right', 'bottom', 'left'] as const).map(side => (
+                <div key={side} className="flex items-center gap-2">
+                  <span className="text-[9px] w-8 shrink-0" style={S.ghost}>{side[0].toUpperCase()}</span>
+                  <input type="range" min={0} max={60} step={2}
+                    value={padding[side]}
+                    onChange={e => update({ padding: { ...padding, [side]: Number(e.target.value) } })}
+                    className="flex-1"
+                    style={{ accentColor: 'var(--tb-accent)' }} />
+                  <span className="text-[10px] w-10 text-right" style={S.accent}>{padding[side]}px</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-[8px] mt-1" style={S.ghost}>
+            inset from iframe edges — items bounce within the padded area
+          </p>
         </div>
       )}
 
