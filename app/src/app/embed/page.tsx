@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getPublicBoxConfig, getPublicItems } from '@/lib/firestore';
-import type { TreasureItem, BoxConfig, EmbedMode } from '@/lib/types';
+import type { TreasureItem, BoxConfig } from '@/lib/types';
 import TreasureBox from '@/components/TreasureBox';
 import { Suspense } from 'react';
 
@@ -11,7 +11,7 @@ function EmbedContent() {
   const searchParams = useSearchParams();
   const boxId = searchParams.get('box');
   const bgOverride = searchParams.get('bg');
-  const embedMode = (searchParams.get('mode') || 'contained') as EmbedMode;
+  const embedMode = searchParams.get('mode') || 'contained';
 
   const [config, setConfig] = useState<BoxConfig | null>(null);
   const [items, setItems] = useState<TreasureItem[]>([]);
@@ -48,23 +48,25 @@ function EmbedContent() {
     })();
   }, [boxId]);
 
-  // postMessage handler for fullpage mode: notify parent when items escape/return
+  // postMessage handler for overlay mode: notify parent when items escape/return
+  const isOverlay = embedMode === 'overlay' || embedMode === 'fullpage';
+
   const handleItemsEscaped = useCallback((escapedItems: { id: string; imageUrl: string; label: string }[]) => {
-    if (embedMode !== 'fullpage' || typeof window === 'undefined') return;
+    if (!isOverlay || typeof window === 'undefined') return;
     window.parent.postMessage({
       type: 'treasure-box',
       action: 'items-escaped',
       items: escapedItems,
     }, '*');
-  }, [embedMode]);
+  }, [isOverlay]);
 
   const handleItemsReturned = useCallback(() => {
-    if (embedMode !== 'fullpage' || typeof window === 'undefined') return;
+    if (!isOverlay || typeof window === 'undefined') return;
     window.parent.postMessage({
       type: 'treasure-box',
       action: 'items-returned',
     }, '*');
-  }, [embedMode]);
+  }, [isOverlay]);
 
   if (error) {
     return (
@@ -83,7 +85,6 @@ function EmbedContent() {
   }
 
   const bg = bgOverride ? decodeURIComponent(bgOverride) : config.backgroundColor;
-  const isFullpage = embedMode === 'fullpage';
 
   return (
     <div className="w-full h-screen overflow-hidden">
@@ -91,9 +92,9 @@ function EmbedContent() {
         items={items}
         config={config}
         backgroundColor={bg}
-        fullpageMode={isFullpage}
-        onItemsEscaped={isFullpage ? handleItemsEscaped : undefined}
-        onItemsReturned={isFullpage ? handleItemsReturned : undefined}
+        fullpageMode={isOverlay}
+        onItemsEscaped={isOverlay ? handleItemsEscaped : undefined}
+        onItemsReturned={isOverlay ? handleItemsReturned : undefined}
       />
     </div>
   );
