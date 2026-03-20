@@ -839,6 +839,7 @@ function EmbedPreview({
   const es = config.embedSettings || { mode: 'overlay', width: 350, height: 300, position: { anchor: 'bottom-right' as AnchorCorner, offsetX: 32, offsetY: 32 } };
   const isOverlay = es.mode !== 'contained';
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
+  const [previewMode, setPreviewMode] = useState<'edit' | 'play'>('edit');
 
   // Compute drawer position as CSS styles for TreasureBox overlayPreview
   const getDrawerStyle = useCallback((): React.CSSProperties => {
@@ -852,14 +853,15 @@ function EmbedPreview({
     const scaleX = pw / REFERENCE_W;
     const scaleY = ph / REFERENCE_H;
     const anchor = es.position.anchor;
-    const style: React.CSSProperties = {};
 
-    if (anchor.includes('bottom')) style.bottom = es.position.offsetY * scaleY;
-    else style.top = es.position.offsetY * scaleY;
-    if (anchor.includes('right')) style.right = es.position.offsetX * scaleX;
-    else style.left = es.position.offsetX * scaleX;
+    // Always use center-point positioning to match drag behavior
+    let cx: number, cy: number;
+    if (anchor.includes('right')) cx = pw - es.position.offsetX * scaleX;
+    else cx = es.position.offsetX * scaleX;
+    if (anchor.includes('bottom')) cy = ph - es.position.offsetY * scaleY;
+    else cy = es.position.offsetY * scaleY;
 
-    return style;
+    return { left: cx, top: cy, transform: 'translate(-50%, -50%)' };
   }, [es.position, dragPos]);
 
   // Compute spawn origin as fraction of preview
@@ -965,15 +967,32 @@ function EmbedPreview({
         </>
       )}
 
+      {/* Edit / Play mode toggle */}
+      <div className="absolute top-2 right-3 z-30 flex rounded overflow-hidden border" style={{ borderColor: 'var(--tb-border)' }}>
+        {(['edit', 'play'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setPreviewMode(mode)}
+            className="px-1.5 py-0.5 text-[9px] transition-colors"
+            style={{
+              background: previewMode === mode ? 'var(--tb-fg)' : 'transparent',
+              color: previewMode === mode ? 'var(--tb-bg)' : 'var(--tb-fg-muted)',
+            }}
+          >
+            {mode === 'edit' ? '✎ edit' : '▶ play'}
+          </button>
+        ))}
+      </div>
+
       {/* TreasureBox fills entire preview — items bounce off edges */}
-      <div className="absolute inset-0" style={{ zIndex: 5 }}>
+      <div key={previewMode} className="absolute inset-0" style={{ zIndex: 5 }}>
         <TreasureBox
           items={items}
           config={previewConfig}
           overlayPreview={{
             drawerStyle: getDrawerStyle(),
             spawnOrigin: getSpawnOrigin(),
-            onDrag: handleDrag,
+            onDrag: previewMode === 'edit' ? handleDrag : undefined,
           }}
         />
       </div>
@@ -983,7 +1002,7 @@ function EmbedPreview({
         {es.position.anchor} &middot; {es.position.offsetX}px, {es.position.offsetY}px
       </div>
       <div className="absolute bottom-2 right-3 z-30 text-[8px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
-        drag drawer to reposition
+        {previewMode === 'edit' ? 'drag drawer to reposition' : 'click drawer to interact'}
       </div>
     </div>
   );

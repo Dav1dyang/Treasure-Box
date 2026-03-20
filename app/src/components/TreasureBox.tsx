@@ -253,19 +253,25 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     const wallOpts = { isStatic: true, friction: 0.9, restitution: 0.15 };
 
     if (overlayPreviewRef.current) {
-      // ㄩ-shaped walls around the drawer — items stay inside the drawer area
-      const op = overlayPreviewRef.current;
-      const centerX = op.spawnOrigin.x * w;
-      const baseY = op.spawnOrigin.y * h;
-      const boxW = Math.min(420 * cs, w * 0.85);
-      const wallH = 500 * cs;
-      const floorY = baseY + 30 * cs;
-
+      // Full-scene walls — items bounce off all 4 edges of the preview
       Matter.Composite.add(engine.world, [
-        Matter.Bodies.rectangle(centerX, floorY, boxW, 14, wallOpts),
-        Matter.Bodies.rectangle(centerX - boxW / 2 - 7, floorY - wallH / 2, 14, wallH, wallOpts),
-        Matter.Bodies.rectangle(centerX + boxW / 2 + 7, floorY - wallH / 2, 14, wallH, wallOpts),
+        Matter.Bodies.rectangle(w / 2, h + 7, w + 14, 14, wallOpts),   // floor
+        Matter.Bodies.rectangle(w / 2, -7, w + 14, 14, wallOpts),       // ceiling
+        Matter.Bodies.rectangle(-7, h / 2, 14, h + 14, wallOpts),       // left
+        Matter.Bodies.rectangle(w + 7, h / 2, 14, h + 14, wallOpts),    // right
       ]);
+
+      // Add drawer as static physics body so items collide with it
+      if (drawerElRef.current && sceneRef.current) {
+        const sceneRect = sceneRef.current.getBoundingClientRect();
+        const drawerRect = drawerElRef.current.getBoundingClientRect();
+        const dx = drawerRect.left - sceneRect.left + drawerRect.width / 2;
+        const dy = drawerRect.top - sceneRect.top + drawerRect.height / 2;
+        const drawerBody = Matter.Bodies.rectangle(dx, dy, drawerRect.width, drawerRect.height, {
+          isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
+        });
+        Matter.Composite.add(engine.world, drawerBody);
+      }
     } else {
       // Normal mode: box-shaped walls centered around the drawer
       const boxW = Math.min(420 * cs, w * 0.85);
