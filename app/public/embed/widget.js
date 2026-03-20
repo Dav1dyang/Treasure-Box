@@ -115,16 +115,18 @@
     // 2. Create full-page canvas overlay
     var canvas = document.createElement('canvas');
     canvas.id = 'treasure-box-overlay';
+    var dpr = window.devicePixelRatio || 1;
     canvas.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;' +
       'pointer-events:none;z-index:999998;';
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
     document.body.appendChild(canvas);
     var ctx = canvas.getContext('2d');
+    if (ctx) ctx.scale(dpr, dpr);
 
     // 3. Load Matter.js dynamically
     var matterScript = document.createElement('script');
-    matterScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js';
+    matterScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js';
     matterScript.onload = function() { initFullpagePhysics(); };
     document.head.appendChild(matterScript);
 
@@ -161,9 +163,12 @@
         scanTimer = setTimeout(function() {
           clearDOMBodies();
           scanDOMElements();
-          // Also update canvas size
-          canvas.width = window.innerWidth;
-          canvas.height = window.innerHeight;
+          // Also update canvas size with DPR
+          var curDpr = window.devicePixelRatio || 1;
+          canvas.width = window.innerWidth * curDpr;
+          canvas.height = window.innerHeight * curDpr;
+          var resizeCtx = canvas.getContext('2d');
+          if (resizeCtx) resizeCtx.scale(curDpr, curDpr);
         }, 200);
       }
       window.addEventListener('scroll', debouncedScan, { passive: true });
@@ -224,6 +229,12 @@
         var boxRect = boxContainer.getBoundingClientRect();
         var spawnX = boxRect.left + boxRect.width / 2;
         var spawnY = boxRect.top + boxRect.height * 0.3;
+
+        // Acknowledge receipt so iframe stops rendering items locally
+        boxIframe.contentWindow.postMessage({
+          type: 'treasure-box',
+          action: 'items-acknowledged'
+        }, '*');
 
         items.forEach(function(item, idx) {
           // Preload image
