@@ -455,12 +455,6 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
 
       ctx.restore();
 
-      ctx.save();
-      ctx.font = '500 8px "IBM Plex Mono", monospace';
-      ctx.fillStyle = isLightBg ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.25)';
-      ctx.textAlign = 'center';
-      ctx.fillText(item.label.substring(0, 14), x, y + size / 2 + 14);
-      ctx.restore();
     });
 
     animFrameRef.current = requestAnimationFrame(renderLoop);
