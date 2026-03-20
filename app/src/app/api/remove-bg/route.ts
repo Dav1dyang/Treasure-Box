@@ -68,8 +68,8 @@ export async function POST(request: NextRequest) {
       const client = await auth.getClient();
       const accessToken = await client.getAccessToken();
 
-      // Call Vertex AI Image Segmentation
-      const endpoint = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/image-segmentation-001:predict`;
+      // Call Imagen API with MASK_MODE_FOREGROUND for background removal
+      const endpoint = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/imagen-3.0-capability-001:predict`;
       const base64Image = buffer.toString('base64');
 
       const vertexRes = await fetch(endpoint, {
@@ -80,7 +80,10 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           instances: [{ image: { bytesBase64Encoded: base64Image } }],
-          parameters: { mode: 'foreground' },
+          parameters: {
+            sampleCount: 1,
+            mode: 'foreground',
+          },
         }),
       });
 
