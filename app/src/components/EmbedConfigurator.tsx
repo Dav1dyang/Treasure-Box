@@ -74,16 +74,20 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
     const bg = encodeURIComponent(config.backgroundColor || 'transparent');
 
+    const scale = config.contentScale ?? 1;
+    const scaleParam = scale !== 1 ? `&scale=${scale}` : '';
+    const scaleAttr = scale !== 1 ? `\n  data-scale="${scale}"` : '';
+
     if (settings.mode === 'contained') {
-      return `<iframe\n  src="${baseUrl}/embed?box=${userId}&bg=${bg}"\n  width="${settings.width}" height="${settings.height}"\n  style="border:none;overflow:hidden"\n  loading="lazy"\n  allow="accelerometer"\n></iframe>`;
+      return `<iframe\n  src="${baseUrl}/embed?box=${userId}&bg=${bg}${scaleParam}"\n  width="${settings.width}" height="${settings.height}"\n  style="border:none;overflow:hidden"\n  loading="lazy"\n  allow="accelerometer"\n></iframe>`;
     }
 
     if (settings.mode === 'floating') {
-      return `<script src="${baseUrl}/embed/widget.js"\n  data-box-id="${userId}"\n  data-mode="floating"\n  data-bg="${config.backgroundColor || 'transparent'}"\n  data-width="${settings.width}" data-height="${settings.height}"\n  data-anchor="${settings.position.anchor}"\n  data-offset-x="${settings.position.xPercent}" data-offset-y="${settings.position.yPercent}">\n</script>`;
+      return `<script src="${baseUrl}/embed/widget.js"\n  data-box-id="${userId}"\n  data-mode="floating"\n  data-bg="${config.backgroundColor || 'transparent'}"\n  data-width="${settings.width}" data-height="${settings.height}"\n  data-anchor="${settings.position.anchor}"\n  data-offset-x="${settings.position.xPercent}" data-offset-y="${settings.position.yPercent}"${scaleAttr}>\n</script>`;
     }
 
     // fullpage
-    return `<script src="${baseUrl}/embed/widget.js"\n  data-box-id="${userId}"\n  data-mode="fullpage"\n  data-bg="${config.backgroundColor || 'transparent'}"\n  data-width="${settings.width}" data-height="${settings.height}"\n  data-pin-anchor="${settings.position.anchor}"\n  data-pin-x="${settings.position.xPercent}" data-pin-y="${settings.position.yPercent}">\n</script>`;
+    return `<script src="${baseUrl}/embed/widget.js"\n  data-box-id="${userId}"\n  data-mode="fullpage"\n  data-bg="${config.backgroundColor || 'transparent'}"\n  data-width="${settings.width}" data-height="${settings.height}"\n  data-pin-anchor="${settings.position.anchor}"\n  data-pin-x="${settings.position.xPercent}" data-pin-y="${settings.position.yPercent}"${scaleAttr}>\n</script>`;
   };
 
   const handleCopy = () => {

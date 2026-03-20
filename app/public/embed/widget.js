@@ -9,6 +9,7 @@
   var width = parseInt(script.getAttribute('data-width') || '500', 10);
   var height = parseInt(script.getAttribute('data-height') || '500', 10);
   var mode = script.getAttribute('data-mode') || 'contained';
+  var scale = parseFloat(script.getAttribute('data-scale') || '1');
   var origin = script.src.replace(/\/embed\/widget\.js.*$/, '');
 
   if (!boxId) {
@@ -19,6 +20,7 @@
   // ===== Shared: create embed iframe =====
   function createIframe(w, h, extraParams) {
     var params = 'box=' + encodeURIComponent(boxId) + '&bg=' + encodeURIComponent(bg);
+    if (scale !== 1) params += '&scale=' + scale;
     if (extraParams) params += '&' + extraParams;
     var iframe = document.createElement('iframe');
     iframe.src = origin + '/embed?' + params;
@@ -283,7 +285,7 @@
         var pos = ib.body.position;
         var angle = ib.body.angle;
         var img = itemImages[ib.item.id];
-        var size = 52;
+        var size = 52 * scale;
 
         ctx.save();
         ctx.translate(pos.x, pos.y);

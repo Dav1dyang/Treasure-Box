@@ -31,6 +31,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   const imagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const blobUrlsRef = useRef<string[]>([]);
   const appliedScaleRef = useRef<Map<string, number>>(new Map());
+  const contentScaleRef = useRef(config.contentScale ?? 1);
 
   // Drawer state machine — single source of truth
   const [boxState, setBoxState] = useState<BoxState>('IDLE');
@@ -64,6 +65,10 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     timeoutsRef.current.clear();
   }, []);
 
+  // Keep contentScale ref in sync for use inside initPhysics closure
+  useEffect(() => { contentScaleRef.current = config.contentScale ?? 1; }, [config.contentScale]);
+
+  const contentScale = config.contentScale ?? 1;
   const hasGeneratedImages = !!(config.drawerImages && (config.drawerImages.spriteUrl || config.drawerImages.urls?.IDLE));
   const bg = backgroundColor || config.backgroundColor || '#0e0e0e';
   const isTransparent = bg === 'transparent' || bg === 'rgba(0,0,0,0)';
@@ -217,18 +222,19 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
 
     const w = scene.offsetWidth;
     const h = scene.offsetHeight;
+    const cs = contentScaleRef.current;
     // Adaptive walls: scale to container size instead of hardcoded values
-    const boxW = Math.min(420, w * 0.85);
+    const boxW = Math.min(420 * cs, w * 0.85);
     const boxCenterX = w / 2;
-    const floorY = h - Math.max(120, h * 0.3);
+    const floorY = h - Math.max(120 * cs, h * 0.3);
 
     const wallOpts = { isStatic: true, friction: 0.9, restitution: 0.15 };
     const floor = Matter.Bodies.rectangle(boxCenterX, floorY, boxW, 14, wallOpts);
     const leftWall = Matter.Bodies.rectangle(
-      boxCenterX - boxW / 2 - 7, floorY - 300, 14, 700, wallOpts
+      boxCenterX - boxW / 2 - 7, floorY - 300, 14, 700 * cs, wallOpts
     );
     const rightWall = Matter.Bodies.rectangle(
-      boxCenterX + boxW / 2 + 7, floorY - 300, 14, 700, wallOpts
+      boxCenterX + boxW / 2 + 7, floorY - 300, 14, 700 * cs, wallOpts
     );
 
     Matter.Composite.add(engine.world, [floor, leftWall, rightWall]);
@@ -280,7 +286,8 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
 
     const w = scene.offsetWidth;
     const h = scene.offsetHeight;
-    const spawnY = h - 200;
+    const cs = contentScaleRef.current;
+    const spawnY = h - 200 * cs;
     const centerX = w / 2;
 
     spawnIndexRef.current = 0;
@@ -299,7 +306,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       const item = items[idx];
       const x = centerX + (Math.random() - 0.5) * 100;
       const itemScale = item.scale ?? 1;
-      const size = ITEM_BASE_SIZE * itemScale;
+      const size = ITEM_BASE_SIZE * cs * itemScale;
 
       let body: Matter.Body & { itemData?: TreasureItem };
 
@@ -368,7 +375,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       const item = body.itemData;
       if (!item) return;
 
-      let size = ITEM_BASE_SIZE * (item.scale ?? 1);
+      let size = ITEM_BASE_SIZE * contentScaleRef.current * (item.scale ?? 1);
 
       // During closing, shrink items as they converge on the drawer
       if (closingAnimRef.current) {
@@ -574,7 +581,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     const clickedBody = bodies.some(body => {
       const bx = body.position.x;
       const by = body.position.y;
-      const size = 52 * (body.itemData?.scale ?? 1);
+      const size = ITEM_BASE_SIZE * contentScaleRef.current * (body.itemData?.scale ?? 1);
       return Math.abs(x - bx) < size / 2 && Math.abs(y - by) < size / 2;
     });
     if (!clickedBody) {
@@ -619,16 +626,19 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
             currentState={boxState}
             isLight={isLightBg}
             displaySize={config.drawerDisplaySize}
+            contentScale={contentScale}
           />
         ) : (
           // === ASCII Art Fallback (dimension-aware) ===
-          <DynamicASCIIBox
-            dimensions={config.boxDimensions || DEFAULT_BOX_DIMENSIONS}
-            label={config.drawerLabel || 'TREASURE BOX'}
-            state={boxState}
-            isOpen={isOpen}
-            isLight={isLightBg}
-          />
+          <div style={{ transform: `scale(${contentScale})`, transformOrigin: 'bottom center' }}>
+            <DynamicASCIIBox
+              dimensions={config.boxDimensions || DEFAULT_BOX_DIMENSIONS}
+              label={config.drawerLabel || 'TREASURE BOX'}
+              state={boxState}
+              isOpen={isOpen}
+              isLight={isLightBg}
+            />
+          </div>
         )}
       </div>
 
@@ -676,20 +686,24 @@ function DrawerImage({
   currentState,
   isLight,
   displaySize,
+  contentScale = 1,
 }: {
   images: DrawerImages;
   currentState: BoxState;
   isLight: boolean;
   displaySize?: { width: number; height: number };
+  contentScale?: number;
 }) {
   const dropShadow = isLight ? 'none' : 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))';
 
-  // Fixed pixel size — adjustable via config, defaults to 420×280
-  const frameW = displaySize?.width || DEFAULT_DRAWER_DISPLAY_SIZE.width;
-  const frameH = displaySize?.height || DEFAULT_DRAWER_DISPLAY_SIZE.height;
+  // Use displaySize as base frame dimensions, then multiply by contentScale
+  const baseW = displaySize?.width || DEFAULT_DRAWER_DISPLAY_SIZE.width;
+  const baseH = displaySize?.height || DEFAULT_DRAWER_DISPLAY_SIZE.height;
+  const frameW = baseW * contentScale;
+  const frameH = baseH * contentScale;
 
   return (
-    <div className="relative" style={{ width: frameW, height: frameH }}>
+    <div className="relative" style={{ width: frameW, height: frameH, maxWidth: '95%', imageRendering: 'auto' }}>
       {images.spriteUrl ? (
         // CSS sprite technique: oversized img inside clipping container, translateX to select frame
         <div
