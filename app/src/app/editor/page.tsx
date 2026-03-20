@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/components/ThemeProvider';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import {
   getBoxConfig, saveBoxConfig,
@@ -54,41 +54,92 @@ function VolumeBar({ volume, onChange }: { volume: number; onChange: (v: number)
   );
 }
 
-function ScaleControl({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  return (
-    <div className="flex items-center gap-[6px]">
-      <span className="text-[9px] shrink-0" style={{ color: 'var(--tb-fg-faint)' }}>size</span>
-      <input
-        type="range" min={0.5} max={2} step={0.1}
-        value={value}
-        onChange={e => onChange(Number(e.target.value))}
-        style={{ width: 80, accentColor: 'var(--tb-accent)' }}
-      />
-      <span className="text-[9px] min-w-[24px] text-right" style={{ color: 'var(--tb-fg-faint)' }}>
-        {value.toFixed(1)}&times;
-      </span>
-    </div>
-  );
-}
+function Dial({ value, min, max, step, label, format, onChange, snap }: {
+  value: number; min: number; max: number; step: number;
+  label: string; format: (v: number) => string;
+  onChange: (v: number) => void;
+  snap?: (v: number) => number;
+}) {
+  const dialRef = useRef<SVGSVGElement>(null);
+  const draggingRef = useRef(false);
 
-function RotationControl({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  // Snap to nearest 90° if within 8° threshold
-  const snap = (v: number) => {
-    const nearest90 = Math.round(v / 90) * 90;
-    return Math.abs(v - nearest90) < 8 ? nearest90 % 360 : v;
+  const range = max - min;
+  const normalized = (value - min) / range; // 0-1
+  // Arc spans 270° (from 135° to 405°, i.e. gap at bottom-left)
+  const startAngle = 135;
+  const sweep = 270;
+  const angle = startAngle + normalized * sweep;
+
+  const r = 18; const cx = 22; const cy = 22;
+  const toXY = (deg: number) => ({
+    x: cx + r * Math.cos((deg * Math.PI) / 180),
+    y: cy + r * Math.sin((deg * Math.PI) / 180),
+  });
+
+  const trackStart = toXY(startAngle);
+  const trackEnd = toXY(startAngle + sweep);
+  const valPos = toXY(angle);
+
+  const arcPath = (from: { x: number; y: number }, to: { x: number; y: number }, degrees: number) => {
+    const large = degrees > 180 ? 1 : 0;
+    return `M ${from.x} ${from.y} A ${r} ${r} 0 ${large} 1 ${to.x} ${to.y}`;
   };
+
+  const updateFromPointer = useCallback((clientX: number, clientY: number) => {
+    const svg = dialRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const dx = clientX - (rect.left + rect.width / 2);
+    const dy = clientY - (rect.top + rect.height / 2);
+    let deg = (Math.atan2(dy, dx) * 180) / Math.PI; // -180 to 180
+    // Convert to our arc space (135° start)
+    let rel = deg - startAngle;
+    if (rel < -180) rel += 360;
+    if (rel < 0) rel = 0;
+    if (rel > sweep) rel = sweep;
+    let raw = min + (rel / sweep) * range;
+    raw = Math.round(raw / step) * step;
+    raw = Math.max(min, Math.min(max, raw));
+    onChange(snap ? snap(raw) : raw);
+  }, [min, max, step, range, sweep, startAngle, onChange, snap]);
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    draggingRef.current = true;
+    (e.target as Element).setPointerCapture(e.pointerId);
+    updateFromPointer(e.clientX, e.clientY);
+  }, [updateFromPointer]);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    updateFromPointer(e.clientX, e.clientY);
+  }, [updateFromPointer]);
+
+  const onPointerUp = useCallback(() => {
+    draggingRef.current = false;
+  }, []);
+
   return (
-    <div className="flex items-center gap-[6px]">
-      <span className="text-[9px] shrink-0" style={{ color: 'var(--tb-fg-faint)' }}>rot</span>
-      <input
-        type="range" min={0} max={360} step={1}
-        value={value}
-        onChange={e => onChange(snap(Number(e.target.value)))}
-        style={{ width: 80, accentColor: 'var(--tb-accent)' }}
-      />
-      <span className="text-[9px] min-w-[24px] text-right" style={{ color: 'var(--tb-fg-faint)' }}>
-        {value}&deg;
-      </span>
+    <div className="flex flex-col items-center gap-0">
+      <svg ref={dialRef} width={44} height={44} className="cursor-pointer"
+        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+        style={{ touchAction: 'none' }}>
+        {/* Track */}
+        <path d={arcPath(trackStart, trackEnd, sweep)} fill="none"
+          stroke="var(--tb-border-subtle)" strokeWidth={4} strokeLinecap="round" />
+        {/* Value arc */}
+        {normalized > 0.005 && (
+          <path d={arcPath(trackStart, valPos, normalized * sweep)} fill="none"
+            stroke="var(--tb-accent)" strokeWidth={4} strokeLinecap="round" />
+        )}
+        {/* Knob dot */}
+        <circle cx={valPos.x} cy={valPos.y} r={3.5} fill="var(--tb-accent)" />
+        {/* Center label */}
+        <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle"
+          fill="var(--tb-fg-faint)" fontSize={8} fontFamily="'IBM Plex Mono', monospace">
+          {format(value)}
+        </text>
+      </svg>
+      <span className="text-[8px] mt-[-2px]" style={{ color: 'var(--tb-fg-ghost)' }}>{label}</span>
     </div>
   );
 }
@@ -314,9 +365,9 @@ export default function EditorPage() {
                 <div className="space-y-2">
                   {items.map(item => (
                     <div key={item.id} className="p-3 transition-colors" style={{ border: '1px solid var(--tb-border-subtle)' }}>
-                      <div className="grid grid-cols-[56px_1fr_20px] gap-3">
+                      <div className="grid grid-cols-[56px_1fr_auto_20px] gap-3">
                         <div className="w-14 h-14 flex items-center justify-center overflow-hidden shrink-0" style={{ background: 'var(--tb-bg-muted)' }}>
-                          <img src={item.imageUrl} alt={item.label} className="max-w-full max-h-full object-contain transition-transform" style={{ transform: `rotate(${item.rotation ?? 0}deg) scale(${item.scale ?? 1})` }} />
+                          <img src={item.imageUrl} alt={item.label} className="max-w-full max-h-full object-contain transition-transform" style={{ transform: `rotate(${item.rotation ?? 0}deg) scale(${Math.min(item.scale ?? 1, 1.8)})` }} />
                         </div>
                         <div className="flex flex-col gap-[6px] min-w-0">
                           <input value={item.label} onChange={e => handleUpdateItem(item.id, { label: e.target.value })} placeholder="label"
@@ -325,8 +376,15 @@ export default function EditorPage() {
                             className="w-full bg-transparent text-[10px] pb-[2px] outline-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
                           <textarea value={item.story || ''} onChange={e => handleUpdateItem(item.id, { story: e.target.value })} placeholder="story (shown on long-press)" rows={2}
                             className="w-full bg-transparent text-[10px] pb-[2px] outline-none resize-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
-                          <RotationControl value={item.rotation ?? 0} onChange={v => handleUpdateItem(item.id, { rotation: v })} />
-                          <ScaleControl value={item.scale ?? 1} onChange={v => handleUpdateItem(item.id, { scale: v })} />
+                        </div>
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          <Dial value={item.rotation ?? 0} min={0} max={360} step={1}
+                            label="rot" format={v => `${v}°`}
+                            snap={v => { const n = Math.round(v / 90) * 90; return Math.abs(v - n) < 8 ? n % 360 : v; }}
+                            onChange={v => handleUpdateItem(item.id, { rotation: v })} />
+                          <Dial value={item.scale ?? 1} min={0.5} max={3} step={0.1}
+                            label="size" format={v => `${v.toFixed(1)}×`}
+                            onChange={v => handleUpdateItem(item.id, { scale: v })} />
                         </div>
                         <button onClick={() => handleDeleteItem(item.id)} className="text-sm self-start cursor-pointer leading-none" style={S.ghost}>&times;</button>
                       </div>
