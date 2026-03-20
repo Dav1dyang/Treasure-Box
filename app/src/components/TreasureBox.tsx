@@ -753,18 +753,17 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         onPointerMove={overlayPreview?.onDrag ? handleDrawerPointerMove : undefined}
         onPointerUp={overlayPreview?.onDrag ? handleDrawerPointerUp : undefined}
       >
-        {hasGeneratedImages ? (
-          // === AI-Generated Image Drawer ===
-          <DrawerImage
-            images={config.drawerImages!}
-            currentState={boxState}
-            isLight={isLightBg}
-            displaySize={config.drawerDisplaySize}
-            contentScale={contentScale}
-          />
-        ) : (
-          // === ASCII Art Fallback (dimension-aware) ===
-          <div style={{ transform: `scale(${contentScale})`, transformOrigin: 'bottom center' }}>
+        <div style={{ transform: `scale(${contentScale})`, transformOrigin: 'bottom center' }}>
+          {hasGeneratedImages ? (
+            // === AI-Generated Image Drawer ===
+            <DrawerImage
+              images={config.drawerImages!}
+              currentState={boxState}
+              isLight={isLightBg}
+              displaySize={config.drawerDisplaySize}
+            />
+          ) : (
+            // === ASCII Art Fallback (dimension-aware) ===
             <DynamicASCIIBox
               dimensions={config.boxDimensions || DEFAULT_BOX_DIMENSIONS}
               label={config.drawerLabel || 'TREASURE BOX'}
@@ -772,8 +771,8 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
               isOpen={isOpen}
               isLight={isLightBg}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Physics canvas — above drawer when open so items are visible */}
@@ -820,21 +819,16 @@ function DrawerImage({
   currentState,
   isLight,
   displaySize,
-  contentScale = 1,
 }: {
   images: DrawerImages;
   currentState: BoxState;
   isLight: boolean;
   displaySize?: { width: number; height: number };
-  contentScale?: number;
 }) {
   const dropShadow = isLight ? 'none' : 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))';
 
-  // Use displaySize as base frame dimensions, then multiply by contentScale
-  const baseW = displaySize?.width || DEFAULT_DRAWER_DISPLAY_SIZE.width;
-  const baseH = displaySize?.height || DEFAULT_DRAWER_DISPLAY_SIZE.height;
-  const frameW = baseW * contentScale;
-  const frameH = baseH * contentScale;
+  const frameW = displaySize?.width || DEFAULT_DRAWER_DISPLAY_SIZE.width;
+  const frameH = displaySize?.height || DEFAULT_DRAWER_DISPLAY_SIZE.height;
 
   return (
     <div className="relative" style={{ width: frameW, height: frameH, maxWidth: '95%', imageRendering: 'auto' }}>

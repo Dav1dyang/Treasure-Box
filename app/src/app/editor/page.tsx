@@ -473,100 +473,21 @@ export default function EditorPage() {
             {/* CONFIG */}
             {tab === 'config' && config && (
               <div>
-                <CfgSection>
-                  <CfgLabel>visibility</CfgLabel>
-                  <div className="flex">
-                    <CfgToggle active={!config.isPublic} first onClick={() => setConfig({ ...config, isPublic: false })}>private</CfgToggle>
-                    <CfgToggle active={config.isPublic} onClick={() => setConfig({ ...config, isPublic: true })}>public</CfgToggle>
-                  </div>
-                  <CfgHint>public boxes appear in the gallery on the landing page</CfgHint>
-                </CfgSection>
+                {/* ── 1. DRAWER APPEARANCE ── */}
+                <CfgGroup title="drawer appearance" hint="generate AI artwork for your drawer — choose a style and hit generate" first>
+                  <DrawerStylePicker
+                    userId={user.uid}
+                    currentImages={config.drawerImages || undefined}
+                    onComplete={(images: DrawerImages) => { skipAutoSaveRef.current = true; setConfig({ ...config, drawerImages: images }); }}
+                    onReset={async () => { await clearDrawerImages(user.uid); setConfig({ ...config, drawerImages: undefined }); }}
+                  />
+                </CfgGroup>
 
-                <CfgSection>
-                  <CfgLabel>owner name (optional)</CfgLabel>
-                  <input type="text" value={config.ownerName || ''} onChange={e => setConfig({ ...config, ownerName: e.target.value })}
-                    placeholder="displayed on your box" className="w-full bg-transparent text-[10px] p-2 outline-none"
-                    style={{ border: '1px solid var(--tb-border-subtle)', ...S.accent }} />
-                  <CfgHint>shown at the bottom corner of your treasure box</CfgHint>
-                </CfgSection>
-
-                <CfgSection>
-                  <CfgLabel>drawer label</CfgLabel>
-                  <input type="text" value={config.drawerLabel} onChange={e => setConfig({ ...config, drawerLabel: e.target.value })}
-                    className="w-full bg-transparent text-[10px] p-2 outline-none"
-                    style={{ border: '1px solid var(--tb-border-subtle)', ...S.accent }} />
-                </CfgSection>
-
-                <CfgSection>
-                  <CfgLabel>background</CfgLabel>
-                  <label className="flex items-center gap-[6px] mb-[10px] cursor-pointer">
-                    <div onClick={() => { const n = !isTransparentBg; setIsTransparentBg(n); setConfig({ ...config, backgroundColor: n ? 'transparent' : '#0e0e0e' }); }}
-                      className="w-[14px] h-[14px] flex items-center justify-center text-[10px] shrink-0"
-                      style={{ border: '1px solid var(--tb-border)', ...S.accent, background: isTransparentBg ? 'var(--tb-bg-muted)' : 'transparent' }}>
-                      {isTransparentBg ? '\u2713' : ''}
-                    </div>
-                    <span className="text-[10px]" style={S.muted}>transparent (default)</span>
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <input type="color" value={config.backgroundColor === 'transparent' ? '#0e0e0e' : config.backgroundColor}
-                      onChange={e => { setIsTransparentBg(false); setConfig({ ...config, backgroundColor: e.target.value }); }}
-                      className="w-11 h-11 bg-transparent cursor-pointer p-0" style={{ border: '1px solid var(--tb-border)' }} />
-                    <input type="text" value={config.backgroundColor}
-                      onChange={e => { setIsTransparentBg(e.target.value === 'transparent'); setConfig({ ...config, backgroundColor: e.target.value }); }}
-                      className="w-20 bg-transparent text-[10px] p-2 outline-none" style={{ border: '1px solid var(--tb-border-subtle)', ...S.accent }} placeholder="#hex" />
-                  </div>
-                  <CfgHint>transparent inherits the background of the page it&apos;s embedded on</CfgHint>
-                </CfgSection>
-
-                <CfgSection>
-                  <CfgLabel>collision sound</CfgLabel>
-                  <div className="flex flex-wrap">
-                    {SOUND_PRESETS.map((p, i) => (
-                      <CfgToggle key={p} first={i === 0} active={config.soundPreset === p}
-                        onClick={() => setConfig({ ...config, soundPreset: p, soundEnabled: p !== 'silent' })}>{p}</CfgToggle>
-                    ))}
-                  </div>
-                </CfgSection>
-
-                {config.soundPreset !== 'silent' && (
+                {/* ── 2. ITEM STYLE ── */}
+                <CfgGroup title="item style" hint="visual filters applied to all items in the drawer">
                   <CfgSection>
-                    <CfgLabel>volume</CfgLabel>
-                    <VolumeBar volume={config.soundVolume} onChange={v => setConfig({ ...config, soundVolume: v })} />
-                  </CfgSection>
-                )}
-
-                <CfgSection>
-                  <CfgLabel>content scale</CfgLabel>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="range" min={0.5} max={2} step={0.05}
-                      value={config.contentScale ?? 1}
-                      onChange={e => setConfig({ ...config, contentScale: Number(e.target.value) })}
-                      className="flex-1"
-                      style={{ accentColor: 'var(--tb-accent)' }}
-                    />
-                    <span className="text-[10px] min-w-[32px] text-right font-mono" style={S.accent}>
-                      {(config.contentScale ?? 1).toFixed(2)}&times;
-                    </span>
-                    {(config.contentScale ?? 1) !== 1 && (
-                      <button
-                        onClick={() => setConfig({ ...config, contentScale: 1 })}
-                        className="text-[9px] px-2 py-[2px] cursor-pointer"
-                        style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)' }}
-                      >
-                        reset
-                      </button>
-                    )}
-                  </div>
-                  <CfgHint>scales the drawer size and physics area (0.5× – 2.0×) — reopen drawer to see effect</CfgHint>
-                </CfgSection>
-
-                <CfgSection>
-                  <CfgLabel>item effects</CfgLabel>
-                  <div className="flex flex-col gap-3">
-                    {/* Brightness */}
+                    <CfgLabel>brightness</CfgLabel>
                     <div className="flex items-center gap-3">
-                      <span className="text-[9px] w-16 shrink-0" style={S.faint}>brightness</span>
                       <input
                         type="range" min={0.5} max={1.5} step={0.05}
                         value={config.itemBrightness ?? 1}
@@ -587,9 +508,11 @@ export default function EditorPage() {
                         </button>
                       )}
                     </div>
-                    {/* Contrast */}
+                  </CfgSection>
+
+                  <CfgSection>
+                    <CfgLabel>contrast</CfgLabel>
                     <div className="flex items-center gap-3">
-                      <span className="text-[9px] w-16 shrink-0" style={S.faint}>contrast</span>
                       <input
                         type="range" min={0.5} max={1.5} step={0.05}
                         value={config.itemContrast ?? 1}
@@ -610,7 +533,10 @@ export default function EditorPage() {
                         </button>
                       )}
                     </div>
-                    {/* Tint + B&W */}
+                  </CfgSection>
+
+                  <CfgSection>
+                    <CfgLabel>color mode</CfgLabel>
                     <div className="flex items-center gap-4">
                       <label className="flex items-center gap-[6px] cursor-pointer">
                         <div onClick={() => {
@@ -642,18 +568,128 @@ export default function EditorPage() {
                         <span className="text-[9px]" style={S.faint}>b&w</span>
                       </label>
                     </div>
-                  </div>
-                  <CfgHint>adjust brightness, contrast, and color tint for all items</CfgHint>
-                </CfgSection>
+                    <CfgHint>apply a color tint or convert items to black &amp; white</CfgHint>
+                  </CfgSection>
+                </CfgGroup>
 
+                {/* ── 3. SOUND ── */}
+                <CfgGroup title="sound">
+                  <CfgSection>
+                    <CfgLabel>collision sound</CfgLabel>
+                    <div className="flex flex-wrap">
+                      {SOUND_PRESETS.map((p, i) => (
+                        <CfgToggle key={p} first={i === 0} active={config.soundPreset === p}
+                          onClick={() => setConfig({ ...config, soundPreset: p, soundEnabled: p !== 'silent' })}>{p}</CfgToggle>
+                      ))}
+                    </div>
+                  </CfgSection>
+
+                  {config.soundPreset !== 'silent' && (
+                    <CfgSection>
+                      <CfgLabel>volume</CfgLabel>
+                      <VolumeBar volume={config.soundVolume} onChange={v => setConfig({ ...config, soundVolume: v })} />
+                    </CfgSection>
+                  )}
+
+                  {/* Future sound controls */}
+                  <CfgSection>
+                    <CfgLabel>drawer open / close</CfgLabel>
+                    <span className="text-[9px] tracking-[0.08em]" style={{ color: 'var(--tb-fg-ghost)' }}>coming soon</span>
+                  </CfgSection>
+                  <CfgSection>
+                    <CfgLabel>item drop</CfgLabel>
+                    <span className="text-[9px] tracking-[0.08em]" style={{ color: 'var(--tb-fg-ghost)' }}>coming soon</span>
+                  </CfgSection>
+                  <CfgSection>
+                    <CfgLabel>ambient</CfgLabel>
+                    <span className="text-[9px] tracking-[0.08em]" style={{ color: 'var(--tb-fg-ghost)' }}>coming soon</span>
+                  </CfgSection>
+                </CfgGroup>
+
+                {/* ── 4. BOX IDENTITY ── */}
+                <CfgGroup title="box identity">
+                  <CfgSection>
+                    <CfgLabel>drawer label</CfgLabel>
+                    <input type="text" value={config.drawerLabel} onChange={e => setConfig({ ...config, drawerLabel: e.target.value })}
+                      className="w-full bg-transparent text-[10px] p-2 outline-none"
+                      style={{ border: '1px solid var(--tb-border-subtle)', ...S.accent }} />
+                  </CfgSection>
+
+                  <CfgSection>
+                    <CfgLabel>owner name (optional)</CfgLabel>
+                    <input type="text" value={config.ownerName || ''} onChange={e => setConfig({ ...config, ownerName: e.target.value })}
+                      placeholder="displayed on your box" className="w-full bg-transparent text-[10px] p-2 outline-none"
+                      style={{ border: '1px solid var(--tb-border-subtle)', ...S.accent }} />
+                    <CfgHint>shown at the bottom corner of your treasure box</CfgHint>
+                  </CfgSection>
+
+                  <CfgSection>
+                    <CfgLabel>box scale</CfgLabel>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range" min={0.5} max={2} step={0.05}
+                        value={config.contentScale ?? 1}
+                        onChange={e => setConfig({ ...config, contentScale: Number(e.target.value) })}
+                        className="flex-1"
+                        style={{ accentColor: 'var(--tb-accent)' }}
+                      />
+                      <span className="text-[10px] min-w-[32px] text-right font-mono" style={S.accent}>
+                        {(config.contentScale ?? 1).toFixed(2)}&times;
+                      </span>
+                      {(config.contentScale ?? 1) !== 1 && (
+                        <button
+                          onClick={() => setConfig({ ...config, contentScale: 1 })}
+                          className="text-[9px] px-2 py-[2px] cursor-pointer"
+                          style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)' }}
+                        >
+                          reset
+                        </button>
+                      )}
+                    </div>
+                    <CfgHint>scales the drawer and physics area (0.5× – 2.0×)</CfgHint>
+                  </CfgSection>
+
+                  <CfgSection>
+                    <CfgLabel>background</CfgLabel>
+                    <label className="flex items-center gap-[6px] mb-[10px] cursor-pointer">
+                      <div onClick={() => { const n = !isTransparentBg; setIsTransparentBg(n); setConfig({ ...config, backgroundColor: n ? 'transparent' : '#0e0e0e' }); }}
+                        className="w-[14px] h-[14px] flex items-center justify-center text-[10px] shrink-0"
+                        style={{ border: '1px solid var(--tb-border)', ...S.accent, background: isTransparentBg ? 'var(--tb-bg-muted)' : 'transparent' }}>
+                        {isTransparentBg ? '\u2713' : ''}
+                      </div>
+                      <span className="text-[10px]" style={S.muted}>transparent (default)</span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input type="color" value={config.backgroundColor === 'transparent' ? '#0e0e0e' : config.backgroundColor}
+                        onChange={e => { setIsTransparentBg(false); setConfig({ ...config, backgroundColor: e.target.value }); }}
+                        className="w-11 h-11 bg-transparent cursor-pointer p-0" style={{ border: '1px solid var(--tb-border)' }} />
+                      <input type="text" value={config.backgroundColor}
+                        onChange={e => { setIsTransparentBg(e.target.value === 'transparent'); setConfig({ ...config, backgroundColor: e.target.value }); }}
+                        className="w-20 bg-transparent text-[10px] p-2 outline-none" style={{ border: '1px solid var(--tb-border-subtle)', ...S.accent }} placeholder="#hex" />
+                    </div>
+                    <CfgHint>transparent inherits the background of the page it&apos;s embedded on</CfgHint>
+                  </CfgSection>
+
+                  <CfgSection>
+                    <CfgLabel>visibility</CfgLabel>
+                    <div className="flex">
+                      <CfgToggle active={!config.isPublic} first onClick={() => setConfig({ ...config, isPublic: false })}>private</CfgToggle>
+                      <CfgToggle active={config.isPublic} onClick={() => setConfig({ ...config, isPublic: true })}>public</CfgToggle>
+                    </div>
+                    <CfgHint>public boxes appear in the gallery on the landing page</CfgHint>
+                  </CfgSection>
+                </CfgGroup>
+
+                {/* Auto-save status */}
                 <div className="text-[10px] tracking-[0.12em] mb-6 h-6 flex items-center" style={S.faint}>
                   {configStatus === 'saving' && <span className="animate-pulse">saving...</span>}
                   {configStatus === 'saved' && <span style={S.accent}>saved &#10003;</span>}
                   {configStatus === 'idle' && <span style={S.ghost}>auto-saves on change</span>}
                 </div>
 
+                {/* ── 5. DANGER ZONE ── */}
                 <div className="pt-6 mt-2" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
-                  <h3 className="text-[11px] mb-4 tracking-[0.12em] uppercase" style={S.accent}>danger zone</h3>
+                  <h3 className="text-[11px] mb-4 tracking-[0.12em] uppercase" style={{ color: '#c44' }}>danger zone</h3>
                   {!showDeleteConfirm ? (
                     <button
                       onClick={() => setShowDeleteConfirm(true)}
@@ -694,16 +730,6 @@ export default function EditorPage() {
                       </div>
                     </div>
                   )}
-                </div>
-
-                <div className="pt-6 mt-2" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
-                  <h3 className="text-[11px] mb-4 tracking-[0.12em] uppercase" style={S.accent}>drawer appearance (AI generated)</h3>
-                  <DrawerStylePicker
-                    userId={user.uid}
-                    currentImages={config.drawerImages || undefined}
-                    onComplete={(images: DrawerImages) => { skipAutoSaveRef.current = true; setConfig({ ...config, drawerImages: images }); }}
-                    onReset={async () => { await clearDrawerImages(user.uid); setConfig({ ...config, drawerImages: undefined }); }}
-                  />
                 </div>
               </div>
             )}
@@ -772,6 +798,18 @@ function CfgLabel({ children }: { children: React.ReactNode }) {
 }
 function CfgHint({ children }: { children: React.ReactNode }) {
   return <p className="text-[9px] mt-[6px]" style={{ color: 'var(--tb-fg-ghost)' }}>{children}</p>;
+}
+function CfgGroup({ title, hint, children, first }: { title: string; hint?: string; children: React.ReactNode; first?: boolean }) {
+  return (
+    <div style={{ borderTop: first ? 'none' : '1px solid var(--tb-border-subtle)' }}
+      className={first ? 'mb-4' : 'pt-5 mt-3 mb-4'}>
+      <h3 className="text-[11px] mb-1 tracking-[0.12em] uppercase"
+        style={{ color: 'var(--tb-accent)' }}>{title}</h3>
+      {hint && <p className="text-[9px] mb-4" style={{ color: 'var(--tb-fg-ghost)' }}>{hint}</p>}
+      {!hint && <div className="mb-3" />}
+      {children}
+    </div>
+  );
 }
 function CfgToggle({ active, first, children, onClick }: { active: boolean; first?: boolean; children: React.ReactNode; onClick: () => void }) {
   return (
