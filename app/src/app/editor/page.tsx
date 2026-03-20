@@ -162,6 +162,7 @@ export default function EditorPage() {
   const skipAutoSaveRef = useRef(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user) return;
@@ -362,34 +363,61 @@ export default function EditorPage() {
                 </div>
                 {removingBg && <div className="text-[10px] mb-3 animate-pulse" style={{ color: 'var(--tb-highlight)' }}>removing background...</div>}
                 {bgError && <div className="text-[10px] mb-3" style={{ color: '#c44' }}>bg removal failed: {bgError}</div>}
-                <div className="space-y-2">
-                  {items.map(item => (
-                    <div key={item.id} className="p-3 transition-colors" style={{ border: '1px solid var(--tb-border-subtle)' }}>
-                      <div className="grid grid-cols-[56px_1fr_auto_20px] gap-3">
-                        <div className="w-14 h-14 flex items-center justify-center overflow-hidden shrink-0" style={{ background: 'var(--tb-bg-muted)' }}>
-                          <img src={item.imageUrl} alt={item.label} className="max-w-full max-h-full object-contain transition-transform" style={{ transform: `rotate(${item.rotation ?? 0}deg) scale(${Math.min(item.scale ?? 1, 1.8)})` }} />
+                <div className="space-y-[6px]">
+                  {items.map(item => {
+                    const isExpanded = expandedItems.has(item.id);
+                    const hasLink = !!item.link;
+                    const hasStory = !!item.story;
+                    return (
+                      <div key={item.id} className="transition-colors" style={{ border: '1px solid var(--tb-border-subtle)' }}>
+                        {/* Row 1: compact header — always visible */}
+                        <div
+                          className="grid grid-cols-[40px_1fr_auto_auto_20px] gap-2 items-center px-2 py-[6px] cursor-pointer"
+                          onClick={() => setExpandedItems(prev => {
+                            const next = new Set(prev);
+                            if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
+                            return next;
+                          })}
+                        >
+                          <div className="w-10 h-10 flex items-center justify-center overflow-hidden shrink-0" style={{ background: 'var(--tb-bg-muted)' }}>
+                            <img src={item.imageUrl} alt={item.label} className="max-w-full max-h-full object-contain transition-transform" style={{ transform: `rotate(${item.rotation ?? 0}deg) scale(${Math.min(item.scale ?? 1, 1.8)})` }} />
+                          </div>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <input value={item.label} onChange={e => { e.stopPropagation(); handleUpdateItem(item.id, { label: e.target.value }); }} placeholder="label"
+                              onClick={e => e.stopPropagation()}
+                              className="w-full bg-transparent text-[11px] pb-[2px] outline-none min-w-0" style={{ borderBottom: '1px solid var(--tb-border-subtle)', ...S.accent }} />
+                            {/* Indicator dots for link/story */}
+                            {!isExpanded && (hasLink || hasStory) && (
+                              <div className="flex gap-[3px] shrink-0">
+                                {hasLink && <div className="w-[5px] h-[5px] rounded-full" style={{ background: 'var(--tb-accent)', opacity: 0.5 }} title="has link" />}
+                                {hasStory && <div className="w-[5px] h-[5px] rounded-full" style={{ background: 'var(--tb-highlight, var(--tb-accent))', opacity: 0.5 }} title="has story" />}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                            <Dial value={item.rotation ?? 0} min={0} max={360} step={1}
+                              label="rot" format={v => `${v}°`}
+                              snap={v => { const n = Math.round(v / 90) * 90; return Math.abs(v - n) < 8 ? n % 360 : v; }}
+                              onChange={v => handleUpdateItem(item.id, { rotation: v })} />
+                            <Dial value={item.scale ?? 1} min={0.5} max={3} step={0.1}
+                              label="size" format={v => `${v.toFixed(1)}×`}
+                              onChange={v => handleUpdateItem(item.id, { scale: v })} />
+                          </div>
+                          <span className="text-[10px] select-none" style={S.ghost}>{isExpanded ? '▾' : '▸'}</span>
+                          <button onClick={e => { e.stopPropagation(); handleDeleteItem(item.id); }} className="text-sm cursor-pointer leading-none" style={S.ghost}>&times;</button>
                         </div>
-                        <div className="flex flex-col gap-[6px] min-w-0">
-                          <input value={item.label} onChange={e => handleUpdateItem(item.id, { label: e.target.value })} placeholder="label"
-                            className="w-full bg-transparent text-[11px] pb-[2px] outline-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', ...S.accent }} />
-                          <input value={item.link || ''} onChange={e => handleUpdateItem(item.id, { link: e.target.value })} placeholder="link (https://...)"
-                            className="w-full bg-transparent text-[10px] pb-[2px] outline-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
-                          <textarea value={item.story || ''} onChange={e => handleUpdateItem(item.id, { story: e.target.value })} placeholder="story (shown on long-press)" rows={2}
-                            className="w-full bg-transparent text-[10px] pb-[2px] outline-none resize-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
-                        </div>
-                        <div className="flex flex-col items-center justify-center gap-1">
-                          <Dial value={item.rotation ?? 0} min={0} max={360} step={1}
-                            label="rot" format={v => `${v}°`}
-                            snap={v => { const n = Math.round(v / 90) * 90; return Math.abs(v - n) < 8 ? n % 360 : v; }}
-                            onChange={v => handleUpdateItem(item.id, { rotation: v })} />
-                          <Dial value={item.scale ?? 1} min={0.5} max={3} step={0.1}
-                            label="size" format={v => `${v.toFixed(1)}×`}
-                            onChange={v => handleUpdateItem(item.id, { scale: v })} />
-                        </div>
-                        <button onClick={() => handleDeleteItem(item.id)} className="text-sm self-start cursor-pointer leading-none" style={S.ghost}>&times;</button>
+                        {/* Row 2: collapsible details */}
+                        {isExpanded && (
+                          <div className="pl-[52px] pr-3 pb-3 flex flex-col gap-[6px]">
+                            <input value={item.link || ''} onChange={e => handleUpdateItem(item.id, { link: e.target.value })} placeholder="link (https://...)"
+                              className="w-full bg-transparent text-[10px] pb-[2px] outline-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
+                            <textarea value={item.story || ''} onChange={e => handleUpdateItem(item.id, { story: e.target.value })} placeholder="story (shown on long-press)" rows={2}
+                              className="w-full bg-transparent text-[10px] pb-[2px] outline-none resize-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {items.length === 0 && <div className="text-center py-12 text-[10px]" style={S.faint}>no items yet — upload your first treasure</div>}
                 </div>
               </div>
@@ -484,6 +512,91 @@ export default function EditorPage() {
                     )}
                   </div>
                   <CfgHint>scales the drawer size and physics area (0.5× – 2.0×) — reopen drawer to see effect</CfgHint>
+                </CfgSection>
+
+                <CfgSection>
+                  <CfgLabel>item effects</CfgLabel>
+                  <div className="flex flex-col gap-3">
+                    {/* Brightness */}
+                    <div className="flex items-center gap-3">
+                      <span className="text-[9px] w-16 shrink-0" style={S.faint}>brightness</span>
+                      <input
+                        type="range" min={0.5} max={1.5} step={0.05}
+                        value={config.itemBrightness ?? 1}
+                        onChange={e => setConfig({ ...config, itemBrightness: Number(e.target.value) })}
+                        className="flex-1"
+                        style={{ accentColor: 'var(--tb-accent)' }}
+                      />
+                      <span className="text-[10px] min-w-[32px] text-right font-mono" style={S.accent}>
+                        {(config.itemBrightness ?? 1).toFixed(2)}
+                      </span>
+                      {(config.itemBrightness ?? 1) !== 1 && (
+                        <button
+                          onClick={() => setConfig({ ...config, itemBrightness: 1 })}
+                          className="text-[9px] px-2 py-[2px] cursor-pointer"
+                          style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)' }}
+                        >
+                          reset
+                        </button>
+                      )}
+                    </div>
+                    {/* Contrast */}
+                    <div className="flex items-center gap-3">
+                      <span className="text-[9px] w-16 shrink-0" style={S.faint}>contrast</span>
+                      <input
+                        type="range" min={0.5} max={1.5} step={0.05}
+                        value={config.itemContrast ?? 1}
+                        onChange={e => setConfig({ ...config, itemContrast: Number(e.target.value) })}
+                        className="flex-1"
+                        style={{ accentColor: 'var(--tb-accent)' }}
+                      />
+                      <span className="text-[10px] min-w-[32px] text-right font-mono" style={S.accent}>
+                        {(config.itemContrast ?? 1).toFixed(2)}
+                      </span>
+                      {(config.itemContrast ?? 1) !== 1 && (
+                        <button
+                          onClick={() => setConfig({ ...config, itemContrast: 1 })}
+                          className="text-[9px] px-2 py-[2px] cursor-pointer"
+                          style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)' }}
+                        >
+                          reset
+                        </button>
+                      )}
+                    </div>
+                    {/* Tint + B&W */}
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-[6px] cursor-pointer">
+                        <div onClick={() => {
+                          if (config.itemTint && config.itemTint !== 'bw') {
+                            setConfig({ ...config, itemTint: undefined });
+                          } else {
+                            setConfig({ ...config, itemTint: '#ff0000' });
+                          }
+                        }}
+                          className="w-[14px] h-[14px] flex items-center justify-center text-[10px] shrink-0"
+                          style={{ border: '1px solid var(--tb-border)', ...S.accent, background: config.itemTint && config.itemTint !== 'bw' ? 'var(--tb-bg-muted)' : 'transparent' }}>
+                          {config.itemTint && config.itemTint !== 'bw' ? '\u2713' : ''}
+                        </div>
+                        <span className="text-[9px]" style={S.faint}>tint</span>
+                      </label>
+                      {config.itemTint && config.itemTint !== 'bw' && (
+                        <input type="color" value={config.itemTint}
+                          onChange={e => setConfig({ ...config, itemTint: e.target.value })}
+                          className="w-8 h-8 bg-transparent cursor-pointer p-0" style={{ border: '1px solid var(--tb-border)' }} />
+                      )}
+                      <label className="flex items-center gap-[6px] cursor-pointer">
+                        <div onClick={() => {
+                          setConfig({ ...config, itemTint: config.itemTint === 'bw' ? undefined : 'bw' });
+                        }}
+                          className="w-[14px] h-[14px] flex items-center justify-center text-[10px] shrink-0"
+                          style={{ border: '1px solid var(--tb-border)', ...S.accent, background: config.itemTint === 'bw' ? 'var(--tb-bg-muted)' : 'transparent' }}>
+                          {config.itemTint === 'bw' ? '\u2713' : ''}
+                        </div>
+                        <span className="text-[9px]" style={S.faint}>b&w</span>
+                      </label>
+                    </div>
+                  </div>
+                  <CfgHint>adjust brightness, contrast, and color tint for all items</CfgHint>
                 </CfgSection>
 
                 <div className="text-[10px] tracking-[0.12em] mb-6 h-6 flex items-center" style={S.faint}>

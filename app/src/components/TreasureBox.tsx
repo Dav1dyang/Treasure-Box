@@ -437,10 +437,28 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         if (imgAspect > 1) drawH = size / imgAspect;
         else drawW = size * imgAspect;
 
+        // Apply brightness/contrast/grayscale filter
+        const br = config.itemBrightness ?? 1;
+        const ct = config.itemContrast ?? 1;
+        const bw = config.itemTint === 'bw';
+        if (br !== 1 || ct !== 1 || bw) {
+          ctx.filter = `brightness(${br}) contrast(${ct})${bw ? ' grayscale(1)' : ''}`;
+        }
+
         ctx.beginPath();
         ctx.roundRect(-drawW / 2, -drawH / 2, drawW, drawH, 4);
         ctx.clip();
         ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+
+        // Apply tint overlay (skip for grayscale mode)
+        if (config.itemTint && config.itemTint !== 'bw') {
+          ctx.globalCompositeOperation = 'source-atop';
+          ctx.fillStyle = config.itemTint + '40';
+          ctx.fillRect(-drawW / 2, -drawH / 2, drawW, drawH);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+
+        ctx.filter = 'none';
       } else {
         ctx.fillStyle = '#5a5a4a';
         ctx.beginPath();
@@ -458,7 +476,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     });
 
     animFrameRef.current = requestAnimationFrame(renderLoop);
-  }, [isLightBg]);
+  }, [isLightBg, config.itemBrightness, config.itemContrast, config.itemTint]);
 
   // ===== State machine handlers =====
 

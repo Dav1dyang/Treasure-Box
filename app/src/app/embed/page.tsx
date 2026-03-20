@@ -57,8 +57,13 @@ function EmbedContent() {
       type: 'treasure-box',
       action: 'items-escaped',
       items: escapedItems,
+      itemEffects: {
+        brightness: config?.itemBrightness ?? 1,
+        contrast: config?.itemContrast ?? 1,
+        tint: config?.itemTint,
+      },
     }, '*');
-  }, [isOverlay]);
+  }, [isOverlay, config]);
 
   const handleItemsReturned = useCallback(() => {
     if (!isOverlay || typeof window === 'undefined') return;

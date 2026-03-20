@@ -119,6 +119,7 @@
   var itemBodies = [];
   var itemImages = {};
   var domBodies = [];
+  var itemEffects = { brightness: 1, contrast: 1, tint: undefined };
 
   function initOverlayPhysics() {
     var Matter = window.Matter;
@@ -214,6 +215,7 @@
     if (event.data.action === 'items-escaped') {
       // Items have left the box — create physics bodies for each
       var items = event.data.items || [];
+      if (event.data.itemEffects) itemEffects = event.data.itemEffects;
       // Get box iframe position to spawn items from
       var boxRect = boxContainer.getBoundingClientRect();
       var spawnX = boxRect.left + boxRect.width / 2;
@@ -280,6 +282,13 @@
       ctx.rotate(angle);
 
       if (img && img.complete && img.naturalWidth > 0) {
+        // Apply brightness/contrast/grayscale filter
+        var br = itemEffects.brightness || 1;
+        var ct = itemEffects.contrast || 1;
+        var bw = itemEffects.tint === 'bw';
+        if (br !== 1 || ct !== 1 || bw) {
+          ctx.filter = 'brightness(' + br + ') contrast(' + ct + ')' + (bw ? ' grayscale(1)' : '');
+        }
         // Draw image with rounded corners
         ctx.beginPath();
         var r = 6;
@@ -292,6 +301,14 @@
         ctx.closePath();
         ctx.clip();
         ctx.drawImage(img, -hs, -hs, size, size);
+        // Apply tint overlay (skip for grayscale mode)
+        if (itemEffects.tint && itemEffects.tint !== 'bw') {
+          ctx.globalCompositeOperation = 'source-atop';
+          ctx.fillStyle = itemEffects.tint + '40';
+          ctx.fillRect(-hs, -hs, size, size);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+        ctx.filter = 'none';
       } else {
         // Fallback: colored circle
         ctx.fillStyle = 'rgba(180,160,100,0.6)';
