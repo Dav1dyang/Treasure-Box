@@ -35,6 +35,11 @@ function EmbedContent() {
           return;
         }
 
+        if (!cfg.isPublic) {
+          setError('This box is private');
+          return;
+        }
+
         setConfig(cfg);
         setItems(itms);
       } catch {

@@ -6,15 +6,15 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import {
   getBoxConfig, saveBoxConfig,
-  getItems, saveItem, deleteItem,
-  uploadImage, uploadProcessedImage, deleteImage,
-  clearDrawerImages,
+  getItems, saveItem,
+  uploadImage, uploadProcessedImage,
+  clearDrawerImages, deleteItemWithCleanup, deleteBox,
 } from '@/lib/firestore';
 import type { TreasureItem, BoxConfig, SoundPreset, DrawerImages, EmbedSettings } from '@/lib/types';
 import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
-import EmbedConfigurator from '@/components/EmbedConfigurator';
 import { extractContourFromImage } from '@/lib/contour';
+import EmbedConfigurator from '@/components/EmbedConfigurator';
 
 const DEFAULT_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'> = {
   title: 'My Treasure Box',
@@ -101,12 +101,16 @@ export default function EditorPage() {
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<'items' | 'config' | 'embed'>('items');
   const [removingBg, setRemovingBg] = useState<string | null>(null);
+  const [bgError, setBgError] = useState<string | null>(null);
   const [isTransparentBg, setIsTransparentBg] = useState(true);
   const [configStatus, setConfigStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const configTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const configLoadedRef = useRef(false);
+  const skipAutoSaveRef = useRef(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -128,6 +132,10 @@ export default function EditorPage() {
   // Auto-save config with 1.5s debounce
   useEffect(() => {
     if (!config || !user || !configLoadedRef.current) return;
+    if (skipAutoSaveRef.current) {
+      skipAutoSaveRef.current = false;
+      return;
+    }
     setConfigStatus('saving');
     if (configTimerRef.current) clearTimeout(configTimerRef.current);
     configTimerRef.current = setTimeout(async () => {
@@ -146,51 +154,48 @@ export default function EditorPage() {
     const file = e.target.files[0];
     const id = `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     setSaving(true);
+    setBgError(null);
     const originalUrl = await uploadImage(user.uid, file, `${id}_original`);
     let processedUrl = originalUrl;
+    let contourPoints: { x: number; y: number }[] | undefined;
     try {
       setRemovingBg(id);
-      const formData = new FormData();
-      formData.append('image', file);
-      const res = await fetch('/api/remove-bg', { method: 'POST', body: formData });
-      if (res.ok) {
-        const bgRemoved = res.headers.get('X-Bg-Removed') === 'true';
-        if (bgRemoved) {
-          const blob = await res.blob();
-          processedUrl = await uploadProcessedImage(user.uid, blob, id);
-        }
-      }
-    } catch { /* fallback */ } finally { setRemovingBg(null); }
-    // Extract contour from bg-removed image's alpha channel for physics shapes
-    let contourPoints: { x: number; y: number }[] | undefined;
-    if (processedUrl !== originalUrl) {
-      try {
-        const contourRes = await fetch(processedUrl);
-        const contourBlob = await contourRes.blob();
-        const img = new Image();
-        const blobUrl = URL.createObjectURL(contourBlob);
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = reject;
-          img.src = blobUrl;
-        });
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, img.width, img.height);
-        URL.revokeObjectURL(blobUrl);
-        contourPoints = extractContourFromImage(imageData);
-      } catch { /* fallback to rectangle physics */ }
-    }
+      // Client-side background removal via WASM (no server needed)
+      const { removeBackground } = await import('@imgly/background-removal');
+      const resultBlob = await removeBackground(file, {
+        model: 'isnet_quint8',
+        output: { format: 'image/png' },
+      });
+
+      // Extract contour points for physics shapes via offscreen canvas
+      const img = new Image();
+      const blobUrl = URL.createObjectURL(resultBlob);
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = reject;
+        img.src = blobUrl;
+      });
+      URL.revokeObjectURL(blobUrl);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, img.width, img.height);
+      contourPoints = extractContourFromImage(imageData);
+
+      processedUrl = await uploadProcessedImage(user.uid, resultBlob, id);
+    } catch (err) {
+      setBgError(err instanceof Error ? err.message : 'Unknown error');
+    } finally { setRemovingBg(null); }
     const newItem: TreasureItem = {
       id, imageUrl: processedUrl, originalImageUrl: originalUrl,
       label: file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '),
       story: '', link: '', order: items.length, rotation: 0, createdAt: Date.now(),
       ...(contourPoints && { contourPoints }),
     };
-    await saveItem(user.uid, newItem);
+    await saveItem(user.uid, newItem, true);
     setItems(prev => [...prev, newItem]);
     setSaving(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -206,13 +211,7 @@ export default function EditorPage() {
 
   const handleDeleteItem = async (id: string) => {
     if (!user) return;
-    const item = items.find(i => i.id === id);
-    if (item) {
-      // Clean up images from Storage to avoid orphaned files
-      deleteImage(`boxes/${user.uid}/${id}_original`);
-      deleteImage(`boxes/${user.uid}/processed_${id}`);
-    }
-    await deleteItem(user.uid, id);
+    await deleteItemWithCleanup(user.uid, id);
     setItems(prev => prev.filter(i => i.id !== id));
   };
 
@@ -311,6 +310,7 @@ export default function EditorPage() {
                   )}
                 </div>
                 {removingBg && <div className="text-[10px] mb-3 animate-pulse" style={{ color: 'var(--tb-highlight)' }}>removing background...</div>}
+                {bgError && <div className="text-[10px] mb-3" style={{ color: '#c44' }}>bg removal failed: {bgError}</div>}
                 <div className="space-y-2">
                   {items.map(item => (
                     <div key={item.id} className="p-3 transition-colors" style={{ border: '1px solid var(--tb-border-subtle)' }}>
@@ -409,11 +409,55 @@ export default function EditorPage() {
                 </div>
 
                 <div className="pt-6 mt-2" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
+                  <h3 className="text-[11px] mb-4 tracking-[0.12em] uppercase" style={S.accent}>danger zone</h3>
+                  {!showDeleteConfirm ? (
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="text-[10px] px-[14px] py-[6px] cursor-pointer tracking-[0.12em] transition-colors"
+                      style={{ border: '1px solid #c44', color: '#c44', background: 'transparent' }}
+                    >
+                      delete my box
+                    </button>
+                  ) : (
+                    <div className="p-3" style={{ border: '1px solid #c44' }}>
+                      <p className="text-[10px] mb-3" style={{ color: '#c44' }}>
+                        This will permanently delete your box, all items, and all images. This cannot be undone.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            setDeleting(true);
+                            await deleteBox(user.uid);
+                            setConfig(null);
+                            setItems([]);
+                            setShowDeleteConfirm(false);
+                            setDeleting(false);
+                            window.location.href = '/';
+                          }}
+                          disabled={deleting}
+                          className="text-[10px] px-[14px] py-[6px] cursor-pointer tracking-[0.12em]"
+                          style={{ border: '1px solid #c44', color: '#fff', background: '#c44', opacity: deleting ? 0.5 : 1 }}
+                        >
+                          {deleting ? 'deleting...' : 'confirm delete'}
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteConfirm(false)}
+                          className="text-[10px] px-[14px] py-[6px] cursor-pointer tracking-[0.12em]"
+                          style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)', background: 'transparent' }}
+                        >
+                          cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-6 mt-2" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
                   <h3 className="text-[11px] mb-4 tracking-[0.12em] uppercase" style={S.accent}>drawer appearance (AI generated)</h3>
                   <DrawerStylePicker
                     userId={user.uid}
                     currentImages={config.drawerImages || undefined}
-                    onComplete={(images: DrawerImages) => setConfig({ ...config, drawerImages: images })}
+                    onComplete={(images: DrawerImages) => { skipAutoSaveRef.current = true; setConfig({ ...config, drawerImages: images }); }}
                     onReset={async () => { await clearDrawerImages(user.uid); setConfig({ ...config, drawerImages: undefined }); }}
                   />
                 </div>

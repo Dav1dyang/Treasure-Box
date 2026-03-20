@@ -8,6 +8,8 @@ import type { TreasureItem, BoxConfig, BoxState, DrawerImages, BoxDimensions } f
 import { DEFAULT_BOX_DIMENSIONS } from '@/lib/types';
 import StoryCard from './StoryCard';
 
+const ITEM_BASE_SIZE = 52;
+
 interface Props {
   items: TreasureItem[];
   config: BoxConfig;
@@ -262,7 +264,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       const item = items[idx];
       const x = centerX + (Math.random() - 0.5) * 100;
       const itemScale = item.scale ?? 1;
-      const size = (50 + Math.random() * 10) * itemScale;
+      const size = ITEM_BASE_SIZE * itemScale;
 
       let body: Matter.Body & { itemData?: TreasureItem };
 
@@ -342,6 +344,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         if (size < 3) return; // skip tiny items
       }
 
+      const size = ITEM_BASE_SIZE * (item.scale ?? 1);
       const img = imagesRef.current.get(item.id);
 
       ctx.save();
