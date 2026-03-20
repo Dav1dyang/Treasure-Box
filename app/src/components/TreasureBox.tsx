@@ -12,11 +12,14 @@ interface Props {
   items: TreasureItem[];
   config: BoxConfig;
   backgroundColor?: string;
+  fullpageMode?: boolean;
+  onItemsEscaped?: (items: { id: string; imageUrl: string; label: string }[]) => void;
+  onItemsReturned?: () => void;
 }
 
 const ALL_BOX_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
 
-export default function TreasureBox({ items, config, backgroundColor }: Props) {
+export default function TreasureBox({ items, config, backgroundColor, fullpageMode, onItemsEscaped, onItemsReturned }: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
@@ -340,6 +343,17 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
     setIsOpen(true);
     setBoxState('OPEN');
 
+    // In fullpage mode, notify parent that items have escaped
+    if (fullpageMode && onItemsEscaped) {
+      setTimeout(() => {
+        onItemsEscaped(items.map(item => ({
+          id: item.id,
+          imageUrl: item.imageUrl,
+          label: item.label,
+        })));
+      }, 800);
+    }
+
     setTimeout(() => {
       initPhysics();
       setTimeout(() => {
@@ -347,7 +361,7 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
         renderLoop();
       }, 200);
     }, 600);
-  }, [isOpen, initPhysics, spawnItems, renderLoop]);
+  }, [isOpen, initPhysics, spawnItems, renderLoop, fullpageMode, onItemsEscaped, items]);
 
   const closeDrawer = useCallback(() => {
     if (!isOpen) return;
@@ -375,6 +389,11 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
       });
     }
 
+    // In fullpage mode, notify parent that items are returning
+    if (fullpageMode && onItemsReturned) {
+      onItemsReturned();
+    }
+
     // Transition: CLOSING (30%) → SLAMMING (0%) → IDLE
     setBoxState('CLOSING');
 
@@ -388,7 +407,7 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
         setBoxState('IDLE');
       }, 350);
     }, 300);
-  }, [isOpen, clearPhysics]);
+  }, [isOpen, clearPhysics, fullpageMode, onItemsReturned]);
 
   const handleDrawerMouseEnter = useCallback(() => {
     if (boxState === 'IDLE') {
