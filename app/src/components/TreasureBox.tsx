@@ -43,6 +43,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   const animFrameRef = useRef<number>(0);
   const spawnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const itemsHandedOffRef = useRef(false);
+  const closingAnimRef = useRef(false);
 
   // Managed timeout system — tracks ALL timeouts for clean cancellation
   const timeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -331,6 +332,18 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       const item = body.itemData;
       if (!item) return;
 
+      let size = 52 * (item.scale ?? 1);
+
+      // During closing, shrink items as they converge on the drawer
+      if (closingAnimRef.current) {
+        const drawerCenterX = w / 2;
+        const drawerY = h - 150;
+        const dist = Math.sqrt((x - drawerCenterX) ** 2 + (y - drawerY) ** 2);
+        const shrink = Math.min(1, dist / 200); // closer = smaller
+        size *= Math.max(0.1, shrink);
+        if (size < 3) return; // skip tiny items
+      }
+
       const size = ITEM_BASE_SIZE * (item.scale ?? 1);
       const img = imagesRef.current.get(item.id);
 
@@ -390,6 +403,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     if (spawnIntervalRef.current) { clearInterval(spawnIntervalRef.current); spawnIntervalRef.current = null; }
     clearPhysics();
     itemsHandedOffRef.current = false;
+    closingAnimRef.current = false;
 
     setBoxState('OPEN');
 
@@ -430,40 +444,53 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       onItemsReturned();
     }
 
-    // Pull items toward drawer center (sucking them back in)
+    // Pull items INTO the drawer (toward the drawer opening)
     const scene = sceneRef.current;
     const engine = engineRef.current;
-    if (scene && engine) {
-      const centerX = scene.offsetWidth / 2;
-      const drawerY = scene.offsetHeight - Math.max(100, scene.offsetHeight * 0.25);
+    const drawerCenterX = scene ? scene.offsetWidth / 2 : 200;
+    // Target: the drawer opening area (bottom of the scene, where the drawer is)
+    const drawerY = scene ? scene.offsetHeight - 150 : 300;
 
-      // Reverse gravity to pull items upward into drawer
-      engine.gravity.y = -3;
+    if (engine) {
+      // Kill gravity so items float toward the drawer
+      engine.gravity.y = 0;
       engine.gravity.x = 0;
-
-      // Apply force toward drawer center on each body
-      bodiesRef.current.forEach(body => {
-        const dx = centerX - body.position.x;
-        const dy = drawerY - body.position.y;
-        const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
-        Matter.Body.applyForce(body, body.position, {
-          x: (dx / dist) * 0.008,
-          y: (dy / dist) * 0.008,
-        });
-      });
     }
 
-    // Transition: CLOSING (30%) → SLAMMING (0%) → IDLE
+    // Animate items flying into the drawer over ~400ms using a repeating force
+    closingAnimRef.current = true;
+    const pullInterval = setInterval(() => {
+      if (!closingAnimRef.current) { clearInterval(pullInterval); return; }
+      bodiesRef.current.forEach(body => {
+        const dx = drawerCenterX - body.position.x;
+        const dy = drawerY - body.position.y;
+        const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+        // Strong pull toward drawer center
+        Matter.Body.applyForce(body, body.position, {
+          x: (dx / dist) * 0.015,
+          y: (dy / dist) * 0.015,
+        });
+        // Dampen velocity for smooth convergence
+        Matter.Body.setVelocity(body, {
+          x: body.velocity.x * 0.9,
+          y: body.velocity.y * 0.9,
+        });
+      });
+    }, 16);
+
+    // Transition: CLOSING → SLAMMING → IDLE
     setBoxState('CLOSING');
 
     managedTimeout(() => {
+      closingAnimRef.current = false;
+      clearInterval(pullInterval);
       setBoxState('SLAMMING');
 
       managedTimeout(() => {
         clearPhysics();
         setBoxState('IDLE');
       }, 350);
-    }, 300);
+    }, 500);
   }, [isOpen, clearPhysics, clearAllTimeouts, managedTimeout, fullpageMode, onItemsReturned]);
 
   // Stable refs so handlers don't go stale across re-renders
@@ -497,6 +524,27 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     // CLOSING and SLAMMING: ignore clicks (animation in progress)
   }, [boxState]);
 
+  // Click on canvas (not on a body) → close the drawer
+  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (boxState !== 'OPEN' && boxState !== 'HOVER_CLOSE') return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    // Check if click is on any physics body
+    const bodies = bodiesRef.current;
+    const clickedBody = bodies.some(body => {
+      const bx = body.position.x;
+      const by = body.position.y;
+      const size = 52 * (body.itemData?.scale ?? 1);
+      return Math.abs(x - bx) < size / 2 && Math.abs(y - by) < size / 2;
+    });
+    if (!clickedBody) {
+      closeDrawerRef.current();
+    }
+  }, [boxState]);
+
   // Accelerometer for mobile
   useEffect(() => {
     const handler = (e: DeviceMotionEvent) => {
@@ -519,9 +567,10 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       className="relative w-full h-full min-h-[400px] overflow-hidden select-none"
       style={{ background: isTransparent ? 'transparent' : bg }}
     >
-      {/* Drawer area */}
+      {/* Drawer area — below canvas when open so items render on top */}
       <div
-        className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[20] cursor-pointer"
+        className="absolute bottom-6 left-1/2 -translate-x-1/2 cursor-pointer"
+        style={{ zIndex: isOpen ? 10 : 20 }}
         onMouseEnter={handleDrawerMouseEnter}
         onMouseLeave={handleDrawerMouseLeave}
         onClick={handleDrawerClick}
@@ -545,10 +594,12 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         )}
       </div>
 
-      {/* Physics canvas */}
+      {/* Physics canvas — above drawer when open so items are visible */}
       <canvas
         ref={canvasRef}
-        className={`absolute inset-0 z-10 ${physicsActive ? 'pointer-events-auto' : 'pointer-events-none'}`}
+        onClick={physicsActive ? handleCanvasClick : undefined}
+        className={`absolute inset-0 ${physicsActive ? 'pointer-events-auto' : 'pointer-events-none'}`}
+        style={{ zIndex: isOpen ? 15 : 5 }}
       />
 
       {/* Story overlay */}
