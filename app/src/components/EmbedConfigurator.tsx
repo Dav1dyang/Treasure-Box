@@ -85,8 +85,12 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
     const bg = encodeURIComponent(config.backgroundColor || 'transparent');
 
+    const scale = config.contentScale ?? 1;
+    const scaleParam = scale !== 1 ? `&scale=${scale}` : '';
+    const scaleAttr = scale !== 1 ? `\n  data-scale="${scale}"` : '';
+
     if (settings.mode === 'contained') {
-      return `<iframe\n  src="${baseUrl}/embed?box=${userId}&bg=${bg}"\n  width="${settings.width}" height="${settings.height}"\n  style="border:none;overflow:hidden"\n  loading="lazy"\n  allow="accelerometer"\n></iframe>`;
+      return `<iframe\n  src="${baseUrl}/embed?box=${userId}&bg=${bg}${scaleParam}"\n  width="${settings.width}" height="${settings.height}"\n  style="border:none;overflow:hidden"\n  loading="lazy"\n  allow="accelerometer"\n></iframe>`;
     }
 
     // overlay

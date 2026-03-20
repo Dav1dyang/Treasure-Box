@@ -24,6 +24,7 @@
   // ===== Shared: create embed iframe =====
   function createIframe(w, h, extraParams) {
     var params = 'box=' + encodeURIComponent(boxId) + '&bg=' + encodeURIComponent(bg);
+    if (scale !== 1) params += '&scale=' + scale;
     if (extraParams) params += '&' + extraParams;
     var iframe = document.createElement('iframe');
     iframe.src = origin + '/embed?' + params;

@@ -106,6 +106,7 @@ export interface BoxConfig {
   embedSettings?: EmbedSettings; // embed configuration (mode, size, position)
   itemCount?: number;            // cached count of items in the box
   drawerDisplaySize?: { width: number; height: number }; // fixed pixel size for drawer frame (default 420×280)
+  contentScale?: number;         // 0.5-2.0, scales drawer + items + physics (default 1.0)
 }
 
 export const DEFAULT_DRAWER_DISPLAY_SIZE = { width: 420, height: 280 };

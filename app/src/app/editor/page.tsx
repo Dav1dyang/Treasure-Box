@@ -460,6 +460,32 @@ export default function EditorPage() {
                   </CfgSection>
                 )}
 
+                <CfgSection>
+                  <CfgLabel>content scale</CfgLabel>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range" min={0.5} max={2} step={0.05}
+                      value={config.contentScale ?? 1}
+                      onChange={e => setConfig({ ...config, contentScale: Number(e.target.value) })}
+                      className="flex-1"
+                      style={{ accentColor: 'var(--tb-accent)' }}
+                    />
+                    <span className="text-[10px] min-w-[32px] text-right font-mono" style={S.accent}>
+                      {(config.contentScale ?? 1).toFixed(2)}&times;
+                    </span>
+                    {(config.contentScale ?? 1) !== 1 && (
+                      <button
+                        onClick={() => setConfig({ ...config, contentScale: 1 })}
+                        className="text-[9px] px-2 py-[2px] cursor-pointer"
+                        style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)' }}
+                      >
+                        reset
+                      </button>
+                    )}
+                  </div>
+                  <CfgHint>scales the drawer size and physics area (0.5× – 2.0×) — reopen drawer to see effect</CfgHint>
+                </CfgSection>
+
                 <div className="text-[10px] tracking-[0.12em] mb-6 h-6 flex items-center" style={S.faint}>
                   {configStatus === 'saving' && <span className="animate-pulse">saving...</span>}
                   {configStatus === 'saved' && <span style={S.accent}>saved &#10003;</span>}
