@@ -37,6 +37,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   const spawnIndexRef = useRef(0);
   const animFrameRef = useRef<number>(0);
   const slamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const hasGeneratedImages = !!(config.drawerImages && (config.drawerImages.spriteUrl || config.drawerImages.urls?.IDLE));
   const bg = backgroundColor || config.backgroundColor || '#0e0e0e';
@@ -121,6 +122,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       if (slamTimeoutRef.current) clearTimeout(slamTimeoutRef.current);
       blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
       blobUrlsRef.current = [];
+      openTimeoutsRef.current.forEach(t => clearTimeout(t));
     };
   }, []);
 
@@ -338,33 +340,46 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
 
   // ===== State machine handlers =====
 
+  const clearOpenTimeouts = useCallback(() => {
+    openTimeoutsRef.current.forEach(t => clearTimeout(t));
+    openTimeoutsRef.current = [];
+  }, []);
+
   const openDrawer = useCallback(() => {
     if (isOpen) return;
     setIsOpen(true);
     setBoxState('OPEN');
 
+    clearOpenTimeouts();
+
     // In fullpage mode, notify parent that items have escaped
     if (fullpageMode && onItemsEscaped) {
-      setTimeout(() => {
+      const t = setTimeout(() => {
         onItemsEscaped(items.map(item => ({
           id: item.id,
           imageUrl: item.imageUrl,
           label: item.label,
         })));
       }, 800);
+      openTimeoutsRef.current.push(t);
     }
 
-    setTimeout(() => {
+    const t1 = setTimeout(() => {
       initPhysics();
-      setTimeout(() => {
+      const t2 = setTimeout(() => {
         spawnItems();
         renderLoop();
       }, 200);
+      openTimeoutsRef.current.push(t2);
     }, 600);
-  }, [isOpen, initPhysics, spawnItems, renderLoop, fullpageMode, onItemsEscaped, items]);
+    openTimeoutsRef.current.push(t1);
+  }, [isOpen, initPhysics, spawnItems, renderLoop, fullpageMode, onItemsEscaped, items, clearOpenTimeouts]);
 
   const closeDrawer = useCallback(() => {
     if (!isOpen) return;
+
+    // Cancel any pending open animation timeouts to prevent zombie physics
+    clearOpenTimeouts();
 
     // Pull items toward drawer center (sucking them back in)
     const scene = sceneRef.current;
@@ -407,7 +422,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         setBoxState('IDLE');
       }, 350);
     }, 300);
-  }, [isOpen, clearPhysics, fullpageMode, onItemsReturned]);
+  }, [isOpen, clearPhysics, clearOpenTimeouts, fullpageMode, onItemsReturned]);
 
   const handleDrawerMouseEnter = useCallback(() => {
     if (boxState === 'IDLE') {
@@ -458,7 +473,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     >
       {/* Drawer area */}
       <div
-        className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[5] cursor-pointer"
+        className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[20] cursor-pointer"
         onMouseEnter={handleDrawerMouseEnter}
         onMouseLeave={handleDrawerMouseLeave}
         onClick={handleDrawerClick}
