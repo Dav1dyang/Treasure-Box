@@ -181,12 +181,6 @@ export function buildSpriteSheetPrompt(style: DrawerStyle): string {
   const customDecor = style.customPrompt || 'none';
   const widthRatio = style.drawerWidth || 3;
   const heightRatio = style.drawerHeight || 2;
-  const overallRatio = (5 * widthRatio) / heightRatio; // sprite sheet is 5 frames wide
-  // Per-frame example: fixed 500px wide, height derived from ratio
-  const frameExW = 500;
-  const frameExH = Math.round(frameExW * heightRatio / widthRatio);
-  const exampleWidth = frameExW * 5;   // total sprite width (5 frames)
-  const exampleHeight = frameExH;      // sprite height = frame height
   const openingAngle = resolveAngle(style.angle || 'front');
   const handleType = def.handleStyle;
   const artStyle = mat ? `${def.artStyle}, rendered with ${mat.artHint}` : def.artStyle;
@@ -200,9 +194,8 @@ This must read clearly as a normal SLIDING DRAWER, not a tilt-out bin, not a hin
 OUTPUT FORMAT:
 - Exactly 1 image
 - Exactly 5 frames arranged side by side in a single horizontal row
-- Each frame must have an aspect ratio of approximately ${widthRatio}:${heightRatio} (width:height)
-- Overall image ratio must be approximately ${overallRatio.toFixed(1)}:1
-- Target size: ${exampleWidth}×${exampleHeight} px (each frame ${frameExW}×${frameExH} px)
+- Overall image ratio must be exactly 5:1
+- Example valid sizes: 2500×500 px, 2000×400 px, 1500×300 px
 - Each frame must be exactly the same size (one-fifth of total width)
 - Zero gaps, zero padding, zero borders, zero separators
 - Frames must tile edge to edge with perfectly clean frame boundaries
@@ -272,10 +265,11 @@ PARAMETERS — interpret each one carefully
 → If text is given — treat these as the user's most important creative request. Render them prominently.
 → Custom decor should integrate naturally with the material and style, not look pasted on.
 
-[WIDTH_RATIO]: ${widthRatio}
-[HEIGHT_RATIO]: ${heightRatio}
-→ The front face aspect ratio is approximately ${widthRatio}:${heightRatio}.
-→ ${widthRatio > heightRatio ? 'Wider than tall' : widthRatio < heightRatio ? 'Taller than wide' : 'Roughly square'}.
+[DRAWER_SHAPE]: ${widthRatio}:${heightRatio} (width:height)
+→ This is the proportions of the DRAWER OBJECT itself, NOT the frame size.
+→ The drawer front face should be drawn with approximately ${widthRatio}:${heightRatio} proportions.
+→ ${widthRatio > heightRatio ? 'The drawer is wider than tall — a wide, flat shape.' : widthRatio < heightRatio ? 'The drawer is taller than wide — a tall, narrow shape.' : 'The drawer is roughly square.'}
+→ The frame size stays fixed (square-ish) — the drawer shape sits inside each frame with green background around it.
 
 [OPENING_ANGLE]: ${openingAngle}
 
