@@ -182,8 +182,11 @@ export function buildSpriteSheetPrompt(style: DrawerStyle): string {
   const widthRatio = style.drawerWidth || 3;
   const heightRatio = style.drawerHeight || 2;
   const overallRatio = (5 * widthRatio) / heightRatio; // sprite sheet is 5 frames wide
-  const exampleWidth = Math.round(500 * widthRatio);   // e.g. 3→1500, 5→2500
-  const exampleHeight = Math.round(500 * heightRatio);  // e.g. 2→1000, 1→500
+  // Per-frame example: fixed 500px wide, height derived from ratio
+  const frameExW = 500;
+  const frameExH = Math.round(frameExW * heightRatio / widthRatio);
+  const exampleWidth = frameExW * 5;   // total sprite width (5 frames)
+  const exampleHeight = frameExH;      // sprite height = frame height
   const openingAngle = resolveAngle(style.angle || 'front');
   const handleType = def.handleStyle;
   const artStyle = mat ? `${def.artStyle}, rendered with ${mat.artHint}` : def.artStyle;
@@ -199,7 +202,7 @@ OUTPUT FORMAT:
 - Exactly 5 frames arranged side by side in a single horizontal row
 - Each frame must have an aspect ratio of approximately ${widthRatio}:${heightRatio} (width:height)
 - Overall image ratio must be approximately ${overallRatio.toFixed(1)}:1
-- Target size: ${exampleWidth}×${exampleHeight} px (each frame ${Math.round(exampleWidth / 5)}×${exampleHeight} px)
+- Target size: ${exampleWidth}×${exampleHeight} px (each frame ${frameExW}×${frameExH} px)
 - Each frame must be exactly the same size (one-fifth of total width)
 - Zero gaps, zero padding, zero borders, zero separators
 - Frames must tile edge to edge with perfectly clean frame boundaries

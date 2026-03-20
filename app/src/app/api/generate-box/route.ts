@@ -71,9 +71,13 @@ export async function POST(request: NextRequest) {
     const drawerH = style.drawerHeight || 2;
     const expectedRatio = (5 * drawerW) / drawerH;
     const ratio = fullWidth / fullHeight;
-    // Allow 30% tolerance before forcing a resize
     if (ratio < expectedRatio * 0.7) {
-      const targetWidth = Math.round(fullHeight * expectedRatio);
+      // Only gently resize (max 1.5× stretch) — if the ratio is wildly off,
+      // Gemini likely failed to generate a sprite sheet and extreme stretching
+      // produces garbage. Cap the resize to stay reasonable.
+      const idealWidth = Math.round(fullHeight * expectedRatio);
+      const maxWidth = Math.round(fullWidth * 1.5);
+      const targetWidth = Math.min(idealWidth, maxWidth);
       ratioWarning = `Gemini returned ${fullWidth}×${fullHeight} (${ratio.toFixed(1)}:1), expected ~${expectedRatio.toFixed(1)}:1, resized to ${targetWidth}×${fullHeight}`;
       spriteBuffer = await sharp(spriteBuffer)
         .resize(targetWidth, fullHeight, { fit: 'contain', background: { r: 0, g: 255, b: 0, alpha: 1 } })
