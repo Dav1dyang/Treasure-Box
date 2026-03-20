@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// WASM bg removal can be slow on cold start (model download ~30MB)
+export const maxDuration = 60;
+
 /**
  * Background removal using @imgly/background-removal-node (runs server-side WASM).
  * Falls back to returning original image if removal fails.
@@ -16,6 +19,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     let resultBuffer: Buffer = buffer;
     let contourPoints: { x: number; y: number }[] | null = null;
+    let bgRemoved = false;
 
     // 1. Try background removal with @imgly/background-removal-node
     try {
@@ -26,6 +30,7 @@ export async function POST(request: NextRequest) {
         output: { format: 'image/png' },
       });
       resultBuffer = Buffer.from(await resultBlob.arrayBuffer());
+      bgRemoved = true;
     } catch (e) {
       console.warn('Background removal failed, using original:', e);
     }
@@ -65,6 +70,7 @@ export async function POST(request: NextRequest) {
 
     const headers: Record<string, string> = {
       'Content-Type': 'image/png',
+      'X-Bg-Removed': bgRemoved ? 'true' : 'false',
     };
     if (contourPoints) {
       headers['X-Object-Vertices'] = JSON.stringify(contourPoints);

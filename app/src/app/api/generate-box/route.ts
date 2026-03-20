@@ -174,9 +174,10 @@ async function removeGreenWithVision(
     const pixelIdx = i / 4;
     const dist = edgeDistance[pixelIdx];
 
-    // Green detection with distance-based tolerance
-    const isGreen = g > 200 && r < 100 && b < 100;
-    const isSoftGreen = g > 150 && g > r * 1.5 && g > b * 1.5;
+    // Green detection — wider tolerance for Gemini's varied greens
+    const greenDominance = g - Math.max(r, b);
+    const isGreen = greenDominance > 50 && g > 150;
+    const isSoftGreen = greenDominance > 20 && g > 120;
 
     if (isGreen) {
       // Strong green — always remove
@@ -220,12 +221,15 @@ async function removeGreenChromaKey(
     const g = pixels[i + 1];
     const b = pixels[i + 2];
 
-    // Pure green: g high, r+b low
-    if (g > 200 && r < 100 && b < 100) {
-      pixels[i + 3] = 0; // fully transparent
-    } else if (g > 150 && g > r * 1.5 && g > b * 1.5) {
-      // Soft green (edges, anti-aliasing) — partial transparency
-      const greenness = (g - Math.max(r, b)) / g;
+    // Green detection — Gemini produces varied greens, not just #00FF00
+    const greenDominance = g - Math.max(r, b);
+
+    if (greenDominance > 50 && g > 150) {
+      // Strong green — fully transparent
+      pixels[i + 3] = 0;
+    } else if (greenDominance > 20 && g > 120) {
+      // Soft green (edges, anti-aliasing) — feathered transparency
+      const greenness = greenDominance / g;
       const alpha = Math.round((1 - greenness) * 255);
       pixels[i + 3] = Math.min(pixels[i + 3], Math.max(0, alpha));
     }

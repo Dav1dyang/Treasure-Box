@@ -59,7 +59,6 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
       // New: single sprite sheet
       if (!imagesRef.current.has('drawer_sprite')) {
         const img = new Image();
-        img.crossOrigin = 'anonymous';
         img.src = config.drawerImages.spriteUrl;
         imagesRef.current.set('drawer_sprite', img);
       }
@@ -70,7 +69,6 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
         const url = urls[state];
         if (url && !imagesRef.current.has(`drawer_${state}`)) {
           const img = new Image();
-          img.crossOrigin = 'anonymous';
           img.src = url;
           imagesRef.current.set(`drawer_${state}`, img);
         }

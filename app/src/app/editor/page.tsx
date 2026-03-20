@@ -53,20 +53,24 @@ function VolumeBar({ volume, onChange }: { volume: number; onChange: (v: number)
 }
 
 function RotationControl({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  // Snap to nearest 90° if within 8° threshold
+  const snap = (v: number) => {
+    const nearest90 = Math.round(v / 90) * 90;
+    return Math.abs(v - nearest90) < 8 ? nearest90 % 360 : v;
+  };
   return (
-    <button
-      onClick={() => onChange((value + 90) % 360)}
-      className="text-[9px] cursor-pointer border transition-all"
-      style={{
-        padding: '2px 8px',
-        borderRadius: 3,
-        border: '1px solid var(--tb-border-subtle)',
-        background: value ? 'var(--tb-bg-muted)' : 'transparent',
-        color: 'var(--tb-fg-faint)',
-      }}
-    >
-      rotate {value ? `${value}°` : ''}
-    </button>
+    <div className="flex items-center gap-[6px]">
+      <span className="text-[9px] shrink-0" style={{ color: 'var(--tb-fg-faint)' }}>rot</span>
+      <input
+        type="range" min={0} max={360} step={1}
+        value={value}
+        onChange={e => onChange(snap(Number(e.target.value)))}
+        style={{ width: 80, accentColor: 'var(--tb-accent)' }}
+      />
+      <span className="text-[9px] min-w-[24px] text-right" style={{ color: 'var(--tb-fg-faint)' }}>
+        {value}&deg;
+      </span>
+    </div>
   );
 }
 
@@ -131,8 +135,11 @@ export default function EditorPage() {
       formData.append('image', file);
       const res = await fetch('/api/remove-bg', { method: 'POST', body: formData });
       if (res.ok) {
-        const blob = await res.blob();
-        processedUrl = await uploadProcessedImage(user.uid, blob, id);
+        const bgRemoved = res.headers.get('X-Bg-Removed') === 'true';
+        if (bgRemoved) {
+          const blob = await res.blob();
+          processedUrl = await uploadProcessedImage(user.uid, blob, id);
+        }
       }
     } catch { /* fallback */ } finally { setRemovingBg(null); }
     const newItem: TreasureItem = {
