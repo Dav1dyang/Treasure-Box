@@ -95,11 +95,15 @@ export default function EditorPage() {
   const [tab, setTab] = useState<'items' | 'config' | 'embed'>('items');
   const [removingBg, setRemovingBg] = useState<string | null>(null);
   const [isTransparentBg, setIsTransparentBg] = useState(true);
+  const [configStatus, setConfigStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const configTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const configLoadedRef = useRef(false);
 
   useEffect(() => {
     if (!user) return;
+    configLoadedRef.current = false;
     (async () => {
       let box = await getBoxConfig(user.uid);
       if (!box) {
@@ -109,15 +113,25 @@ export default function EditorPage() {
       setConfig(box);
       setIsTransparentBg(box.backgroundColor === 'transparent');
       setItems(await getItems(user.uid));
+      // Mark loaded so auto-save doesn't fire on initial load
+      setTimeout(() => { configLoadedRef.current = true; }, 100);
     })();
   }, [user]);
 
-  const handleSaveConfig = async () => {
-    if (!config) return;
-    setSaving(true);
-    await saveBoxConfig(config);
-    setSaving(false);
-  };
+  // Auto-save config with 1.5s debounce
+  useEffect(() => {
+    if (!config || !user || !configLoadedRef.current) return;
+    setConfigStatus('saving');
+    if (configTimerRef.current) clearTimeout(configTimerRef.current);
+    configTimerRef.current = setTimeout(async () => {
+      await saveBoxConfig(config);
+      setConfigStatus('saved');
+      setTimeout(() => setConfigStatus('idle'), 2000);
+    }, 1500);
+    return () => {
+      if (configTimerRef.current) clearTimeout(configTimerRef.current);
+    };
+  }, [config, user]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!user || !e.target.files?.length) return;
@@ -278,7 +292,7 @@ export default function EditorPage() {
                     <div key={item.id} className="p-3 transition-colors" style={{ border: '1px solid var(--tb-border-subtle)' }}>
                       <div className="grid grid-cols-[56px_1fr_20px] gap-3">
                         <div className="w-14 h-14 flex items-center justify-center overflow-hidden shrink-0" style={{ background: 'var(--tb-bg-muted)' }}>
-                          <img src={item.imageUrl} alt={item.label} className="max-w-full max-h-full object-contain" />
+                          <img src={item.imageUrl} alt={item.label} className="max-w-full max-h-full object-contain transition-transform" style={{ transform: `rotate(${item.rotation ?? 0}deg)` }} />
                         </div>
                         <div className="flex flex-col gap-[6px] min-w-0">
                           <input value={item.label} onChange={e => handleUpdateItem(item.id, { label: e.target.value })} placeholder="label"
@@ -363,11 +377,11 @@ export default function EditorPage() {
                   </CfgSection>
                 )}
 
-                <button onClick={handleSaveConfig} disabled={saving}
-                  className="text-[10px] px-6 py-2 transition-colors cursor-pointer disabled:opacity-50 tracking-[0.12em] mb-6"
-                  style={{ border: '1px solid var(--tb-border)', ...S.accent }}>
-                  {saving ? 'saving...' : 'save config'}
-                </button>
+                <div className="text-[10px] tracking-[0.12em] mb-6 h-6 flex items-center" style={S.faint}>
+                  {configStatus === 'saving' && <span className="animate-pulse">saving...</span>}
+                  {configStatus === 'saved' && <span style={S.accent}>saved &#10003;</span>}
+                  {configStatus === 'idle' && <span style={S.ghost}>auto-saves on change</span>}
+                </div>
 
                 <div className="pt-6 mt-2" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
                   <h3 className="text-[11px] mb-4 tracking-[0.12em] uppercase" style={S.accent}>drawer appearance (AI generated)</h3>

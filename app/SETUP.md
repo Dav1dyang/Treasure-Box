@@ -49,6 +49,27 @@ service firebase.storage {
 }
 ```
 
+### Storage CORS (Required for images on Vercel)
+
+Firebase Storage blocks cross-origin requests by default. You must set CORS headers so the deployed app can fetch images as blobs (needed for canvas rendering).
+
+1. Install `gsutil` via the [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
+2. From the **repo root** (not `app/`), run:
+   ```bash
+   gsutil cors set cors.json gs://YOUR_BUCKET_NAME.appspot.com
+   ```
+   Replace `YOUR_BUCKET_NAME` with your Firebase project's storage bucket (found in Firebase Console > Storage).
+
+3. If you deploy to a custom domain, update `cors.json` to include that origin.
+
+### Firestore Composite Index (Required for public gallery)
+
+The public gallery query requires a composite index on the `boxes` collection:
+- Field 1: `isPublic` — Ascending
+- Field 2: `updatedAt` — Descending
+
+Firebase will auto-prompt the index creation URL in the browser console on first query failure. Click the link to create it, or create it manually in Firebase Console > Firestore > Indexes.
+
 ### Get Config Values
 - Go to **Project Settings > General > Your apps**
 - Click "Add app" > Web

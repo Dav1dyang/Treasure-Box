@@ -14,7 +14,7 @@ interface Props {
   backgroundColor?: string;
 }
 
-const ALL_BOX_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'SLAMMING'];
+const ALL_BOX_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
 
 export default function TreasureBox({ items, config, backgroundColor }: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
@@ -261,7 +261,11 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
         x: (Math.random() - 0.5) * 5,
         y: -(4 + Math.random() * 6),
       });
-      Matter.Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.15);
+      // If rotation is explicitly set, use minimal spin so item lands near configured angle
+      const angVel = (item.rotation !== undefined && item.rotation !== 0)
+        ? (Math.random() - 0.5) * 0.02
+        : (Math.random() - 0.5) * 0.15;
+      Matter.Body.setAngularVelocity(body, angVel);
 
       bodiesRef.current.push(body);
       Matter.Composite.add(engine.world, body);
@@ -351,7 +355,6 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
 
   const closeDrawer = useCallback(() => {
     if (!isOpen) return;
-    setBoxState('HOVER_CLOSE');
 
     // Pull items toward drawer center (sucking them back in)
     const scene = sceneRef.current;
@@ -376,7 +379,9 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
       });
     }
 
-    // After items start flying back, slam shut
+    // Transition: CLOSING (30%) → SLAMMING (0%) → IDLE
+    setBoxState('CLOSING');
+
     slamTimeoutRef.current = setTimeout(() => {
       setBoxState('SLAMMING');
 
@@ -386,7 +391,7 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
         setIsOpen(false);
         setBoxState('IDLE');
       }, 350);
-    }, 500);
+    }, 300);
   }, [isOpen, clearPhysics]);
 
   const handleDrawerMouseEnter = useCallback(() => {
@@ -411,6 +416,7 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
     } else if (boxState === 'OPEN' || boxState === 'HOVER_CLOSE') {
       closeDrawer();
     }
+    // CLOSING and SLAMMING: ignore clicks (animation in progress)
   }, [boxState, openDrawer, closeDrawer]);
 
   // Accelerometer for mobile

@@ -18,6 +18,7 @@ export default function Home() {
   const [demoItems, setDemoItems] = useState<TreasureItem[]>([]);
   const [demoLoading, setDemoLoading] = useState(true);
   const [publicBoxes, setPublicBoxes] = useState<BoxConfig[]>([]);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
   const [idleHintVisible, setIdleHintVisible] = useState(true);
 
@@ -40,8 +41,14 @@ export default function Home() {
       try {
         const boxes = await getPublicBoxes();
         setPublicBoxes(boxes);
-      } catch {
-        // Silent
+      } catch (err) {
+        console.error('Gallery fetch failed:', err);
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('index')) {
+          setGalleryError('Firestore composite index required — check the browser console for the creation link.');
+        } else {
+          setGalleryError('Failed to load public boxes. Check console for details.');
+        }
       }
     })();
   }, []);
@@ -208,7 +215,11 @@ export default function Home() {
             </span>
           </div>
 
-          {publicBoxes.length === 0 ? (
+          {galleryError ? (
+            <div className="text-center py-16 text-[10px]" style={{ color: '#f87171' }}>
+              {galleryError}
+            </div>
+          ) : publicBoxes.length === 0 ? (
             <div className="text-center py-16 text-[10px]" style={{ color: 'var(--tb-fg-faint)' }}>
               no public boxes yet — toggle yours to public in the editor
             </div>

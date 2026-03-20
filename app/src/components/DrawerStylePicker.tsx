@@ -27,7 +27,7 @@ const ANGLE_OPTIONS: { id: DrawerAngle; label: string; icon: string }[] = [
   { id: 'right-45', label: '45° Right', icon: '◨' },
 ];
 
-const ALL_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'SLAMMING'];
+const ALL_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
 
 // ── Shared styles ────────────────────────────────────────────────
 const sectionLabel: React.CSSProperties = {
@@ -150,6 +150,11 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
     currentImages?.urls || {}
   );
 
+  // Debug state
+  const [debugPrompt, setDebugPrompt] = useState<string | null>(null);
+  const [debugMeta, setDebugMeta] = useState<{ spriteSize?: { width: number; height: number; frameWidth: number }; bgRemovalStatus?: Record<string, string> } | null>(null);
+  const [debugOpen, setDebugOpen] = useState(false);
+
   const asciiPreview = useMemo(
     () => renderAsciiPreview(drawerWidth, drawerHeight, angle),
     [drawerWidth, drawerHeight, angle]
@@ -195,10 +200,16 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ error: 'Unknown error' }));
+        if (errData.prompt) setDebugPrompt(errData.prompt);
         throw new Error(errData.error || 'Generation failed');
       }
 
-      const { frames } = await res.json();
+      const data = await res.json();
+      const { frames } = data;
+      if (data.prompt) setDebugPrompt(data.prompt);
+      if (data.spriteSize || data.bgRemovalStatus) {
+        setDebugMeta({ spriteSize: data.spriteSize, bgRemovalStatus: data.bgRemovalStatus });
+      }
 
       const urls: Record<string, string> = {};
       for (const state of ALL_STATES) {
@@ -497,6 +508,63 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* ── Debug Panel ───────────────────────────────── */}
+      {debugPrompt && (
+        <div style={{ borderTop: '1px solid var(--tb-border-subtle)', paddingTop: 12 }}>
+          <button
+            onClick={() => setDebugOpen(!debugOpen)}
+            style={{
+              fontSize: 10, color: 'var(--tb-fg-faint)', background: 'none',
+              border: 'none', cursor: 'pointer', letterSpacing: '0.08em',
+              textTransform: 'uppercase' as const,
+            }}
+          >
+            {debugOpen ? '▾' : '▸'} debug
+          </button>
+          {debugOpen && (
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <label style={sectionLabel}>prompt sent to gemini</label>
+                <pre style={{
+                  fontSize: 9, lineHeight: 1.4, padding: 10, borderRadius: 3,
+                  background: 'var(--tb-bg-muted)', color: 'var(--tb-fg-muted)',
+                  border: '1px solid var(--tb-border-subtle)',
+                  whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                  maxHeight: 200, overflow: 'auto', margin: 0,
+                }}>
+                  {debugPrompt}
+                </pre>
+              </div>
+              {debugMeta?.spriteSize && (
+                <div>
+                  <label style={sectionLabel}>sprite sheet</label>
+                  <span style={{ fontSize: 10, color: 'var(--tb-fg-muted)' }}>
+                    {debugMeta.spriteSize.width} x {debugMeta.spriteSize.height}px — {debugMeta.spriteSize.frameWidth}px per frame
+                  </span>
+                </div>
+              )}
+              {debugMeta?.bgRemovalStatus && (
+                <div>
+                  <label style={sectionLabel}>bg removal per frame</label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {Object.entries(debugMeta.bgRemovalStatus).map(([state, status]) => (
+                      <span key={state} style={{
+                        fontSize: 9, padding: '2px 6px', borderRadius: 3,
+                        background: status === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(248,113,113,0.1)',
+                        color: status === 'success' ? '#22c55e' : '#f87171',
+                        border: `1px solid ${status === 'success' ? 'rgba(34,197,94,0.2)' : 'rgba(248,113,113,0.2)'}`,
+                      }}>
+                        {state.toLowerCase()}: {status === 'success' ? 'ok' : 'fallback'}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

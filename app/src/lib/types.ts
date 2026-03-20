@@ -20,6 +20,7 @@ export const DEFAULT_BOX_DIMENSIONS: BoxDimensions = {
     HOVER_PEEK: 25,
     OPEN: 100,
     HOVER_CLOSE: 75,
+    CLOSING: 30,
     SLAMMING: 0,
   },
   handleStyle: 'pull-bar',
@@ -30,7 +31,7 @@ export const DEFAULT_BOX_DIMENSIONS: BoxDimensions = {
 
 // ===== Drawer AI Generation =====
 
-export type BoxState = 'IDLE' | 'HOVER_PEEK' | 'OPEN' | 'HOVER_CLOSE' | 'SLAMMING';
+export type BoxState = 'IDLE' | 'HOVER_PEEK' | 'OPEN' | 'HOVER_CLOSE' | 'CLOSING' | 'SLAMMING';
 
 export type DrawerStylePreset = 'clay' | 'metal' | 'wood' | 'pixel' | 'paper' | 'glass';
 

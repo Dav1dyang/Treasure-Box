@@ -14,10 +14,11 @@ const STATE_LABELS: Record<BoxState, string> = {
   HOVER_PEEK: 'hover peek (20%)',
   OPEN: 'open (90%)',
   HOVER_CLOSE: 'closing (60%)',
+  CLOSING: 'closing (30%)',
   SLAMMING: 'slam (5%)',
 };
 
-const STATE_ORDER: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'SLAMMING'];
+const STATE_ORDER: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
 
 export default function BoxDimensionEditor({ dimensions, onChange }: Props) {
   const [previewState, setPreviewState] = useState<BoxState>('IDLE');
