@@ -285,7 +285,7 @@
         var pos = ib.body.position;
         var angle = ib.body.angle;
         var img = itemImages[ib.item.id];
-        var size = 52 * scale;
+        var size = 52;
 
         ctx.save();
         ctx.translate(pos.x, pos.y);

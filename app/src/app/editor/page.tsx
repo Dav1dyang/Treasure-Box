@@ -483,7 +483,7 @@ export default function EditorPage() {
                       </button>
                     )}
                   </div>
-                  <CfgHint>scales drawer, items, and physics walls (0.5× – 2.0×) — reopen drawer to see effect</CfgHint>
+                  <CfgHint>scales the drawer size and physics area (0.5× – 2.0×) — reopen drawer to see effect</CfgHint>
                 </CfgSection>
 
                 <div className="text-[10px] tracking-[0.12em] mb-6 h-6 flex items-center" style={S.faint}>

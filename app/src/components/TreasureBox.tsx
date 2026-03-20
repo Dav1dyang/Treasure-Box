@@ -306,7 +306,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       const item = items[idx];
       const x = centerX + (Math.random() - 0.5) * 100;
       const itemScale = item.scale ?? 1;
-      const size = ITEM_BASE_SIZE * cs * itemScale;
+      const size = ITEM_BASE_SIZE * itemScale;
 
       let body: Matter.Body & { itemData?: TreasureItem };
 
@@ -375,7 +375,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       const item = body.itemData;
       if (!item) return;
 
-      let size = ITEM_BASE_SIZE * contentScaleRef.current * (item.scale ?? 1);
+      let size = ITEM_BASE_SIZE * (item.scale ?? 1);
 
       // During closing, shrink items as they converge on the drawer
       if (closingAnimRef.current) {
@@ -581,7 +581,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     const clickedBody = bodies.some(body => {
       const bx = body.position.x;
       const by = body.position.y;
-      const size = ITEM_BASE_SIZE * contentScaleRef.current * (body.itemData?.scale ?? 1);
+      const size = ITEM_BASE_SIZE * (body.itemData?.scale ?? 1);
       return Math.abs(x - bx) < size / 2 && Math.abs(y - by) < size / 2;
     });
     if (!clickedBody) {
