@@ -26,6 +26,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   const runnerRef = useRef<Matter.Runner | null>(null);
   const bodiesRef = useRef<(Matter.Body & { itemData?: TreasureItem })[]>([]);
   const imagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const blobUrlsRef = useRef<string[]>([]);
 
   // Drawer state machine
   const [boxState, setBoxState] = useState<BoxState>('IDLE');
@@ -42,42 +43,47 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   const isTransparent = bg === 'transparent' || bg === 'rgba(0,0,0,0)';
   const isLightBg = isTransparent ? false : isLightColor(bg);
 
-  // Preload item images — load directly (drawImage doesn't require CORS)
+  // Preload image via fetch → blob URL to avoid CORS canvas tainting
+  const loadImageAsBlobUrl = useCallback((key: string, url: string, onLoad?: () => void) => {
+    if (imagesRef.current.has(key)) return;
+    const img = new Image();
+    if (onLoad) img.onload = onLoad;
+    imagesRef.current.set(key, img);
+
+    fetch(url)
+      .then(res => res.blob())
+      .then(blob => {
+        const blobUrl = URL.createObjectURL(blob);
+        blobUrlsRef.current.push(blobUrl);
+        img.src = blobUrl;
+      })
+      .catch(() => {
+        // Fallback: load directly if fetch fails (e.g. local dev without CORS)
+        img.src = url;
+      });
+  }, []);
+
+  // Preload item images via blob URLs
   const [imagesLoaded, setImagesLoaded] = useState(0);
   useEffect(() => {
     items.forEach(item => {
-      if (!imagesRef.current.has(item.id)) {
-        const img = new Image();
-        img.onload = () => setImagesLoaded(n => n + 1);
-        img.src = item.imageUrl;
-        imagesRef.current.set(item.id, img);
-      }
+      loadImageAsBlobUrl(item.id, item.imageUrl, () => setImagesLoaded(n => n + 1));
     });
-  }, [items]);
+  }, [items, loadImageAsBlobUrl]);
 
   // Preload drawer images (sprite sheet or legacy per-state)
   useEffect(() => {
     if (!config.drawerImages) return;
     if (config.drawerImages.spriteUrl) {
-      // New: single sprite sheet
-      if (!imagesRef.current.has('drawer_sprite')) {
-        const img = new Image();
-        img.src = config.drawerImages.spriteUrl;
-        imagesRef.current.set('drawer_sprite', img);
-      }
+      loadImageAsBlobUrl('drawer_sprite', config.drawerImages.spriteUrl);
     } else if (config.drawerImages.urls) {
-      // Legacy: per-state images
       const urls = config.drawerImages.urls;
       ALL_BOX_STATES.forEach(state => {
         const url = urls[state];
-        if (url && !imagesRef.current.has(`drawer_${state}`)) {
-          const img = new Image();
-          img.src = url;
-          imagesRef.current.set(`drawer_${state}`, img);
-        }
+        if (url) loadImageAsBlobUrl(`drawer_${state}`, url);
       });
     }
-  }, [config.drawerImages]);
+  }, [config.drawerImages, loadImageAsBlobUrl]);
 
   // Init sound
   useEffect(() => {
@@ -113,6 +119,8 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       if (engineRef.current) Matter.Engine.clear(engineRef.current);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (slamTimeoutRef.current) clearTimeout(slamTimeoutRef.current);
+      blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+      blobUrlsRef.current = [];
     };
   }, []);
 
@@ -218,7 +226,8 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
 
       const item = items[idx];
       const x = centerX + (Math.random() - 0.5) * 100;
-      const size = 50 + Math.random() * 10;
+      const itemScale = item.scale ?? 1;
+      const size = (50 + Math.random() * 10) * itemScale;
 
       let body: Matter.Body & { itemData?: TreasureItem };
 
@@ -279,7 +288,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       const item = body.itemData;
       if (!item) return;
 
-      const size = 52;
+      const size = 52 * (item.scale ?? 1);
       const img = imagesRef.current.get(item.id);
 
       ctx.save();

@@ -14,6 +14,7 @@ import type { TreasureItem, BoxConfig, SoundPreset, DrawerImages, EmbedSettings 
 import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
 import EmbedConfigurator from '@/components/EmbedConfigurator';
+import { extractContourFromImage } from '@/lib/contour';
 
 const DEFAULT_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'> = {
   title: 'My Treasure Box',
@@ -48,6 +49,23 @@ function VolumeBar({ volume, onChange }: { volume: number; onChange: (v: number)
       </div>
       <span className="text-[10px] min-w-[28px]" style={{ color: 'var(--tb-fg-faint)' }}>
         {Math.round(volume * 100)}%
+      </span>
+    </div>
+  );
+}
+
+function ScaleControl({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="flex items-center gap-[6px]">
+      <span className="text-[9px] shrink-0" style={{ color: 'var(--tb-fg-faint)' }}>size</span>
+      <input
+        type="range" min={0.5} max={2} step={0.1}
+        value={value}
+        onChange={e => onChange(Number(e.target.value))}
+        style={{ width: 80, accentColor: 'var(--tb-accent)' }}
+      />
+      <span className="text-[9px] min-w-[24px] text-right" style={{ color: 'var(--tb-fg-faint)' }}>
+        {value.toFixed(1)}&times;
       </span>
     </div>
   );
@@ -143,10 +161,34 @@ export default function EditorPage() {
         }
       }
     } catch { /* fallback */ } finally { setRemovingBg(null); }
+    // Extract contour from bg-removed image's alpha channel for physics shapes
+    let contourPoints: { x: number; y: number }[] | undefined;
+    if (processedUrl !== originalUrl) {
+      try {
+        const contourRes = await fetch(processedUrl);
+        const contourBlob = await contourRes.blob();
+        const img = new Image();
+        const blobUrl = URL.createObjectURL(contourBlob);
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = reject;
+          img.src = blobUrl;
+        });
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, img.width, img.height);
+        URL.revokeObjectURL(blobUrl);
+        contourPoints = extractContourFromImage(imageData);
+      } catch { /* fallback to rectangle physics */ }
+    }
     const newItem: TreasureItem = {
       id, imageUrl: processedUrl, originalImageUrl: originalUrl,
       label: file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '),
       story: '', link: '', order: items.length, rotation: 0, createdAt: Date.now(),
+      ...(contourPoints && { contourPoints }),
     };
     await saveItem(user.uid, newItem);
     setItems(prev => [...prev, newItem]);
@@ -274,7 +316,7 @@ export default function EditorPage() {
                     <div key={item.id} className="p-3 transition-colors" style={{ border: '1px solid var(--tb-border-subtle)' }}>
                       <div className="grid grid-cols-[56px_1fr_20px] gap-3">
                         <div className="w-14 h-14 flex items-center justify-center overflow-hidden shrink-0" style={{ background: 'var(--tb-bg-muted)' }}>
-                          <img src={item.imageUrl} alt={item.label} className="max-w-full max-h-full object-contain transition-transform" style={{ transform: `rotate(${item.rotation ?? 0}deg)` }} />
+                          <img src={item.imageUrl} alt={item.label} className="max-w-full max-h-full object-contain transition-transform" style={{ transform: `rotate(${item.rotation ?? 0}deg) scale(${item.scale ?? 1})` }} />
                         </div>
                         <div className="flex flex-col gap-[6px] min-w-0">
                           <input value={item.label} onChange={e => handleUpdateItem(item.id, { label: e.target.value })} placeholder="label"
@@ -284,6 +326,7 @@ export default function EditorPage() {
                           <textarea value={item.story || ''} onChange={e => handleUpdateItem(item.id, { story: e.target.value })} placeholder="story (shown on long-press)" rows={2}
                             className="w-full bg-transparent text-[10px] pb-[2px] outline-none resize-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
                           <RotationControl value={item.rotation ?? 0} onChange={v => handleUpdateItem(item.id, { rotation: v })} />
+                          <ScaleControl value={item.scale ?? 1} onChange={v => handleUpdateItem(item.id, { scale: v })} />
                         </div>
                         <button onClick={() => handleDeleteItem(item.id)} className="text-sm self-start cursor-pointer leading-none" style={S.ghost}>&times;</button>
                       </div>
