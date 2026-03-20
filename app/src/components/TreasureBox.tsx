@@ -332,7 +332,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       const item = body.itemData;
       if (!item) return;
 
-      let size = 52 * (item.scale ?? 1);
+      let size = ITEM_BASE_SIZE * (item.scale ?? 1);
 
       // During closing, shrink items as they converge on the drawer
       if (closingAnimRef.current) {
@@ -343,8 +343,6 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         size *= Math.max(0.1, shrink);
         if (size < 3) return; // skip tiny items
       }
-
-      const size = ITEM_BASE_SIZE * (item.scale ?? 1);
       const img = imagesRef.current.get(item.id);
 
       ctx.save();
