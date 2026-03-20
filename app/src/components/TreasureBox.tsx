@@ -457,28 +457,31 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       engine.gravity.x = 0;
     }
 
-    // Animate items flying into the drawer over ~400ms using a repeating force
+    // Smooth position lerp: capture start positions, interpolate toward drawer center
     closingAnimRef.current = true;
+    const startPositions = bodiesRef.current.map(b => ({ x: b.position.x, y: b.position.y }));
+    const startTime = performance.now();
+    const duration = 300; // 300ms suck-in
+
     const pullInterval = setInterval(() => {
       if (!closingAnimRef.current) { clearInterval(pullInterval); return; }
-      bodiesRef.current.forEach(body => {
-        const dx = drawerCenterX - body.position.x;
-        const dy = drawerY - body.position.y;
-        const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
-        // Strong pull toward drawer center
-        Matter.Body.applyForce(body, body.position, {
-          x: (dx / dist) * 0.015,
-          y: (dy / dist) * 0.015,
+      const elapsed = performance.now() - startTime;
+      const t = Math.min(1, elapsed / duration);
+      // Cubic ease-in: slow start, accelerates into the drawer like a vortex
+      const eased = t * t * t;
+
+      bodiesRef.current.forEach((body, i) => {
+        const start = startPositions[i];
+        if (!start) return;
+        Matter.Body.setPosition(body, {
+          x: start.x + (drawerCenterX - start.x) * eased,
+          y: start.y + (drawerY - start.y) * eased,
         });
-        // Dampen velocity for smooth convergence
-        Matter.Body.setVelocity(body, {
-          x: body.velocity.x * 0.9,
-          y: body.velocity.y * 0.9,
-        });
+        Matter.Body.setVelocity(body, { x: 0, y: 0 });
       });
     }, 16);
 
-    // Transition: CLOSING → SLAMMING → IDLE
+    // Transition: CLOSING (drawer stays open while items fly in) → SLAMMING → IDLE
     setBoxState('CLOSING');
 
     managedTimeout(() => {
@@ -489,8 +492,8 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       managedTimeout(() => {
         clearPhysics();
         setBoxState('IDLE');
-      }, 350);
-    }, 500);
+      }, 120);
+    }, 300);
   }, [isOpen, clearPhysics, clearAllTimeouts, managedTimeout, fullpageMode, onItemsReturned]);
 
   // Stable refs so handlers don't go stale across re-renders
@@ -629,7 +632,7 @@ const STATE_TO_FRAME: Record<BoxState, number> = {
   HOVER_PEEK: 1,   // Frame 1: 25% open
   OPEN: 4,         // Frame 4: 100% open
   HOVER_CLOSE: 3,  // Frame 3: 75% open
-  CLOSING: 1,      // Frame 1: ~30% (closest match)
+  CLOSING: 4,      // Frame 4: keep fully open while items fly back in
   SLAMMING: 0,     // Frame 0: closed
 };
 
