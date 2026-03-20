@@ -261,13 +261,26 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         Matter.Bodies.rectangle(w + 7, h / 2, 14, h + 14, wallOpts),    // right
       ]);
 
-      // Add drawer as static physics body so items collide with it
+      // Drawer collision body — bottom 3/4 is solid, top 1/4 is open.
+      // Items land on the top surface of the solid portion (the "rim"),
+      // and visually overlap the top 1/4 since the canvas z-index (15)
+      // sits above the drawer z-index (10) when open — creating the
+      // illusion of items sitting inside the drawer, peeking out.
       if (drawerElRef.current && sceneRef.current) {
         const sceneRect = sceneRef.current.getBoundingClientRect();
         const drawerRect = drawerElRef.current.getBoundingClientRect();
-        const dx = drawerRect.left - sceneRect.left + drawerRect.width / 2;
-        const dy = drawerRect.top - sceneRect.top + drawerRect.height / 2;
-        const drawerBody = Matter.Bodies.rectangle(dx, dy, drawerRect.width, drawerRect.height, {
+        const dw = drawerRect.width;
+        const dh = drawerRect.height;
+        const centerX = drawerRect.left - sceneRect.left + dw / 2;
+        const centerY = drawerRect.top - sceneRect.top + dh / 2;
+
+        // Solid body = bottom 3/4 of the drawer visual
+        //   top edge:    centerY - dh/2 + dh*0.25  (1/4 down from visual top)
+        //   bottom edge: centerY + dh/2             (visual bottom)
+        //   center:      centerY + dh/8             (shifted down by 1/8)
+        const bodyH = dh * 0.75;
+        const bodyY = centerY + dh / 8;
+        const drawerBody = Matter.Bodies.rectangle(centerX, bodyY, dw, bodyH, {
           isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
         });
         Matter.Composite.add(engine.world, drawerBody);
