@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { uploadSpriteSheet, saveDrawerImages } from '@/lib/firestore';
+import { uploadSpriteSheet, saveDrawerImages, uploadGeneratedSound, saveGeneratedSounds, clearGeneratedSounds } from '@/lib/firestore';
 import { COLOR_PRESETS, STYLE_PRESETS, DECOR_ITEMS } from '@/lib/boxStyles';
 import type {
   DrawerStylePreset,
   DrawerAngle,
   DrawerStyle,
   DrawerImages,
+  GeneratedSounds,
   BoxState,
 } from '@/lib/types';
 
@@ -118,11 +119,14 @@ function renderAsciiPreview(w: number, h: number, angle: DrawerAngle): string {
 interface Props {
   userId: string;
   currentImages?: DrawerImages;
+  currentSounds?: GeneratedSounds;
   onComplete: (images: DrawerImages) => void;
   onReset: () => void;
+  onSoundsGenerated: (sounds: GeneratedSounds) => void;
+  onSoundsCleared: () => void;
 }
 
-export default function DrawerStylePicker({ userId, currentImages, onComplete, onReset }: Props) {
+export default function DrawerStylePicker({ userId, currentImages, currentSounds, onComplete, onReset, onSoundsGenerated, onSoundsCleared }: Props) {
   // 1. Material (= old preset)
   const [preset, setPreset] = useState<DrawerStylePreset>(
     currentImages?.style.preset || 'clay'
@@ -162,6 +166,77 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
     ratioWarning?: string;
   } | null>(null);
   const [debugOpen, setDebugOpen] = useState(false);
+
+  // Sound generation state
+  const [generatingSounds, setGeneratingSounds] = useState(false);
+  const [soundError, setSoundError] = useState<string | null>(null);
+
+  const handleGenerateSounds = async () => {
+    setGeneratingSounds(true);
+    setSoundError(null);
+
+    const styleDesc = STYLE_PRESETS.find(s => s.id === stylePattern);
+    const customPrompt = styleDesc && styleDesc.id !== 'plain' ? styleDesc.label : undefined;
+
+    const style: DrawerStyle = { preset, color, customPrompt, accentColor, angle };
+
+    try {
+      const res = await fetch('/api/generate-sounds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ style }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errData.error || 'Sound generation failed');
+      }
+
+      const data = await res.json();
+
+      // Upload each generated sound to Firebase Storage
+      const uploads: Promise<string>[] = [];
+      const soundTypes = ['collision', 'drawerOpen', 'drawerClose'] as const;
+      const storageKeys = ['collision', 'drawer-open', 'drawer-close'] as const;
+
+      for (let i = 0; i < soundTypes.length; i++) {
+        const sound = data[soundTypes[i]];
+        if (sound) {
+          uploads.push(uploadGeneratedSound(userId, storageKeys[i], sound.data, sound.mimeType));
+        } else {
+          uploads.push(Promise.reject(new Error(`No ${soundTypes[i]} sound generated`)));
+        }
+      }
+
+      const [collisionUrl, drawerOpenUrl, drawerCloseUrl] = await Promise.all(uploads);
+
+      const cleanStyle: DrawerStyle = JSON.parse(JSON.stringify(style));
+      const sounds: GeneratedSounds = {
+        collisionUrl,
+        drawerOpenUrl,
+        drawerCloseUrl,
+        style: cleanStyle,
+        generatedAt: Date.now(),
+      };
+
+      await saveGeneratedSounds(userId, sounds);
+      onSoundsGenerated(sounds);
+    } catch (e: any) {
+      console.error('Sound generation error:', e);
+      setSoundError(e.message || 'Sound generation failed');
+    } finally {
+      setGeneratingSounds(false);
+    }
+  };
+
+  const handleClearSounds = async () => {
+    try {
+      await clearGeneratedSounds(userId);
+      onSoundsCleared();
+    } catch (e: any) {
+      console.error('Clear sounds error:', e);
+    }
+  };
 
   const asciiPreview = useMemo(
     () => renderAsciiPreview(drawerWidth, drawerHeight, angle),
@@ -548,6 +623,75 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
           )}
         </div>
       )}
+
+      {/* ── AI Sound Effects ─────────────────────────── */}
+      <div style={{ borderTop: '1px solid var(--tb-border-subtle)', paddingTop: 12 }}>
+        <label style={sectionLabel}>ai sound effects</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={handleGenerateSounds}
+            disabled={generatingSounds || generating}
+            style={{
+              fontSize: 11, padding: '6px 20px', borderRadius: 3,
+              border: '1px solid var(--tb-border)', color: 'var(--tb-accent)',
+              background: 'transparent',
+              cursor: (generatingSounds || generating) ? 'not-allowed' : 'pointer',
+              opacity: (generatingSounds || generating) ? 0.5 : 1,
+            }}
+          >
+            {generatingSounds ? 'generating sounds...' : currentSounds ? 'regenerate sounds' : 'generate sounds'}
+          </button>
+          {currentSounds && !generatingSounds && (
+            <button
+              onClick={handleClearSounds}
+              style={{ fontSize: 11, color: 'var(--tb-fg-faint)', background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              clear sounds
+            </button>
+          )}
+        </div>
+        {generatingSounds && (
+          <div style={{ fontSize: 11, color: 'var(--tb-highlight, var(--tb-accent))', marginTop: 6 }}>
+            generating collision, open & close sounds...
+          </div>
+        )}
+        {soundError && (
+          <div style={{
+            fontSize: 11, color: '#f87171', marginTop: 6,
+            background: 'rgba(248,113,113,0.1)',
+            border: '1px solid rgba(248,113,113,0.2)',
+            padding: 10, borderRadius: 3,
+          }}>
+            {soundError}
+          </div>
+        )}
+        {currentSounds && !generatingSounds && (
+          <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+            {[
+              { label: 'collision', url: currentSounds.collisionUrl },
+              { label: 'open', url: currentSounds.drawerOpenUrl },
+              { label: 'close', url: currentSounds.drawerCloseUrl },
+            ].map(s => (
+              <button
+                key={s.label}
+                onClick={() => {
+                  const audio = new Audio(s.url);
+                  audio.volume = 0.5;
+                  audio.play().catch(() => {});
+                }}
+                style={{
+                  fontSize: 10, padding: '4px 10px', borderRadius: 3,
+                  border: '1px solid var(--tb-border-subtle)',
+                  color: 'var(--tb-fg-muted)', background: 'transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                &#9654; {s.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* ── Debug Panel ───────────────────────────────── */}
       {debugPrompt && (

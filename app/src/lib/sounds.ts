@@ -1,4 +1,4 @@
-import type { SoundPreset } from './types';
+import type { SoundPreset, GeneratedSounds } from './types';
 
 class SoundEngine {
   private audioCtx: AudioContext | null = null;
@@ -8,6 +8,12 @@ class SoundEngine {
   private lastPlayTime = 0;
   private minInterval = 50; // ms between sounds to avoid spam
 
+  // AI-generated sound buffers
+  private collisionBuffer: AudioBuffer | null = null;
+  private drawerOpenBuffer: AudioBuffer | null = null;
+  private drawerCloseBuffer: AudioBuffer | null = null;
+  private aiSoundsLoaded = false;
+
   init() {
     if (typeof window === 'undefined') return;
     this.audioCtx = new AudioContext();
@@ -16,6 +22,41 @@ class SoundEngine {
   setEnabled(enabled: boolean) { this.enabled = enabled; }
   setVolume(vol: number) { this.volume = Math.max(0, Math.min(1, vol)); }
   setPreset(preset: SoundPreset) { this.preset = preset; }
+
+  /** Load AI-generated sounds from Firebase Storage URLs */
+  async loadAISounds(sounds: GeneratedSounds): Promise<void> {
+    if (!this.audioCtx) return;
+
+    try {
+      const ctx = this.audioCtx;
+      const [collision, drawerOpen, drawerClose] = await Promise.all([
+        this.fetchAndDecode(ctx, sounds.collisionUrl),
+        this.fetchAndDecode(ctx, sounds.drawerOpenUrl),
+        this.fetchAndDecode(ctx, sounds.drawerCloseUrl),
+      ]);
+
+      this.collisionBuffer = collision;
+      this.drawerOpenBuffer = drawerOpen;
+      this.drawerCloseBuffer = drawerClose;
+      this.aiSoundsLoaded = true;
+    } catch (err) {
+      console.warn('Failed to load AI sounds, falling back to synthesis:', err);
+      this.aiSoundsLoaded = false;
+    }
+  }
+
+  clearAISounds() {
+    this.collisionBuffer = null;
+    this.drawerOpenBuffer = null;
+    this.drawerCloseBuffer = null;
+    this.aiSoundsLoaded = false;
+  }
+
+  private async fetchAndDecode(ctx: AudioContext, url: string): Promise<AudioBuffer> {
+    const res = await fetch(url);
+    const arrayBuf = await res.arrayBuffer();
+    return ctx.decodeAudioData(arrayBuf);
+  }
 
   playCollision(velocity: number) {
     if (!this.enabled || this.preset === 'silent' || !this.audioCtx) return;
@@ -31,6 +72,12 @@ class SoundEngine {
     const vol = this.volume * (speed / 10) * 0.4;
     const ctx = this.audioCtx;
 
+    // AI-generated collision sound
+    if (this.preset === 'ai-generated' && this.aiSoundsLoaded && this.collisionBuffer) {
+      this.playBuffer(ctx, this.collisionBuffer, vol, 0.9 + Math.random() * 0.2);
+      return;
+    }
+
     switch (this.preset) {
       case 'metallic':
         this.playMetallic(ctx, vol);
@@ -45,6 +92,36 @@ class SoundEngine {
         this.playPaper(ctx, vol);
         break;
     }
+  }
+
+  /** Play drawer open sound (AI-generated only) */
+  playDrawerOpen() {
+    if (!this.enabled || this.preset === 'silent' || !this.audioCtx) return;
+    if (this.preset === 'ai-generated' && this.aiSoundsLoaded && this.drawerOpenBuffer) {
+      this.playBuffer(this.audioCtx, this.drawerOpenBuffer, this.volume * 0.5);
+    }
+  }
+
+  /** Play drawer close/slam sound (AI-generated only) */
+  playDrawerClose() {
+    if (!this.enabled || this.preset === 'silent' || !this.audioCtx) return;
+    if (this.preset === 'ai-generated' && this.aiSoundsLoaded && this.drawerCloseBuffer) {
+      this.playBuffer(this.audioCtx, this.drawerCloseBuffer, this.volume * 0.6);
+    }
+  }
+
+  /** Play an AudioBuffer with optional volume and playback rate */
+  private playBuffer(ctx: AudioContext, buffer: AudioBuffer, vol: number, rate = 1.0) {
+    const source = ctx.createBufferSource();
+    const gain = ctx.createGain();
+
+    source.buffer = buffer;
+    source.playbackRate.value = rate;
+    gain.gain.value = vol;
+
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    source.start();
   }
 
   private playMetallic(ctx: AudioContext, vol: number) {
