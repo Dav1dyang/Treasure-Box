@@ -6,8 +6,11 @@
 
   var boxId = script.getAttribute('data-box-id');
   var bg = script.getAttribute('data-bg') || 'transparent';
-  var width = parseInt(script.getAttribute('data-width') || '350', 10);
-  var height = parseInt(script.getAttribute('data-height') || '300', 10);
+  var scale = parseFloat(script.getAttribute('data-scale') || '1');
+  var rawW = script.getAttribute('data-width');
+  var rawH = script.getAttribute('data-height');
+  var width = rawW ? parseInt(rawW, 10) : Math.round(350 * scale);
+  var height = rawH ? parseInt(rawH, 10) : Math.round(300 * scale);
   var mode = script.getAttribute('data-mode') || 'overlay';
   var origin = script.src.replace(/\/embed\/widget\.js.*$/, '');
 

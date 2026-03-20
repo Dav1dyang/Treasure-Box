@@ -10,7 +10,7 @@ import {
   uploadImage, uploadProcessedImage,
   clearDrawerImages, deleteItemWithCleanup, deleteBox,
 } from '@/lib/firestore';
-import type { TreasureItem, BoxConfig, SoundPreset, DrawerImages, EmbedSettings } from '@/lib/types';
+import type { TreasureItem, BoxConfig, SoundPreset, DrawerImages, EmbedSettings, AnchorCorner } from '@/lib/types';
 import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
 import { extractContourFromImage } from '@/lib/contour';
@@ -685,69 +685,20 @@ export default function EditorPage() {
                 : config?.backgroundColor || 'var(--tb-bg)',
             }}>
             {config && tab === 'embed' ? (
-              // Embed tab: preview with mock website background
-              <div className="w-full h-full relative" style={{ background: 'var(--tb-bg)' }}>
-                <MockWebsitePlaceholder />
-
-                {config.embedSettings?.mode === 'overlay' || !config.embedSettings || config.embedSettings.mode !== 'contained' ? (
-                  // Overlay mode: TreasureBox fills preview so items fly freely
-                  <>
-                    <div className="absolute inset-0" style={{ zIndex: 5 }}>
-                      <TreasureBox items={items} config={config} />
-                    </div>
-                    {/* Anchor position indicator — shows where the widget will actually sit */}
-                    {(() => {
-                      const es = config.embedSettings;
-                      const anchor = es?.position.anchor ?? 'bottom-right';
-                      const offX = es?.position.offsetX ?? 32;
-                      const offY = es?.position.offsetY ?? 32;
-                      // Scale: preview is ~600px wide, reference viewport is 1440
-                      const sw = Math.max(30, (es?.width ?? 350) * 0.25);
-                      const sh = Math.max(24, (es?.height ?? 300) * 0.25);
-                      const soX = offX * 0.25;
-                      const soY = offY * 0.25;
-                      return (
-                        <div
-                          className="absolute border border-dashed pointer-events-none"
-                          style={{
-                            borderColor: 'var(--tb-accent)',
-                            opacity: 0.35,
-                            width: sw,
-                            height: sh,
-                            zIndex: 20,
-                            ...(anchor.includes('bottom') ? { bottom: soY } : { top: soY }),
-                            ...(anchor.includes('right') ? { right: soX } : { left: soX }),
-                          }}
-                        >
-                          <span className="absolute -top-4 left-0 text-[7px] whitespace-nowrap" style={S.ghost}>
-                            widget position
-                          </span>
-                        </div>
-                      );
-                    })()}
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[8px] px-2 py-1" style={{ ...S.ghost, background: 'var(--tb-bg)', border: '1px solid var(--tb-border-subtle)', zIndex: 25 }}>
-                      items fly across the host page when opened
-                    </div>
-                  </>
-                ) : (
-                  // Contained mode — centered box over placeholder site
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div
-                      style={{
-                        width: config.embedSettings
-                          ? `${Math.min(config.embedSettings.width * 0.6, 450)}px`
-                          : '90%',
-                        maxWidth: 500,
-                        aspectRatio: config.embedSettings
-                          ? `${config.embedSettings.width} / ${config.embedSettings.height}`
-                          : '1 / 1',
-                      }}
-                    >
-                      <TreasureBox items={items} config={config} />
-                    </div>
-                  </div>
-                )}
-              </div>
+              // Embed tab: interactive preview with draggable TreasureBox
+              <EmbedPreview
+                config={config}
+                items={items}
+                onPositionChange={(pos) => {
+                  setConfig({
+                    ...config,
+                    embedSettings: {
+                      ...(config.embedSettings || { mode: 'overlay', width: 350, height: 300, position: { anchor: 'bottom-right', offsetX: 32, offsetY: 32 } }),
+                      position: pos,
+                    },
+                  });
+                }}
+              />
             ) : (
               // Items / Config tabs: plain preview, no mock site
               <>
@@ -783,6 +734,153 @@ function CfgToggle({ active, first, children, onClick }: { active: boolean; firs
         color: active ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
         borderLeftWidth: first ? 1 : 0, background: 'transparent',
       }}>{children}</button>
+  );
+}
+
+const REFERENCE_W = 1440;
+const REFERENCE_H = 900;
+
+/** Interactive embed preview — TreasureBox fills the preview, drawer is draggable */
+function EmbedPreview({
+  config,
+  items,
+  onPositionChange,
+}: {
+  config: BoxConfig;
+  items: TreasureItem[];
+  onPositionChange: (pos: { anchor: AnchorCorner; offsetX: number; offsetY: number }) => void;
+}) {
+  const previewRef = useRef<HTMLDivElement>(null);
+  const es = config.embedSettings || { mode: 'overlay', width: 350, height: 300, position: { anchor: 'bottom-right' as AnchorCorner, offsetX: 32, offsetY: 32 } };
+  const isOverlay = es.mode !== 'contained';
+
+  // Compute drawer position as CSS styles for TreasureBox overlayPreview
+  const getDrawerStyle = useCallback((): React.CSSProperties => {
+    if (!previewRef.current) return { bottom: 24, right: 24 };
+    const pw = previewRef.current.offsetWidth;
+    const ph = previewRef.current.offsetHeight;
+    const scaleX = pw / REFERENCE_W;
+    const scaleY = ph / REFERENCE_H;
+    const anchor = es.position.anchor;
+    const style: React.CSSProperties = {};
+
+    if (anchor.includes('bottom')) style.bottom = es.position.offsetY * scaleY;
+    else style.top = es.position.offsetY * scaleY;
+    if (anchor.includes('right')) style.right = es.position.offsetX * scaleX;
+    else style.left = es.position.offsetX * scaleX;
+
+    return style;
+  }, [es.position]);
+
+  // Compute spawn origin as fraction of preview
+  const getSpawnOrigin = useCallback(() => {
+    if (!previewRef.current) return { x: 0.8, y: 0.8 };
+    const pw = previewRef.current.offsetWidth;
+    const ph = previewRef.current.offsetHeight;
+    const scaleX = pw / REFERENCE_W;
+    const scaleY = ph / REFERENCE_H;
+    const anchor = es.position.anchor;
+
+    let x: number, y: number;
+    if (anchor.includes('right')) x = (pw - es.position.offsetX * scaleX) / pw;
+    else x = (es.position.offsetX * scaleX) / pw;
+    if (anchor.includes('bottom')) y = (ph - es.position.offsetY * scaleY) / ph;
+    else y = (es.position.offsetY * scaleY) / ph;
+
+    return { x: Math.max(0.1, Math.min(0.9, x)), y: Math.max(0.1, Math.min(0.9, y)) };
+  }, [es.position]);
+
+  // Handle drag from TreasureBox drawer
+  const handleDrag = useCallback((e: PointerEvent, phase: 'start' | 'move' | 'end') => {
+    if (phase !== 'end' || !previewRef.current) return;
+    const rect = previewRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const pw = rect.width;
+    const ph = rect.height;
+    const scaleX = pw / REFERENCE_W;
+    const scaleY = ph / REFERENCE_H;
+
+    const anchor: AnchorCorner =
+      x < pw / 2 && y < ph / 2 ? 'top-left' :
+      x >= pw / 2 && y < ph / 2 ? 'top-right' :
+      x < pw / 2 ? 'bottom-left' : 'bottom-right';
+
+    let offsetX: number, offsetY: number;
+    if (anchor.includes('right')) offsetX = (pw - x) / scaleX;
+    else offsetX = x / scaleX;
+    if (anchor.includes('bottom')) offsetY = (ph - y) / scaleY;
+    else offsetY = y / scaleY;
+
+    onPositionChange({
+      anchor,
+      offsetX: Math.round(Math.max(0, offsetX)),
+      offsetY: Math.round(Math.max(0, offsetY)),
+    });
+  }, [onPositionChange]);
+
+  if (!isOverlay) {
+    // Contained mode — centered box over placeholder site
+    return (
+      <div className="w-full h-full relative" style={{ background: 'var(--tb-bg)' }}>
+        <MockWebsitePlaceholder />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div
+            style={{
+              width: es ? `${Math.min(es.width * 0.6, 450)}px` : '90%',
+              maxWidth: 500,
+              aspectRatio: es ? `${es.width} / ${es.height}` : '1 / 1',
+            }}
+          >
+            <TreasureBox items={items} config={config} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Overlay mode — TreasureBox fills preview, drawer at anchor, items fly freely
+  const previewConfig = {
+    ...config,
+    backgroundColor: 'transparent',
+    contentScale: es.embedScale ?? config.contentScale ?? 1,
+  };
+
+  return (
+    <div ref={previewRef} className="w-full h-full relative" style={{ background: 'var(--tb-bg)' }}>
+      {/* Background: website iframe or wireframe */}
+      <MockWebsitePlaceholder />
+      {es.previewUrl && (
+        <iframe
+          src={es.previewUrl}
+          sandbox="allow-scripts"
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 w-full h-full pointer-events-none"
+          style={{ opacity: 0.4, zIndex: 1, border: 'none' }}
+        />
+      )}
+
+      {/* TreasureBox fills entire preview — items bounce off edges */}
+      <div className="absolute inset-0" style={{ zIndex: 5 }}>
+        <TreasureBox
+          items={items}
+          config={previewConfig}
+          overlayPreview={{
+            drawerStyle: getDrawerStyle(),
+            spawnOrigin: getSpawnOrigin(),
+            onDrag: handleDrag,
+          }}
+        />
+      </div>
+
+      {/* Position readout */}
+      <div className="absolute bottom-2 left-3 z-30 text-[8px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
+        {es.position.anchor} &middot; {es.position.offsetX}px, {es.position.offsetY}px
+      </div>
+      <div className="absolute bottom-2 right-3 z-30 text-[8px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
+        drag drawer to reposition
+      </div>
+    </div>
   );
 }
 

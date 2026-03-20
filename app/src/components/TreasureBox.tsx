@@ -11,6 +11,15 @@ import StoryCard from './StoryCard';
 
 const ITEM_BASE_SIZE = 52;
 
+interface OverlayPreviewConfig {
+  /** CSS styles to position the drawer at the anchor point */
+  drawerStyle: React.CSSProperties;
+  /** Spawn origin as fraction of scene (0-1) */
+  spawnOrigin: { x: number; y: number };
+  /** Drag callback — fired with PointerEvent and phase */
+  onDrag?: (e: PointerEvent, phase: 'start' | 'move' | 'end') => void;
+}
+
 interface Props {
   items: TreasureItem[];
   config: BoxConfig;
@@ -18,11 +27,13 @@ interface Props {
   fullpageMode?: boolean;
   onItemsEscaped?: (items: { id: string; imageUrl: string; label: string }[]) => void;
   onItemsReturned?: () => void;
+  /** When set, TreasureBox uses full-scene edge walls and positions drawer at anchor */
+  overlayPreview?: OverlayPreviewConfig;
 }
 
 const ALL_BOX_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
 
-export default function TreasureBox({ items, config, backgroundColor, fullpageMode, onItemsEscaped, onItemsReturned }: Props) {
+export default function TreasureBox({ items, config, backgroundColor, fullpageMode, onItemsEscaped, onItemsReturned, overlayPreview }: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
@@ -52,6 +63,15 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   const spawnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const itemsHandedOffRef = useRef(false);
   const closingAnimRef = useRef(false);
+  const drawerElRef = useRef<HTMLDivElement>(null);
+
+  // Drag-to-reposition state (overlay preview only)
+  const dragStartPos = useRef<{ x: number; y: number } | null>(null);
+  const isDraggingDrawer = useRef(false);
+
+  // Keep overlayPreview ref fresh for use inside callbacks
+  const overlayPreviewRef = useRef(overlayPreview);
+  useEffect(() => { overlayPreviewRef.current = overlayPreview; }, [overlayPreview]);
 
   // Managed timeout system — tracks ALL timeouts for clean cancellation
   const timeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -228,21 +248,30 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     const w = scene.offsetWidth;
     const h = scene.offsetHeight;
     const cs = contentScaleRef.current;
-    // Adaptive walls: scale to container size instead of hardcoded values
-    const boxW = Math.min(420 * cs, w * 0.85);
-    const boxCenterX = w / 2;
-    const floorY = h - Math.max(120 * cs, h * 0.3);
-
     const wallOpts = { isStatic: true, friction: 0.9, restitution: 0.15 };
-    const floor = Matter.Bodies.rectangle(boxCenterX, floorY, boxW, 14, wallOpts);
-    const leftWall = Matter.Bodies.rectangle(
-      boxCenterX - boxW / 2 - 7, floorY - 300, 14, 700 * cs, wallOpts
-    );
-    const rightWall = Matter.Bodies.rectangle(
-      boxCenterX + boxW / 2 + 7, floorY - 300, 14, 700 * cs, wallOpts
-    );
 
-    Matter.Composite.add(engine.world, [floor, leftWall, rightWall]);
+    if (overlayPreviewRef.current) {
+      // Overlay preview: edge walls — items bounce off the preview frame
+      Matter.Composite.add(engine.world, [
+        Matter.Bodies.rectangle(w / 2, h + 7, w, 14, wallOpts),   // floor
+        Matter.Bodies.rectangle(w / 2, -7, w, 14, wallOpts),       // ceiling
+        Matter.Bodies.rectangle(-7, h / 2, 14, h, wallOpts),       // left
+        Matter.Bodies.rectangle(w + 7, h / 2, 14, h, wallOpts),    // right
+      ]);
+    } else {
+      // Normal mode: box-shaped walls centered around the drawer
+      const boxW = Math.min(420 * cs, w * 0.85);
+      const boxCenterX = w / 2;
+      const floorY = h - Math.max(120 * cs, h * 0.3);
+      const floor = Matter.Bodies.rectangle(boxCenterX, floorY, boxW, 14, wallOpts);
+      const leftWall = Matter.Bodies.rectangle(
+        boxCenterX - boxW / 2 - 7, floorY - 300, 14, 700 * cs, wallOpts
+      );
+      const rightWall = Matter.Bodies.rectangle(
+        boxCenterX + boxW / 2 + 7, floorY - 300, 14, 700 * cs, wallOpts
+      );
+      Matter.Composite.add(engine.world, [floor, leftWall, rightWall]);
+    }
 
     const mouse = Matter.Mouse.create(canvas);
     mouse.pixelRatio = window.devicePixelRatio || 1;
@@ -320,8 +349,9 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     const w = scene.offsetWidth;
     const h = scene.offsetHeight;
     const cs = contentScaleRef.current;
-    const spawnY = h - 200 * cs;
-    const centerX = w / 2;
+    const op = overlayPreviewRef.current;
+    const spawnY = op ? op.spawnOrigin.y * h : h - 200 * cs;
+    const centerX = op ? op.spawnOrigin.x * w : w / 2;
 
     spawnIndexRef.current = 0;
 
@@ -533,9 +563,13 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     // Pull items INTO the drawer (toward the drawer opening)
     const scene = sceneRef.current;
     const engine = engineRef.current;
-    const drawerCenterX = scene ? scene.offsetWidth / 2 : 200;
-    // Target: the drawer opening area (bottom of the scene, where the drawer is)
-    const drawerY = scene ? scene.offsetHeight - 150 : 300;
+    const drawerEl = drawerElRef.current;
+    const drawerCenterX = (overlayPreviewRef.current && drawerEl)
+      ? drawerEl.offsetLeft + drawerEl.offsetWidth / 2
+      : (scene ? scene.offsetWidth / 2 : 200);
+    const drawerY = (overlayPreviewRef.current && drawerEl)
+      ? drawerEl.offsetTop + drawerEl.offsetHeight / 2
+      : (scene ? scene.offsetHeight - 150 : 300);
 
     if (engine) {
       // Kill gravity so items float toward the drawer
@@ -655,19 +689,61 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     return () => window.removeEventListener('devicemotion', handler);
   }, []);
 
+  // --- Drag-to-reposition handlers for overlay preview ---
+  const handleDrawerPointerDown = useCallback((e: React.PointerEvent) => {
+    if (!overlayPreviewRef.current?.onDrag) return;
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
+    isDraggingDrawer.current = false;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }, []);
+
+  const handleDrawerPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragStartPos.current || !overlayPreviewRef.current?.onDrag) return;
+    const dx = e.clientX - dragStartPos.current.x;
+    const dy = e.clientY - dragStartPos.current.y;
+    if (!isDraggingDrawer.current && Math.abs(dx) + Math.abs(dy) > 5) {
+      isDraggingDrawer.current = true;
+      overlayPreviewRef.current.onDrag(e.nativeEvent, 'start');
+    }
+    if (isDraggingDrawer.current) {
+      overlayPreviewRef.current.onDrag(e.nativeEvent, 'move');
+    }
+  }, []);
+
+  const handleDrawerPointerUp = useCallback((e: React.PointerEvent) => {
+    if (!dragStartPos.current) return;
+    const wasDragging = isDraggingDrawer.current;
+    dragStartPos.current = null;
+    isDraggingDrawer.current = false;
+    if (wasDragging && overlayPreviewRef.current?.onDrag) {
+      overlayPreviewRef.current.onDrag(e.nativeEvent, 'end');
+    } else {
+      // Not a drag — treat as normal click
+      handleDrawerClick();
+    }
+  }, [handleDrawerClick]);
+
   return (
     <div
       ref={sceneRef}
-      className="relative w-full h-full min-h-[400px] overflow-hidden select-none"
+      className={`relative w-full h-full select-none ${overlayPreview ? '' : 'min-h-[400px]'} overflow-hidden`}
       style={{ background: isTransparent ? 'transparent' : bg }}
     >
       {/* Drawer area — below canvas when open so items render on top */}
       <div
-        className="absolute bottom-6 left-1/2 -translate-x-1/2 cursor-pointer"
-        style={{ zIndex: isOpen ? 10 : 20 }}
-        onMouseEnter={handleDrawerMouseEnter}
-        onMouseLeave={handleDrawerMouseLeave}
-        onClick={handleDrawerClick}
+        ref={drawerElRef}
+        className={overlayPreview ? 'absolute cursor-pointer touch-none' : 'absolute bottom-6 left-1/2 -translate-x-1/2 cursor-pointer'}
+        style={{
+          ...(overlayPreview?.drawerStyle || {}),
+          zIndex: isOpen ? 10 : 20,
+          cursor: overlayPreview?.onDrag ? (isDraggingDrawer.current ? 'grabbing' : 'grab') : 'pointer',
+        }}
+        onMouseEnter={overlayPreview?.onDrag ? undefined : handleDrawerMouseEnter}
+        onMouseLeave={overlayPreview?.onDrag ? undefined : handleDrawerMouseLeave}
+        onClick={overlayPreview?.onDrag ? undefined : handleDrawerClick}
+        onPointerDown={overlayPreview?.onDrag ? handleDrawerPointerDown : undefined}
+        onPointerMove={overlayPreview?.onDrag ? handleDrawerPointerMove : undefined}
+        onPointerUp={overlayPreview?.onDrag ? handleDrawerPointerUp : undefined}
       >
         {hasGeneratedImages ? (
           // === AI-Generated Image Drawer ===
