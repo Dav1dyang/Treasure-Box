@@ -165,77 +165,25 @@ export const DECOR_ITEMS = [
 /**
  * Build a single sprite-sheet prompt — all 5 states in one image.
  *
- * Accepts the new extended DrawerStyle fields (material, accentColor,
- * decor, size ratio, camera angle) and slots them into the proven
- * prompt structure without breaking existing generation quality.
+ * Parameter-driven template: every UI selection maps to a [PLACEHOLDER]
+ * with interpretation rules so Gemini respects each choice.
  */
 export function buildSpriteSheetPrompt(style: DrawerStyle): string {
   const def = STYLE_BASES[style.preset];
-
-  // Material override — if set, override preset surface/hardware/art hints
   const mat = style.material ? MATERIALS[style.material] : null;
 
-  const mainColor = style.color
-    ? `${style.color} tones`
-    : def.mainColor;
-
-  const surface = mat ? mat.surface : def.mainColor;
-  const hardware = mat ? mat.hardware : def.hardware;
-  const handleStyle = def.handleStyle;
+  // Resolve placeholder values
+  const material = mat ? `${def.furnitureStyle} rendered in ${mat.label} (${mat.surface})` : def.furnitureStyle;
+  const primaryColor = style.color ? `${style.color} ${colorLabel(style.color)}` : def.mainColor;
+  const accentColor = style.accentColor ? `${style.accentColor} ${colorLabel(style.accentColor)}` : 'warm brass';
+  const styleTags = resolveStyleTags(style);
+  const decorTags = resolveDecorTags(style);
+  const customDecor = style.customPrompt || 'none';
+  const widthRatio = style.drawerWidth || 3;
+  const heightRatio = style.drawerHeight || 2;
+  const openingAngle = resolveAngle(style.angle || 'front');
+  const handleType = def.handleStyle;
   const artStyle = mat ? `${def.artStyle}, rendered with ${mat.artHint}` : def.artStyle;
-
-  // Accent color for hardware/trim
-  const accentHint = style.accentColor
-    ? `\n- Hardware and trim accent color: ${style.accentColor} tones`
-    : '';
-
-  // Decor description
-  const decorHint = style.decor
-    ? `\n- Surface decoration: ${style.decor}`
-    : '';
-
-  // Custom prompt
-  const custom = style.customPrompt ? `\nAdditional details: ${style.customPrompt}.` : '';
-
-  // Size ratio — adjusts the drawer face proportions description
-  const w = style.drawerWidth || 3;
-  const h = style.drawerHeight || 2;
-  const ratioDesc = w > h
-    ? `wider than tall, about ${w}:${h} ratio`
-    : w < h
-    ? `taller than wide, about ${w}:${h} ratio`
-    : `roughly square, about 1:1 ratio`;
-
-  // Camera angle
-  const angle = style.angle || 'front';
-  let cameraDesc: string;
-  if (angle === 'left-45') {
-    cameraDesc = `- Three-quarter view from the left side (approximately 45 degrees from front-left)
-- Eye-level
-- The left side panel of the cabinet should be partially visible
-- The front face is still the dominant visible surface
-- Consistent camera angle across all 5 frames
-- No camera movement, zoom, or rotation between frames`;
-  } else if (angle === 'right-45') {
-    cameraDesc = `- Three-quarter view from the right side (approximately 45 degrees from front-right)
-- Eye-level
-- The right side panel of the cabinet should be partially visible
-- The front face is still the dominant visible surface
-- Consistent camera angle across all 5 frames
-- No camera movement, zoom, or rotation between frames`;
-  } else {
-    cameraDesc = `- Dead-center front view
-- Eye-level
-- Straight-on
-- No camera movement
-- No zoom change
-- No perspective shift
-- No rotation
-- No tilt
-- Do not show the top exterior surface of the outer cabinet
-- Do not show the left exterior side
-- Do not show the right exterior side`;
-  }
 
   return `Create exactly ONE single sprite sheet image for a web creative project.
 
@@ -245,194 +193,191 @@ This must read clearly as a normal SLIDING DRAWER, not a tilt-out bin, not a hin
 
 OUTPUT FORMAT:
 - Exactly 1 image
-- Exactly 5 frames
-- Frames arranged side by side in a single horizontal row
+- Exactly 5 frames arranged side by side in a single horizontal row
 - Overall image ratio must be exactly 5:1
-- Example valid sizes: 2500x500 px, 2000x400 px, 1500x300 px
-- Each frame must be exactly the same size
-- Each frame must occupy exactly one-fifth of the total image width
-- Zero gaps
-- Zero padding
-- Zero borders
-- Zero separators
+- Example valid sizes: 2500×500 px, 2000×400 px, 1500×300 px
+- Each frame must be exactly the same size (one-fifth of total width)
+- Zero gaps, zero padding, zero borders, zero separators
 - Frames must tile edge to edge with perfectly clean frame boundaries
 - This sheet will be sliced programmatically, so alignment must be exact
 
 BACKGROUND:
-Use a completely flat chroma key green background across the entire image.
-Required exact background color:
-- Hex #00FF00
-- RGB 0,255,0
-Background rules:
-- Absolutely uniform green
-- No gradients
-- No noise
-- No texture
-- No shadows on the background
-- No vignette
-- No lighting changes
-- No edge discoloration
+Completely flat chroma key green across the entire image.
+- Exact color: Hex #00FF00 / RGB (0, 255, 0)
+- Absolutely uniform — no gradients, noise, texture, shadows, vignette, lighting changes, or edge discoloration
 - Green must extend to every edge of the image
 
 IMPORTANT COLOR RULE:
-- Do not use green on the furniture at all
-- Do not use #00FF00 or similar bright greens anywhere on the drawer, tray, hardware, highlights, or ornament
+- Do NOT use green on the furniture at all
+- Do NOT use #00FF00 or similar bright greens anywhere on the drawer, tray, hardware, highlights, or ornament
 - Avoid green reflections or green-tinted shading
 
 OUTLINE:
-Add a thin clean white silhouette outline around the entire furniture shape in every frame.
-- Outline width about 1 to 2 pixels
-- Keep the outline consistent across all frames
-- The outline should cleanly separate the object from the green background
+- Thin clean white silhouette outline (1-2 px) around the entire furniture shape in every frame
+- Consistent across all frames — cleanly separates the object from the green background
 
 NO TEXT:
-- No text anywhere
-- No labels
-- No numbers
-- No captions
-- No frame markers
-- No logo
-- No watermark
-- No signature
+No text, labels, numbers, captions, frame markers, logo, watermark, or signature anywhere.
 
 SUBJECT:
-A refined single furniture drawer from an elegant cabinet, dresser, jewelry box, or apothecary cabinet.
-It should feel like crafted furniture.
+A refined single furniture drawer from an elegant cabinet, dresser, jewelry box, or apothecary cabinet. It should feel like crafted furniture.
 
-DO NOT DEPICT:
-- chest
-- crate
-- trunk
-- shipping box
-- toolbox
-- tilt-out bin
-- bread box
-- hinged lid box
-- flap door
-- drop-front desk
+DO NOT DEPICT: chest, crate, trunk, shipping box, toolbox, tilt-out bin, bread box, hinged lid box, flap door, drop-front desk.
 
-CORE DESIGN:
+═══════════════════════════════════════════
+PARAMETERS — interpret each one carefully
+═══════════════════════════════════════════
+
+[MATERIAL]: ${material}
+→ This defines the fundamental construction and surface treatment of the drawer.
+→ Treat it as the primary visual identity — all surfaces, edges, and joins should match this material.
+
+[PRIMARY_COLOR]: ${primaryColor}
+→ The dominant color of the drawer body and front face.
+→ If a hex code is provided, match it closely while maintaining the material's natural texture.
+→ The material texture should show through the color (wood grain through stain, brush marks through paint, etc).
+
+[ACCENT_COLOR]: ${accentColor}
+→ Used for hardware, trim, handles, keyholes, corner brackets, and decorative metal elements.
+→ Should contrast with the primary color for visual clarity.
+
+[STYLE_TAGS]: ${styleTags}
+→ Surface pattern and aesthetic treatment for the front drawer face.
+→ If "plain" — use clean, smooth surfaces with no patterns.
+→ If decorative tags given — carve, emboss, or inlay them into the front face as period-appropriate ornament.
+
+[DECOR_TAGS]: ${decorTags}
+→ Specific hardware and decorative elements to include on the drawer.
+→ Each tag is a distinct visible element — render ALL of them, even if small.
+→ "keyhole" = escutcheon plate with keyhole below the handle
+→ "corner brackets" = decorative metal corner reinforcements on front face
+→ "studs" = small round decorative rivets/nailheads along edges
+→ "ring pull" = metal ring-pull handle (may replace default handle)
+→ "hinges" = visible decorative hinge plates
+→ "lock plate" = ornamental metal plate around keyhole
+→ "inlay" = contrasting material inlay pattern (wood, metal, or mother-of-pearl)
+→ "engravings" = fine line engravings etched into the surface
+→ IMPORTANT: small decor items (studs, keyholes) must still be individually visible at final resolution.
+
+[CUSTOM_DECOR]: ${customDecor}
+→ Free-form user request for additional decorative elements.
+→ If "none" — ignore this field.
+→ If text is given — treat these as the user's most important creative request. Render them prominently.
+→ Custom decor should integrate naturally with the material and style, not look pasted on.
+
+[WIDTH_RATIO]: ${widthRatio}
+[HEIGHT_RATIO]: ${heightRatio}
+→ The front face aspect ratio is approximately ${widthRatio}:${heightRatio}.
+→ ${widthRatio > heightRatio ? 'Wider than tall' : widthRatio < heightRatio ? 'Taller than wide' : 'Roughly square'}.
+
+[OPENING_ANGLE]: ${openingAngle}
+
+[HANDLE_TYPE]: ${handleType}
+→ The primary handle on the front face center.
+→ Rendered in the accent color material.
+
+[ART_STYLE]: ${artStyle}
+→ The overall rendering style for the entire image.
+→ All elements (material, decor, hardware) should be rendered consistently in this style.
+
+═══════════════════════════════════════════
+CORE DESIGN
+═══════════════════════════════════════════
+
 The object consists of two visible parts:
 
-1. FRONT DRAWER FACE
-This is the decorative front panel of the drawer.
-It is always visible in all 5 frames.
-Requirements:
-- Viewed from the specified camera angle
-- Rectangular
-- ${ratioDesc}
-- Fine decorative border or beveled molding
-- Centered handle
-- Optional subtle keyhole or ornamental carving
-- Must remain pixel-identical in all 5 frames
-- Same exact size
-- Same exact position
-- Same exact handle placement
-- Same exact decorative details
-- Same exact lighting and rendering
+1. FRONT DRAWER FACE — the decorative front panel, always visible in all 5 frames.
+   - Rectangular, approximately ${widthRatio}:${heightRatio} ratio
+   - Fine decorative border or beveled molding
+   - Centered [HANDLE_TYPE] handle in [ACCENT_COLOR]
+   - All [DECOR_TAGS] and [CUSTOM_DECOR] elements rendered here
+   - Must remain PIXEL-IDENTICAL in all 5 frames (same size, position, handle, details, lighting)
 
-2. SLIDING DRAWER TRAY
-This is the drawer body behind the front face.
-It only becomes visible when the drawer is pulled outward.
-Critical behavior:
-- It must read as a true sliding drawer moving straight outward toward the viewer
-- It must NOT read as a lid rotating upward
-- It must NOT read as a tilted container
-- It must NOT read as the whole cabinet opening
-Tray appearance:
-- When open, the tray becomes visible above the front face because of foreshortening from a straight-on view
-- The visible tray should be relatively shallow and believable
-- The tray side walls should be modest, not exaggerated
-- The opening above the front panel should not become extremely tall
-- The tray interior bottom may become visible when more open
-- The interior must always be completely empty
-- No contents of any kind
+2. SLIDING DRAWER TRAY — the drawer body behind the front face, visible only when open.
+   - Reads as a true sliding drawer moving straight outward toward the viewer
+   - NOT a lid rotating upward, NOT a tilted container
+   - Visible above the front face due to foreshortening
+   - Shallow and believable proportions (modest side walls)
+   - Interior always completely empty — no contents of any kind
 
 CAMERA:
-Use the exact same camera in every frame.
-${cameraDesc}
+${openingAngle}
+The furniture must remain locked in the same position in every frame. No jitter, drifting, scaling, or perspective changes.
 
-IMPORTANT VISUAL RULE:
-The furniture must remain locked in the same position in every frame.
-No jitter, no drifting, no scaling changes, no perspective changes.
-
-FRAME SEQUENCE:
-Show exactly these 5 frames from left to right:
-
-FRAME 1: CLOSED
-- Drawer fully shut
-- Front face flush
-- No visible tray
-- No visible opening gap
-
-FRAME 2: 25% OPEN
-- Small but clearly visible extension
-- A shallow section of tray visible above the front face
-- Must read as the first stage of opening
-
-FRAME 3: 50% OPEN
-- Medium extension
-- Tray clearly visible
-- Interior begins to read more clearly
-
-FRAME 4: 75% OPEN
-- Large extension
-- Clearly more open than frame 3
-- Empty interior more visible
-
-FRAME 5: 100% OPEN
-- Maximum extension
-- Most dramatic frame
-- Empty tray interior visible most clearly
-- Still must read as a sliding drawer, not a hinged lid
-- Keep proportions believable and not too tall
+FRAME SEQUENCE (left to right):
+1. CLOSED — fully shut, front face flush, no visible tray or gap
+2. 25% OPEN — small visible extension, shallow tray above front face
+3. 50% OPEN — medium extension, tray clearly visible, interior readable
+4. 75% OPEN — large extension, clearly more open than frame 3
+5. 100% OPEN — maximum extension, most dramatic, empty interior fully visible
 
 CONSISTENCY RULES:
-- The front drawer face must be pixel-identical across all 5 frames
-- Only the tray extension changes
-- The tray must keep the same material, same design language, and same lighting in all open states
-- The entire object must stay centered in the same place in every frame
-- Lighting direction must not change
-- Shadow style must not change
-- Material rendering must not change
+- Front drawer face pixel-identical across all 5 frames (only tray extension changes)
+- Same material, design language, and lighting in all states
+- Object centered in same position every frame
+- Lighting and shadow direction constant
 
-STYLE:
-- Furniture style: ${def.furnitureStyle}
-- Main color: ${mainColor}
-- Surface material: ${surface}
-- Hardware: ${hardware}
-- Handle style: ${handleStyle}
-- Art style: ${artStyle}${accentHint}${decorHint}${custom}
-- The overall feel should be a refined piece of furniture, not a rough container
-
-QUALITY PRIORITY ORDER:
-If any instruction conflicts, prioritize in this order:
+QUALITY PRIORITY (if any instruction conflicts):
 1. Exactly 5 equal frames in one horizontal strip
 2. Exact flat #00FF00 background
 3. No text
-4. Front drawer face remains pixel-identical across all frames
-5. Drawer reads as a true sliding drawer, not a hinged or tilt-out object
-6. Frame progression clearly reads closed, 25%, 50%, 75%, 100%
-7. White outline around the furniture silhouette
-8. Style and decorative detail
+4. Front drawer face pixel-identical across all frames
+5. Drawer reads as true sliding drawer
+6. Clear progression: closed → 25% → 50% → 75% → 100%
+7. White outline around furniture silhouette
+8. All [DECOR_TAGS] and [CUSTOM_DECOR] visible
+9. Style and decorative detail`;
+}
 
-FINAL CHECK BEFORE OUTPUT:
-- Exactly 1 image
-- Exactly 5 frames
-- Single horizontal row
-- Exact 5:1 ratio
-- Exact #00FF00 background
-- No text
-- No green on furniture
-- Thin white silhouette outline
-- Frame 1 fully closed
-- Frame 2 25% open
-- Frame 3 50% open
-- Frame 4 75% open
-- Frame 5 100% open
-- Front drawer face identical in every frame
-- Tray interior empty
-- Drawer reads as sliding furniture, not a hinged opening`;
+/** Map hex color to a human-readable hint for the prompt */
+function colorLabel(hex: string): string {
+  const labels: Record<string, string> = {
+    '#8B4513': 'rich brown wood tones',
+    '#C0C0C0': 'silver metallic',
+    '#3E2723': 'deep dark walnut',
+    '#B71C1C': 'deep crimson red',
+    '#1565C0': 'royal blue',
+    '#FFB300': 'warm gold',
+    '#212121': 'matte black',
+    '#F5F5F5': 'off-white ivory',
+    '#B08D57': 'warm brass',
+    '#333333': 'dark iron',
+    '#B87333': 'antique copper',
+    '#DDD': 'polished chrome',
+  };
+  return labels[hex] || 'tones';
+}
+
+function resolveStyleTags(style: DrawerStyle): string {
+  // customPrompt is used for style pattern label from STYLE_PRESETS
+  if (style.customPrompt) return style.customPrompt;
+  return 'plain';
+}
+
+function resolveDecorTags(style: DrawerStyle): string {
+  if (style.decor && style.decor.trim()) return style.decor;
+  return 'none';
+}
+
+function resolveAngle(angle: string): string {
+  if (angle === 'left-45') {
+    return `Three-quarter view from the left side (approximately 45° from front-left)
+- Eye-level
+- Left side panel partially visible, front face dominant
+- Consistent camera angle across all 5 frames
+- No camera movement, zoom, or rotation between frames`;
+  }
+  if (angle === 'right-45') {
+    return `Three-quarter view from the right side (approximately 45° from front-right)
+- Eye-level
+- Right side panel partially visible, front face dominant
+- Consistent camera angle across all 5 frames
+- No camera movement, zoom, or rotation between frames`;
+  }
+  return `Dead-center front view
+- Eye-level, straight-on
+- No camera movement, zoom, perspective shift, rotation, or tilt
+- Do not show top, left, or right exterior surfaces of the outer cabinet`;
 }
 
 /**

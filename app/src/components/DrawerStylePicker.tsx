@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { uploadDrawerImage, saveDrawerImages } from '@/lib/firestore';
+import { uploadSpriteSheet, saveDrawerImages } from '@/lib/firestore';
 import { COLOR_PRESETS, STYLE_PRESETS, DECOR_ITEMS } from '@/lib/boxStyles';
 import type {
   DrawerStylePreset,
@@ -150,9 +150,16 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
     currentImages?.urls || {}
   );
 
+  // Sprite preview
+  const [spritePreviewUrl, setSpritePreviewUrl] = useState<string | null>(null);
+
   // Debug state
   const [debugPrompt, setDebugPrompt] = useState<string | null>(null);
-  const [debugMeta, setDebugMeta] = useState<{ spriteSize?: { width: number; height: number; frameWidth: number }; bgRemovalStatus?: Record<string, string> } | null>(null);
+  const [debugMeta, setDebugMeta] = useState<{
+    spriteSize?: { width: number; height: number; frameCount: number };
+    bgRemoval?: string;
+    visionObjects?: number;
+  } | null>(null);
   const [debugOpen, setDebugOpen] = useState(false);
 
   const asciiPreview = useMemo(
@@ -170,6 +177,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
     setGenerating(true);
     setError(null);
     setPreviewUrls({});
+    setSpritePreviewUrl(null);
 
     // Build decor string from selected items + custom
     const allDecor = [...selectedDecor];
@@ -205,24 +213,22 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
       }
 
       const data = await res.json();
-      const { frames } = data;
       if (data.prompt) setDebugPrompt(data.prompt);
-      if (data.spriteSize || data.bgRemovalStatus) {
-        setDebugMeta({ spriteSize: data.spriteSize, bgRemovalStatus: data.bgRemovalStatus });
+      if (data.spriteSize || data.bgRemoval) {
+        setDebugMeta({
+          spriteSize: data.spriteSize,
+          bgRemoval: data.bgRemoval,
+          visionObjects: data.visionObjects,
+        });
       }
 
-      const urls: Record<string, string> = {};
-      for (const state of ALL_STATES) {
-        const base64 = frames[state];
-        if (base64) {
-          const url = await uploadDrawerImage(userId, state, base64);
-          urls[state] = url;
-          setPreviewUrls(prev => ({ ...prev, [state]: url }));
-        }
-      }
+      // Upload single sprite sheet
+      const spriteUrl = await uploadSpriteSheet(userId, data.sprite);
+      setSpritePreviewUrl(spriteUrl);
 
       const drawerImages: DrawerImages = {
-        urls: urls as Record<BoxState, string>,
+        urls: {} as Record<BoxState, string>,
+        spriteUrl,
         style,
         generatedAt: Date.now(),
       };
@@ -479,35 +485,50 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
         </div>
       )}
 
-      {Object.keys(previewUrls).length > 0 && (
+      {(spritePreviewUrl || Object.keys(previewUrls).length > 0) && (
         <div>
-          <label style={sectionLabel}>generated states</label>
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8 }}>
-            {ALL_STATES.map(state => {
-              const url = previewUrls[state];
-              return (
-                <div key={state} style={{ flexShrink: 0, textAlign: 'center' }}>
-                  <div style={{
-                    width: 72, height: 56, borderRadius: 3, overflow: 'hidden',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    border: '1px solid var(--tb-border-subtle)',
-                    background: url
-                      ? 'repeating-conic-gradient(var(--tb-bg-muted) 0% 25%, var(--tb-bg-subtle) 0% 50%) 50% / 8px 8px'
-                      : 'var(--tb-bg-muted)',
-                  }}>
-                    {url ? (
-                      <img src={url} alt={state} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-                    ) : (
-                      <span style={{ fontSize: 9, color: 'var(--tb-fg-faint)' }}>...</span>
-                    )}
+          <label style={sectionLabel}>generated sprite sheet</label>
+          {spritePreviewUrl ? (
+            <div style={{
+              borderRadius: 3, overflow: 'hidden',
+              border: '1px solid var(--tb-border-subtle)',
+              background: 'repeating-conic-gradient(var(--tb-bg-muted) 0% 25%, var(--tb-bg-subtle) 0% 50%) 50% / 8px 8px',
+              padding: 4,
+            }}>
+              <img
+                src={spritePreviewUrl}
+                alt="Sprite sheet"
+                style={{ width: '100%', height: 'auto', display: 'block' }}
+              />
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8 }}>
+              {ALL_STATES.map(state => {
+                const url = previewUrls[state];
+                return (
+                  <div key={state} style={{ flexShrink: 0, textAlign: 'center' }}>
+                    <div style={{
+                      width: 72, height: 56, borderRadius: 3, overflow: 'hidden',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: '1px solid var(--tb-border-subtle)',
+                      background: url
+                        ? 'repeating-conic-gradient(var(--tb-bg-muted) 0% 25%, var(--tb-bg-subtle) 0% 50%) 50% / 8px 8px'
+                        : 'var(--tb-bg-muted)',
+                    }}>
+                      {url ? (
+                        <img src={url} alt={state} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                      ) : (
+                        <span style={{ fontSize: 9, color: 'var(--tb-fg-faint)' }}>...</span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 8, color: 'var(--tb-fg-faint)', marginTop: 2, display: 'block' }}>
+                      {state.toLowerCase().replace('_', ' ')}
+                    </span>
                   </div>
-                  <span style={{ fontSize: 8, color: 'var(--tb-fg-faint)', marginTop: 2, display: 'block' }}>
-                    {state.toLowerCase().replace('_', ' ')}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -542,24 +563,27 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
                 <div>
                   <label style={sectionLabel}>sprite sheet</label>
                   <span style={{ fontSize: 10, color: 'var(--tb-fg-muted)' }}>
-                    {debugMeta.spriteSize.width} x {debugMeta.spriteSize.height}px — {debugMeta.spriteSize.frameWidth}px per frame
+                    {debugMeta.spriteSize.width} × {debugMeta.spriteSize.height}px — {debugMeta.spriteSize.frameCount} frames
                   </span>
                 </div>
               )}
-              {debugMeta?.bgRemovalStatus && (
+              {debugMeta?.bgRemoval && (
                 <div>
-                  <label style={sectionLabel}>bg removal per frame</label>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {Object.entries(debugMeta.bgRemovalStatus).map(([state, status]) => (
-                      <span key={state} style={{
-                        fontSize: 9, padding: '2px 6px', borderRadius: 3,
-                        background: status === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(248,113,113,0.1)',
-                        color: status === 'success' ? '#22c55e' : '#f87171',
-                        border: `1px solid ${status === 'success' ? 'rgba(34,197,94,0.2)' : 'rgba(248,113,113,0.2)'}`,
-                      }}>
-                        {state.toLowerCase()}: {status === 'success' ? 'ok' : 'fallback'}
+                  <label style={sectionLabel}>bg removal</label>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{
+                      fontSize: 9, padding: '2px 6px', borderRadius: 3,
+                      background: debugMeta.bgRemoval === 'vision' ? 'rgba(34,197,94,0.1)' : 'rgba(250,204,21,0.1)',
+                      color: debugMeta.bgRemoval === 'vision' ? '#22c55e' : '#facc15',
+                      border: `1px solid ${debugMeta.bgRemoval === 'vision' ? 'rgba(34,197,94,0.2)' : 'rgba(250,204,21,0.2)'}`,
+                    }}>
+                      {debugMeta.bgRemoval === 'vision' ? 'vision api + chroma key' : 'chroma key only'}
+                    </span>
+                    {debugMeta.bgRemoval === 'vision' && debugMeta.visionObjects !== undefined && (
+                      <span style={{ fontSize: 9, color: 'var(--tb-fg-faint)' }}>
+                        {debugMeta.visionObjects} object{debugMeta.visionObjects !== 1 ? 's' : ''} detected
                       </span>
-                    ))}
+                    )}
                   </div>
                 </div>
               )}

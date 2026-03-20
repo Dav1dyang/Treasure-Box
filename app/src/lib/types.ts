@@ -55,7 +55,8 @@ export interface DrawerStyle {
 }
 
 export interface DrawerImages {
-  urls: Record<BoxState, string>;  // Firebase Storage download URLs per state
+  urls: Record<BoxState, string>;  // legacy: per-state URLs (old boxes)
+  spriteUrl?: string;              // new: single sprite sheet URL
   style: DrawerStyle;
   generatedAt: number;
 }

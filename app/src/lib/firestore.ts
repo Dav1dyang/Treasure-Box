@@ -86,6 +86,17 @@ export async function uploadDrawerImage(
   return getDownloadURL(storageRef);
 }
 
+export async function uploadSpriteSheet(
+  userId: string,
+  base64Data: string,
+): Promise<string> {
+  const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+  const blob = new Blob([bytes], { type: 'image/png' });
+  const storageRef = ref(getStorageInstance(), `boxes/${userId}/drawer/sprite.png`);
+  await uploadBytes(storageRef, blob);
+  return getDownloadURL(storageRef);
+}
+
 export async function saveDrawerImages(
   userId: string,
   drawerImages: DrawerImages,

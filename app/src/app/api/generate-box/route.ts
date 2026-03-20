@@ -2,12 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import sharp from 'sharp';
 import { buildSpriteSheetPrompt } from '@/lib/boxStyles';
-import type { BoxState, DrawerStyle } from '@/lib/types';
+import type { DrawerStyle } from '@/lib/types';
 
-// Allow up to 120s — one Gemini call + 5 bg removals
-export const maxDuration = 120;
-
-const STATES_IN_ORDER: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'SLAMMING'];
+// Vision API + Sharp chroma key is much faster than ML bg removal
+export const maxDuration = 60;
 
 interface GenerateBoxRequest {
   style: DrawerStyle;
@@ -20,7 +18,6 @@ export async function POST(request: NextRequest) {
     const body: GenerateBoxRequest = await request.json();
     const { style } = body;
 
-    // Build prompt early so it's available in error responses
     builtPrompt = buildSpriteSheetPrompt(style);
 
     const apiKey = process.env.GOOGLE_AI_STUDIO_KEY;
@@ -62,57 +59,67 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Split the sprite sheet into 5 frames
+    // Remove green background from the sprite sheet
     const spriteBuffer = Buffer.from(imageBase64, 'base64');
     const metadata = await sharp(spriteBuffer).metadata();
-    const fullWidth = metadata.width || 1024;
-    const fullHeight = metadata.height || 512;
-    const frameWidth = Math.floor(fullWidth / 5);
+    const fullWidth = metadata.width || 2500;
+    const fullHeight = metadata.height || 500;
 
-    const frames: Record<string, string> = {};
-    const bgRemovalStatus: Record<string, string> = {};
+    let bgRemoval: 'vision' | 'chroma-fallback';
+    let visionObjects = 0;
+    let processedBase64: string;
 
-    for (let i = 0; i < 5; i++) {
-      const state = STATES_IN_ORDER[i];
+    const visionApiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
 
-      // Crop each frame from the sprite sheet
-      const frameBuffer = await sharp(spriteBuffer)
-        .extract({
-          left: i * frameWidth,
-          top: 0,
-          width: frameWidth,
-          height: fullHeight,
-        })
-        .png()
-        .toBuffer();
-
-      // ML-based background removal
-      let outputBase64: string;
+    if (visionApiKey) {
+      // Vision API-assisted chroma key removal
       try {
-        const { removeBackground } = await import('@imgly/background-removal-node');
-        const blob = new Blob([new Uint8Array(frameBuffer)], { type: 'image/png' });
-        const resultBlob = await removeBackground(blob, {
-          model: 'small',
-          output: { format: 'image/png' },
-        });
-        const resultBuffer = Buffer.from(await resultBlob.arrayBuffer());
-        outputBase64 = resultBuffer.toString('base64');
-        bgRemovalStatus[state] = 'success';
-      } catch (bgError) {
-        console.warn(`ML bg removal failed for ${state}, using raw frame:`, bgError);
-        outputBase64 = frameBuffer.toString('base64');
-        bgRemovalStatus[state] = `fallback: ${bgError instanceof Error ? bgError.message : String(bgError)}`;
-      }
+        const visionRes = await fetch(
+          `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requests: [{
+                image: { content: imageBase64 },
+                features: [{ type: 'OBJECT_LOCALIZATION', maxResults: 10 }],
+              }],
+            }),
+          }
+        );
+        const visionData = await visionRes.json();
+        const objects = visionData.responses?.[0]?.localizedObjectAnnotations ?? [];
+        visionObjects = objects.length;
 
-      frames[state] = outputBase64;
+        // Build object mask regions from Vision API bounding polys
+        const objectRegions = objects.map((obj: any) => {
+          const vertices = obj.boundingPoly?.normalizedVertices ?? [];
+          return vertices.map((v: any) => ({
+            x: Math.round((v.x || 0) * fullWidth),
+            y: Math.round((v.y || 0) * fullHeight),
+          }));
+        });
+
+        processedBase64 = await removeGreenWithVision(spriteBuffer, fullWidth, fullHeight, objectRegions);
+        bgRemoval = 'vision';
+      } catch (visionErr) {
+        console.warn('Vision API failed, falling back to pure chroma key:', visionErr);
+        processedBase64 = await removeGreenChromaKey(spriteBuffer);
+        bgRemoval = 'chroma-fallback';
+      }
+    } else {
+      // Pure chroma key removal (no Vision API key)
+      processedBase64 = await removeGreenChromaKey(spriteBuffer);
+      bgRemoval = 'chroma-fallback';
     }
 
     return NextResponse.json({
-      frames,
+      sprite: processedBase64,
       prompt: builtPrompt,
       mimeType: 'image/png',
-      spriteSize: { width: fullWidth, height: fullHeight, frameWidth },
-      bgRemovalStatus,
+      spriteSize: { width: fullWidth, height: fullHeight, frameCount: 5 },
+      bgRemoval,
+      visionObjects,
     });
   } catch (error: any) {
     console.error('Box generation error:', error);
@@ -121,4 +128,143 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Remove #00FF00 chroma key green using Vision API object bounds for edge refinement.
+ * - Pixels outside object bounds: aggressive green removal (wide tolerance)
+ * - Pixels near object edges: feathered alpha for smooth transitions
+ * - Pixels inside objects: conservative removal (preserve green-tinted shadows)
+ */
+async function removeGreenWithVision(
+  buffer: Buffer,
+  width: number,
+  height: number,
+  objectRegions: { x: number; y: number }[][],
+): Promise<string> {
+  const { data, info } = await sharp(buffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const pixels = new Uint8Array(data.buffer, data.byteOffset, data.length);
+
+  // Build a distance map from object edges (simplified: use bounding boxes)
+  const edgeDistance = buildEdgeDistanceMap(width, height, objectRegions);
+
+  for (let i = 0; i < pixels.length; i += 4) {
+    const r = pixels[i];
+    const g = pixels[i + 1];
+    const b = pixels[i + 2];
+
+    const pixelIdx = i / 4;
+    const dist = edgeDistance[pixelIdx];
+
+    // Green detection with distance-based tolerance
+    const isGreen = g > 200 && r < 100 && b < 100;
+    const isSoftGreen = g > 150 && g > r * 1.5 && g > b * 1.5;
+
+    if (isGreen) {
+      // Strong green — always remove
+      pixels[i + 3] = 0;
+    } else if (isSoftGreen && dist > 3) {
+      // Soft green outside object bounds — remove
+      pixels[i + 3] = 0;
+    } else if (isSoftGreen && dist > 0) {
+      // Soft green near object edge — feather alpha
+      const alpha = Math.round((1 - dist / 4) * 255);
+      pixels[i + 3] = Math.min(pixels[i + 3], Math.max(0, alpha));
+    }
+    // Inside object or not green — keep as-is
+  }
+
+  const result = await sharp(Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length), {
+    raw: { width: info.width, height: info.height, channels: 4 },
+  })
+    .png()
+    .toBuffer();
+
+  return result.toString('base64');
+}
+
+/**
+ * Pure chroma key removal — removes #00FF00 green pixels.
+ * No Vision API needed. Works well for flat uniform green backgrounds.
+ */
+async function removeGreenChromaKey(
+  buffer: Buffer,
+): Promise<string> {
+  const { data, info } = await sharp(buffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const pixels = new Uint8Array(data.buffer, data.byteOffset, data.length);
+
+  for (let i = 0; i < pixels.length; i += 4) {
+    const r = pixels[i];
+    const g = pixels[i + 1];
+    const b = pixels[i + 2];
+
+    // Pure green: g high, r+b low
+    if (g > 200 && r < 100 && b < 100) {
+      pixels[i + 3] = 0; // fully transparent
+    } else if (g > 150 && g > r * 1.5 && g > b * 1.5) {
+      // Soft green (edges, anti-aliasing) — partial transparency
+      const greenness = (g - Math.max(r, b)) / g;
+      const alpha = Math.round((1 - greenness) * 255);
+      pixels[i + 3] = Math.min(pixels[i + 3], Math.max(0, alpha));
+    }
+  }
+
+  const result = await sharp(Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length), {
+    raw: { width: info.width, height: info.height, channels: 4 },
+  })
+    .png()
+    .toBuffer();
+
+  return result.toString('base64');
+}
+
+/**
+ * Build a simplified distance map from object bounding box edges.
+ * Returns distance in pixels from nearest object edge for each pixel.
+ * Positive = outside object, 0 = on edge, negative values not used.
+ */
+function buildEdgeDistanceMap(
+  width: number,
+  height: number,
+  objectRegions: { x: number; y: number }[][],
+): Float32Array {
+  const map = new Float32Array(width * height).fill(999);
+
+  // Convert polygon regions to bounding boxes for efficiency
+  for (const region of objectRegions) {
+    if (region.length < 2) continue;
+    const xs = region.map(p => p.x);
+    const ys = region.map(p => p.y);
+    const minX = Math.max(0, Math.min(...xs));
+    const maxX = Math.min(width - 1, Math.max(...xs));
+    const minY = Math.max(0, Math.min(...ys));
+    const maxY = Math.min(height - 1, Math.max(...ys));
+
+    // Mark pixels inside bounding box with distance from edge
+    for (let y = Math.max(0, minY - 5); y <= Math.min(height - 1, maxY + 5); y++) {
+      for (let x = Math.max(0, minX - 5); x <= Math.min(width - 1, maxX + 5); x++) {
+        const distToEdge = Math.min(
+          Math.abs(x - minX),
+          Math.abs(x - maxX),
+          Math.abs(y - minY),
+          Math.abs(y - maxY),
+        );
+
+        const inside = x >= minX && x <= maxX && y >= minY && y <= maxY;
+        const dist = inside ? -distToEdge : distToEdge;
+        const idx = y * width + x;
+        map[idx] = Math.min(map[idx], dist);
+      }
+    }
+  }
+
+  return map;
 }

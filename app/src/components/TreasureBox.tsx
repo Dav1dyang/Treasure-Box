@@ -34,7 +34,7 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
   const animFrameRef = useRef<number>(0);
   const slamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const hasGeneratedImages = !!(config.drawerImages && config.drawerImages.urls?.IDLE);
+  const hasGeneratedImages = !!(config.drawerImages && (config.drawerImages.spriteUrl || config.drawerImages.urls?.IDLE));
   const bg = backgroundColor || config.backgroundColor || '#0e0e0e';
   const isTransparent = bg === 'transparent' || bg === 'rgba(0,0,0,0)';
   const isLightBg = isTransparent ? false : isLightColor(bg);
@@ -74,19 +74,30 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
     });
   }, [items]);
 
-  // Preload drawer state images
+  // Preload drawer images (sprite sheet or legacy per-state)
   useEffect(() => {
-    if (!config.drawerImages?.urls) return;
-    const urls = config.drawerImages.urls;
-    ALL_BOX_STATES.forEach(state => {
-      const url = urls[state];
-      if (url && !imagesRef.current.has(`drawer_${state}`)) {
+    if (!config.drawerImages) return;
+    if (config.drawerImages.spriteUrl) {
+      // New: single sprite sheet
+      if (!imagesRef.current.has('drawer_sprite')) {
         const img = new Image();
         img.crossOrigin = 'anonymous';
-        img.src = url;
-        imagesRef.current.set(`drawer_${state}`, img);
+        img.src = config.drawerImages.spriteUrl;
+        imagesRef.current.set('drawer_sprite', img);
       }
-    });
+    } else if (config.drawerImages.urls) {
+      // Legacy: per-state images
+      const urls = config.drawerImages.urls;
+      ALL_BOX_STATES.forEach(state => {
+        const url = urls[state];
+        if (url && !imagesRef.current.has(`drawer_${state}`)) {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = url;
+          imagesRef.current.set(`drawer_${state}`, img);
+        }
+      });
+    }
   }, [config.drawerImages]);
 
   // Init sound
@@ -492,6 +503,18 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
 
 // ===== AI-Generated Drawer Image Component =====
 
+// CSS sprite rendering: frame index maps each state to a frame in the sprite sheet.
+// The img is rendered at 5× container width inside an overflow:hidden wrapper,
+// and translateX shifts the visible frame instantly.
+const STATE_TO_FRAME: Record<BoxState, number> = {
+  IDLE: 0,         // Frame 0: closed
+  HOVER_PEEK: 1,   // Frame 1: 25% open
+  OPEN: 4,         // Frame 4: 100% open
+  HOVER_CLOSE: 3,  // Frame 3: 75% open
+  CLOSING: 1,      // Frame 1: ~30% (closest match)
+  SLAMMING: 0,     // Frame 0: closed
+};
+
 function DrawerImage({
   images,
   currentState,
@@ -501,21 +524,50 @@ function DrawerImage({
   currentState: BoxState;
   isLight: boolean;
 }) {
+  const dropShadow = isLight ? 'none' : 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))';
+
   return (
     <div className="relative" style={{ width: 420, height: 300 }}>
-      {ALL_BOX_STATES.map(state => (
-        <img
-          key={state}
-          src={images.urls[state]}
-          alt={state}
-          className="absolute inset-0 w-full h-full object-contain transition-opacity duration-200 pointer-events-none"
+      {images.spriteUrl ? (
+        // CSS sprite technique: oversized img inside clipping container, translateX to select frame
+        <div
           style={{
-            opacity: currentState === state ? 1 : 0,
-            filter: isLight ? 'none' : 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))',
+            width: 420,
+            height: 300,
+            overflow: 'hidden',
+            filter: dropShadow,
           }}
-          draggable={false}
-        />
-      ))}
+        >
+          <img
+            src={images.spriteUrl}
+            alt="drawer"
+            className="pointer-events-none"
+            style={{
+              width: 420 * 5,
+              height: 300,
+              maxWidth: 'none', // prevent CSS resets from constraining width
+              transform: `translateX(-${STATE_TO_FRAME[currentState] * 420}px)`,
+              // No transition — instant frame switching
+            }}
+            draggable={false}
+          />
+        </div>
+      ) : (
+        // Legacy fallback: per-state images (instant switching, no fade)
+        ALL_BOX_STATES.map(state => (
+          <img
+            key={state}
+            src={images.urls[state]}
+            alt={state}
+            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+            style={{
+              opacity: currentState === state ? 1 : 0,
+              filter: dropShadow,
+            }}
+            draggable={false}
+          />
+        ))
+      )}
 
       {/* Hint text for IDLE state */}
       {currentState === 'IDLE' && (
