@@ -5,6 +5,7 @@ import Matter from 'matter-js';
 import { soundEngine } from '@/lib/sounds';
 import { contourToVertices } from '@/lib/contour';
 import type { TreasureItem, BoxConfig, BoxState, DrawerImages, BoxDimensions } from '@/lib/types';
+import { DEFAULT_DRAWER_DISPLAY_SIZE } from '@/lib/types';
 import { DEFAULT_BOX_DIMENSIONS } from '@/lib/types';
 import StoryCard from './StoryCard';
 
@@ -617,6 +618,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
             images={config.drawerImages!}
             currentState={boxState}
             isLight={isLightBg}
+            displaySize={config.drawerDisplaySize}
           />
         ) : (
           // === ASCII Art Fallback (dimension-aware) ===
@@ -673,38 +675,27 @@ function DrawerImage({
   images,
   currentState,
   isLight,
+  displaySize,
 }: {
   images: DrawerImages;
   currentState: BoxState;
   isLight: boolean;
+  displaySize?: { width: number; height: number };
 }) {
   const dropShadow = isLight ? 'none' : 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))';
 
-  // Use active area (actual non-transparent content bounds) for tight cropping.
-  // Falls back to full frame if no activeArea is stored (legacy boxes).
-  const area = images.activeArea || { x: 0, y: 0, width: 1, height: 1 };
-
-  // Base frame size from sprite — use a reference width and derive height from active area ratio
-  const REF_WIDTH = 420;
-  const visibleW = REF_WIDTH;
-  const visibleH = Math.round(REF_WIDTH * (area.height / area.width));
-
-  // Full frame dimensions (before cropping) — needed to position the sprite
-  const fullFrameW = visibleW / area.width;
-  const fullFrameH = visibleH / area.height;
-
-  // Offset into each frame to reach the active content
-  const offsetX = area.x * fullFrameW;
-  const offsetY = area.y * fullFrameH;
+  // Fixed pixel size — adjustable via config, defaults to 420×280
+  const frameW = displaySize?.width || DEFAULT_DRAWER_DISPLAY_SIZE.width;
+  const frameH = displaySize?.height || DEFAULT_DRAWER_DISPLAY_SIZE.height;
 
   return (
-    <div className="relative" style={{ width: visibleW, height: visibleH }}>
+    <div className="relative" style={{ width: frameW, height: frameH }}>
       {images.spriteUrl ? (
-        // CSS sprite technique: clip to active area, translateX to select frame
+        // CSS sprite technique: oversized img inside clipping container, translateX to select frame
         <div
           style={{
-            width: visibleW,
-            height: visibleH,
+            width: frameW,
+            height: frameH,
             overflow: 'hidden',
             filter: dropShadow,
           }}
@@ -714,10 +705,10 @@ function DrawerImage({
             alt="drawer"
             className="pointer-events-none"
             style={{
-              width: fullFrameW * 5,
-              height: fullFrameH,
+              width: frameW * 5,
+              height: frameH,
               maxWidth: 'none',
-              transform: `translate(-${STATE_TO_FRAME[currentState] * fullFrameW + offsetX}px, -${offsetY}px)`,
+              transform: `translateX(-${STATE_TO_FRAME[currentState] * frameW}px)`,
             }}
             draggable={false}
           />

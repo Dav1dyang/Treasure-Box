@@ -545,63 +545,72 @@ export default function EditorPage() {
                 ? 'repeating-conic-gradient(var(--tb-bg-muted) 0% 25%, var(--tb-bg-subtle) 0% 50%) 50% / 16px 16px'
                 : config?.backgroundColor || 'var(--tb-bg)',
             }}>
-            {/* Fake website placeholder — grey boxes on adaptive bg */}
-            <div className="w-full h-full relative" style={{ background: 'var(--tb-bg)' }}>
-              <MockWebsitePlaceholder />
+            {config && tab === 'embed' ? (
+              // Embed tab: fake website placeholder behind the drawer
+              <div className="w-full h-full relative" style={{ background: 'var(--tb-bg)' }}>
+                <MockWebsitePlaceholder />
 
-              {config && tab === 'embed' && config.embedSettings?.mode === 'floating' ? (
-                // Floating box positioned by anchor
-                <div
-                  className="absolute"
-                  style={{
-                    width: Math.min(config.embedSettings.width * 0.4, 250),
-                    height: Math.min(config.embedSettings.height * 0.4, 250),
-                    ...(config.embedSettings.position.anchor.includes('bottom') ? { bottom: `${config.embedSettings.position.yPercent}%` } : { top: `${config.embedSettings.position.yPercent}%` }),
-                    ...(config.embedSettings.position.anchor.includes('right') ? { right: `${config.embedSettings.position.xPercent}%` } : { left: `${config.embedSettings.position.xPercent}%` }),
-                  }}
-                >
-                  <TreasureBox items={items} config={config} />
-                </div>
-              ) : config && tab === 'embed' && config.embedSettings?.mode === 'fullpage' ? (
-                // Full-page mode: box at pin position
-                <>
+                {config.embedSettings?.mode === 'floating' ? (
+                  // Floating box positioned by anchor
                   <div
                     className="absolute"
                     style={{
-                      width: Math.min(config.embedSettings.width * 0.35, 220),
-                      height: Math.min(config.embedSettings.height * 0.35, 220),
+                      width: Math.min(config.embedSettings.width * 0.4, 250),
+                      height: Math.min(config.embedSettings.height * 0.4, 250),
                       ...(config.embedSettings.position.anchor.includes('bottom') ? { bottom: `${config.embedSettings.position.yPercent}%` } : { top: `${config.embedSettings.position.yPercent}%` }),
                       ...(config.embedSettings.position.anchor.includes('right') ? { right: `${config.embedSettings.position.xPercent}%` } : { left: `${config.embedSettings.position.xPercent}%` }),
                     }}
                   >
                     <TreasureBox items={items} config={config} />
                   </div>
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[8px] px-2 py-1" style={{ ...S.ghost, background: 'var(--tb-bg)', border: '1px solid var(--tb-border-subtle)' }}>
-                    items will fly across the host page
-                  </div>
-                </>
-              ) : (
-                // Default / Contained mode — centered box over placeholder site
-                <div className="absolute inset-0 flex items-center justify-center">
-                  {config && (
+                ) : config.embedSettings?.mode === 'fullpage' ? (
+                  // Full-page mode: box at pin position
+                  <>
+                    <div
+                      className="absolute"
+                      style={{
+                        width: Math.min(config.embedSettings.width * 0.35, 220),
+                        height: Math.min(config.embedSettings.height * 0.35, 220),
+                        ...(config.embedSettings.position.anchor.includes('bottom') ? { bottom: `${config.embedSettings.position.yPercent}%` } : { top: `${config.embedSettings.position.yPercent}%` }),
+                        ...(config.embedSettings.position.anchor.includes('right') ? { right: `${config.embedSettings.position.xPercent}%` } : { left: `${config.embedSettings.position.xPercent}%` }),
+                      }}
+                    >
+                      <TreasureBox items={items} config={config} />
+                    </div>
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[8px] px-2 py-1" style={{ ...S.ghost, background: 'var(--tb-bg)', border: '1px solid var(--tb-border-subtle)' }}>
+                      items will fly across the host page
+                    </div>
+                  </>
+                ) : (
+                  // Contained mode — centered box over placeholder site
+                  <div className="absolute inset-0 flex items-center justify-center">
                     <div
                       style={{
-                        width: tab === 'embed' && config.embedSettings
+                        width: config.embedSettings
                           ? `${Math.min(config.embedSettings.width * 0.6, 450)}px`
                           : '90%',
                         maxWidth: 500,
-                        aspectRatio: tab === 'embed' && config.embedSettings
+                        aspectRatio: config.embedSettings
                           ? `${config.embedSettings.width} / ${config.embedSettings.height}`
                           : '1 / 1',
                       }}
                     >
                       <TreasureBox items={items} config={config} />
                     </div>
-                  )}
-                  {config?.ownerName && <div className="absolute bottom-2 left-3 text-[8px] tracking-wider" style={S.faint}>{config.ownerName}</div>}
-                </div>
-              )}
-            </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Items / Config tabs: plain preview, no mock site
+              <>
+                {config && (
+                  <div style={{ width: '90%', maxWidth: 500, aspectRatio: '1 / 1' }}>
+                    <TreasureBox items={items} config={config} />
+                  </div>
+                )}
+                {config?.ownerName && <div className="absolute bottom-2 left-3 text-[8px] tracking-wider" style={S.faint}>{config.ownerName}</div>}
+              </>
+            )}
           </div>
         </div>
       </div>
