@@ -213,8 +213,8 @@ IMPORTANT COLOR RULE:
 - Avoid green reflections or green-tinted shading
 
 OUTLINE:
-- Thin clean white silhouette outline (1-2 px) around the entire furniture shape in every frame
-- Consistent across all frames — cleanly separates the object from the green background
+- No outline, border, or silhouette line around the furniture shape
+- The furniture edges should blend naturally with no added stroke or glow
 
 NO TEXT:
 No text, labels, numbers, captions, frame markers, logo, watermark, or signature anywhere.
@@ -325,7 +325,7 @@ QUALITY PRIORITY (if any instruction conflicts):
 4. Front drawer face pixel-identical across all frames
 5. Drawer reads as true sliding drawer
 6. Clear progression: closed → 25% → 50% → 75% → 100%
-7. White outline around furniture silhouette
+7. No outline or border around furniture silhouette
 8. All [DECOR_TAGS] and [CUSTOM_DECOR] visible
 9. Style and decorative detail`;
 }
