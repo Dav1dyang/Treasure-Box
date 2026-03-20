@@ -181,6 +181,13 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     soundEngine.setEnabled(config.soundEnabled);
     soundEngine.setVolume(config.soundVolume);
     soundEngine.setPreset(config.soundPreset);
+
+    // Load AI-generated sounds if available
+    if (config.soundPreset === 'ai-generated' && config.generatedSounds) {
+      soundEngine.loadAISounds(config.generatedSounds);
+    } else {
+      soundEngine.clearAISounds();
+    }
   }, [config]);
 
   const resizeCanvas = useCallback(() => {
@@ -549,6 +556,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     closingAnimRef.current = false;
 
     setBoxState('OPEN');
+    soundEngine.playDrawerOpen();
 
     managedTimeout(() => {
       initPhysics();
@@ -633,6 +641,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
 
     managedTimeout(() => {
       setBoxState('SLAMMING');
+      soundEngine.playDrawerClose();
 
       // Items continue converging; clean up when done
       managedTimeout(() => {
