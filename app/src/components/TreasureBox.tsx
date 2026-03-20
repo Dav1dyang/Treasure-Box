@@ -39,37 +39,15 @@ export default function TreasureBox({ items, config, backgroundColor }: Props) {
   const isTransparent = bg === 'transparent' || bg === 'rgba(0,0,0,0)';
   const isLightBg = isTransparent ? false : isLightColor(bg);
 
-  // Preload item images — fetch as blob to avoid CORS canvas tainting
+  // Preload item images — load directly (drawImage doesn't require CORS)
   const [imagesLoaded, setImagesLoaded] = useState(0);
   useEffect(() => {
     items.forEach(item => {
       if (!imagesRef.current.has(item.id)) {
-        // Create placeholder immediately
-        const placeholder = new Image();
-        imagesRef.current.set(item.id, placeholder);
-
-        // Fetch as blob to get a local object URL (avoids CORS issues on canvas)
-        fetch(item.imageUrl)
-          .then(res => res.blob())
-          .then(blob => {
-            const url = URL.createObjectURL(blob);
-            const img = new Image();
-            img.onload = () => {
-              imagesRef.current.set(item.id, img);
-              setImagesLoaded(n => n + 1);
-            };
-            img.src = url;
-          })
-          .catch(() => {
-            // Fallback: load directly (may show as grey if CORS blocks canvas)
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = () => {
-              imagesRef.current.set(item.id, img);
-              setImagesLoaded(n => n + 1);
-            };
-            img.src = item.imageUrl;
-          });
+        const img = new Image();
+        img.onload = () => setImagesLoaded(n => n + 1);
+        img.src = item.imageUrl;
+        imagesRef.current.set(item.id, img);
       }
     });
   }, [items]);

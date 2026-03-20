@@ -26,8 +26,6 @@ const DEFAULT_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' | 'updatedA
 };
 
 const SOUND_PRESETS: SoundPreset[] = ['metallic', 'wooden', 'glass', 'paper', 'silent'];
-const ROTATION_STEPS = [-25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25];
-
 function VolumeBar({ volume, onChange }: { volume: number; onChange: (v: number) => void }) {
   const steps = 10;
   const filled = Math.round(volume * steps);
@@ -55,34 +53,20 @@ function VolumeBar({ volume, onChange }: { volume: number; onChange: (v: number)
 }
 
 function RotationControl({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const closest = ROTATION_STEPS.reduce((a, b) =>
-    Math.abs(b - value) < Math.abs(a - value) ? b : a
-  );
   return (
-    <div className="flex items-center gap-[6px]">
-      <span className="text-[9px] shrink-0" style={{ color: 'var(--tb-fg-faint)' }}>rot</span>
-      <div className="flex gap-[2px] items-center">
-        {ROTATION_STEPS.map((step) => {
-          if (step === 0) return <div key="center" className="w-[2px] h-3" style={{ background: 'var(--tb-fg-faint)' }} />;
-          const isActive = step < 0 ? step >= closest && step < 0 : step <= closest && step > 0;
-          return (
-            <button
-              key={step}
-              onClick={() => onChange(step)}
-              className="w-3 h-[10px] border cursor-pointer transition-all"
-              style={{
-                background: isActive ? 'var(--tb-accent)' : 'var(--tb-bg-muted)',
-                borderColor: isActive ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
-                opacity: isActive ? 1 : 0.5,
-              }}
-            />
-          );
-        })}
-      </div>
-      <span className="text-[9px] min-w-[32px] text-right" style={{ color: 'var(--tb-fg-faint)' }}>
-        {value > 0 ? '+' : ''}{value}&deg;
-      </span>
-    </div>
+    <button
+      onClick={() => onChange((value + 90) % 360)}
+      className="text-[9px] cursor-pointer border transition-all"
+      style={{
+        padding: '2px 8px',
+        borderRadius: 3,
+        border: '1px solid var(--tb-border-subtle)',
+        background: value ? 'var(--tb-bg-muted)' : 'transparent',
+        color: 'var(--tb-fg-faint)',
+      }}
+    >
+      rotate {value ? `${value}°` : ''}
+    </button>
   );
 }
 

@@ -180,9 +180,19 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
     setPreviewUrls({});
     setSpritePreviewUrl(null);
 
-    // Build decor string from selected items + custom
+    // Build decor string from selected items + sanitized custom keywords
     const allDecor = [...selectedDecor];
-    if (customDecor.trim()) allDecor.push(customDecor.trim());
+    if (customDecor.trim()) {
+      // Allow only letters, numbers, spaces — strip everything else
+      // Limit to 3 keywords, 20 chars each
+      const keywords = customDecor
+        .replace(/[^a-zA-Z0-9\s,]/g, '')
+        .split(/[,\s]+/)
+        .map(w => w.trim().slice(0, 20))
+        .filter(Boolean)
+        .slice(0, 3);
+      allDecor.push(...keywords);
+    }
     const decorStr = allDecor.join(', ');
 
     // Build custom prompt from style pattern
@@ -367,7 +377,8 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
           value={customDecor}
           onChange={e => setCustomDecor(e.target.value)}
           disabled={generating}
-          placeholder="custom — e.g. dragon carvings, gemstones..."
+          placeholder="up to 3 keywords — e.g. dragon, gemstones, filigree"
+          maxLength={60}
           style={{
             width: '100%', background: 'transparent', fontSize: 11,
             padding: '5px 8px', outline: 'none', borderRadius: 3,
