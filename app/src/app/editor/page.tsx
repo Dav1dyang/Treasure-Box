@@ -162,7 +162,7 @@ export default function EditorPage() {
   const skipAutoSaveRef = useRef(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -349,77 +349,124 @@ export default function EditorPage() {
             {/* ITEMS */}
             {tab === 'items' && (
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-[11px] tracking-[0.12em] uppercase" style={S.accent}>items ({items.length}/{config?.maxItems || 15})</h2>
-                  {items.length >= (config?.maxItems || 15) ? (
-                    <span className="text-[10px] px-[14px] py-[6px] tracking-[0.12em]" style={S.faint}>max reached</span>
-                  ) : (
-                    <label className="text-[10px] px-[14px] py-[6px] cursor-pointer tracking-[0.12em] transition-colors"
-                      style={{ border: '1px solid var(--tb-border)', ...S.accent }}>
-                      + upload
-                      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUpload} className="hidden" />
-                    </label>
-                  )}
-                </div>
+                <h2 className="text-[11px] tracking-[0.12em] uppercase mb-3" style={S.accent}>
+                  items ({items.length}/{config?.maxItems || 15})
+                </h2>
                 {removingBg && <div className="text-[10px] mb-3 animate-pulse" style={{ color: 'var(--tb-highlight)' }}>removing background...</div>}
                 {bgError && <div className="text-[10px] mb-3" style={{ color: '#c44' }}>bg removal failed: {bgError}</div>}
-                <div className="space-y-[6px]">
-                  {items.map(item => {
-                    const isExpanded = expandedItems.has(item.id);
-                    const hasLink = !!item.link;
-                    const hasStory = !!item.story;
-                    return (
-                      <div key={item.id} className="transition-colors" style={{ border: '1px solid var(--tb-border-subtle)' }}>
-                        {/* Row 1: compact header — always visible */}
-                        <div
-                          className="grid grid-cols-[40px_1fr_auto_auto_20px] gap-2 items-center px-2 py-[6px] cursor-pointer"
-                          onClick={() => setExpandedItems(prev => {
-                            const next = new Set(prev);
-                            if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
-                            return next;
-                          })}
-                        >
-                          <div className="w-10 h-10 flex items-center justify-center overflow-hidden shrink-0" style={{ background: 'var(--tb-bg-muted)' }}>
-                            <img src={item.imageUrl} alt={item.label} className="max-w-full max-h-full object-contain transition-transform" style={{ transform: `rotate(${item.rotation ?? 0}deg) scale(${Math.min(item.scale ?? 1, 1.8)})` }} />
-                          </div>
-                          <div className="flex items-center gap-2 min-w-0">
-                            <input value={item.label} onChange={e => { e.stopPropagation(); handleUpdateItem(item.id, { label: e.target.value }); }} placeholder="label"
-                              onClick={e => e.stopPropagation()}
-                              className="w-full bg-transparent text-[11px] pb-[2px] outline-none min-w-0" style={{ borderBottom: '1px solid var(--tb-border-subtle)', ...S.accent }} />
-                            {/* Indicator dots for link/story */}
-                            {!isExpanded && (hasLink || hasStory) && (
-                              <div className="flex gap-[3px] shrink-0">
-                                {hasLink && <div className="w-[5px] h-[5px] rounded-full" style={{ background: 'var(--tb-accent)', opacity: 0.5 }} title="has link" />}
-                                {hasStory && <div className="w-[5px] h-[5px] rounded-full" style={{ background: 'var(--tb-highlight, var(--tb-accent))', opacity: 0.5 }} title="has story" />}
+
+                {items.length === 0 ? (
+                  <div className="text-center py-12 text-[10px]" style={S.faint}>no items yet — upload your first treasure</div>
+                ) : (
+                  <>
+                    {/* Specimen grid */}
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-[1px]" style={{ background: 'var(--tb-border-subtle)' }}>
+                      {items.map((item, idx) => {
+                        const isSelected = selectedItemId === item.id;
+                        const hasLink = !!item.link;
+                        const hasStory = !!item.story;
+                        return (
+                          <div
+                            key={item.id}
+                            className="aspect-square relative flex items-center justify-center p-3 cursor-pointer transition-shadow"
+                            style={{
+                              background: 'var(--tb-bg)',
+                              outline: isSelected ? '2px solid var(--tb-accent)' : 'none',
+                              outlineOffset: '-2px',
+                              zIndex: isSelected ? 1 : 0,
+                            }}
+                            onClick={() => setSelectedItemId(isSelected ? null : item.id)}
+                          >
+                            {/* Index number */}
+                            <span className="absolute top-[6px] left-[6px] text-[10px] leading-none select-none" style={S.ghost}>{idx + 1}</span>
+                            {/* Item image */}
+                            <img
+                              src={item.imageUrl}
+                              alt={item.label}
+                              className="max-w-[75%] max-h-[75%] object-contain"
+                              style={{ transform: `rotate(${item.rotation ?? 0}deg) scale(${Math.min(item.scale ?? 1, 1.8)})` }}
+                              draggable={false}
+                            />
+                            {/* Label */}
+                            <span className="absolute bottom-[6px] left-1/2 -translate-x-1/2 text-[9px] truncate max-w-[85%] text-center select-none" style={S.ghost}>{item.label}</span>
+                            {/* Indicator dots */}
+                            {(hasLink || hasStory) && (
+                              <div className="absolute bottom-[6px] right-[6px] flex gap-[3px]">
+                                {hasLink && <div className="w-[4px] h-[4px] rounded-full" style={{ background: 'var(--tb-accent)', opacity: 0.5 }} />}
+                                {hasStory && <div className="w-[4px] h-[4px] rounded-full" style={{ background: 'var(--tb-highlight, var(--tb-accent))', opacity: 0.5 }} />}
                               </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                            <Dial value={item.rotation ?? 0} min={0} max={360} step={1}
-                              label="rot" format={v => `${v}°`}
-                              snap={v => { const n = Math.round(v / 90) * 90; return Math.abs(v - n) < 8 ? n % 360 : v; }}
-                              onChange={v => handleUpdateItem(item.id, { rotation: v })} />
-                            <Dial value={item.scale ?? 1} min={0.5} max={3} step={0.1}
-                              label="size" format={v => `${v.toFixed(1)}×`}
-                              onChange={v => handleUpdateItem(item.id, { scale: v })} />
+                        );
+                      })}
+                      {/* Upload cell */}
+                      {items.length < (config?.maxItems || 15) && (
+                        <label
+                          className="aspect-square flex flex-col items-center justify-center cursor-pointer transition-colors"
+                          style={{ background: 'var(--tb-bg)', border: 'none' }}
+                        >
+                          <span className="text-lg leading-none mb-1" style={S.ghost}>+</span>
+                          <span className="text-[9px] tracking-[0.08em]" style={S.ghost}>upload</span>
+                          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUpload} className="hidden" />
+                        </label>
+                      )}
+                    </div>
+
+                    {/* Selected item detail panel */}
+                    {selectedItemId && (() => {
+                      const item = items.find(i => i.id === selectedItemId);
+                      if (!item) return null;
+                      return (
+                        <div className="mt-3 p-3 flex flex-col gap-[8px]" style={{ border: '1px solid var(--tb-border-subtle)' }}>
+                          <div className="grid grid-cols-[56px_1fr] gap-3">
+                            {/* Thumbnail */}
+                            <div className="w-14 h-14 flex items-center justify-center overflow-hidden shrink-0" style={{ background: 'var(--tb-bg-muted)' }}>
+                              <img src={item.imageUrl} alt={item.label} className="max-w-full max-h-full object-contain"
+                                style={{ transform: `rotate(${item.rotation ?? 0}deg) scale(${Math.min(item.scale ?? 1, 1.8)})` }} />
+                            </div>
+                            {/* Fields */}
+                            <div className="flex flex-col gap-[6px] min-w-0">
+                              <input value={item.label} onChange={e => handleUpdateItem(item.id, { label: e.target.value })} placeholder="label"
+                                className="w-full bg-transparent text-[11px] pb-[2px] outline-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', ...S.accent }} />
+                              <input value={item.link || ''} onChange={e => handleUpdateItem(item.id, { link: e.target.value })} placeholder="link (https://...)"
+                                className="w-full bg-transparent text-[10px] pb-[2px] outline-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
+                              <textarea value={item.story || ''} onChange={e => handleUpdateItem(item.id, { story: e.target.value })} placeholder="story (shown on long-press)" rows={2}
+                                className="w-full bg-transparent text-[10px] pb-[2px] outline-none resize-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
+                            </div>
                           </div>
-                          <span className="text-[10px] select-none" style={S.ghost}>{isExpanded ? '▾' : '▸'}</span>
-                          <button onClick={e => { e.stopPropagation(); handleDeleteItem(item.id); }} className="text-sm cursor-pointer leading-none" style={S.ghost}>&times;</button>
+                          {/* Dials + delete */}
+                          <div className="flex items-center justify-between pt-1" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
+                            <div className="flex items-center gap-1">
+                              <Dial value={item.rotation ?? 0} min={0} max={360} step={1}
+                                label="rot" format={v => `${v}°`}
+                                snap={v => { const n = Math.round(v / 90) * 90; return Math.abs(v - n) < 8 ? n % 360 : v; }}
+                                onChange={v => handleUpdateItem(item.id, { rotation: v })} />
+                              <Dial value={item.scale ?? 1} min={0.5} max={3} step={0.1}
+                                label="size" format={v => `${v.toFixed(1)}×`}
+                                onChange={v => handleUpdateItem(item.id, { scale: v })} />
+                            </div>
+                            <button
+                              onClick={() => { handleDeleteItem(item.id); setSelectedItemId(null); }}
+                              className="text-[10px] px-[10px] py-[4px] cursor-pointer tracking-[0.08em] transition-colors"
+                              style={{ border: '1px solid #c44', color: '#c44', background: 'transparent' }}
+                            >
+                              delete
+                            </button>
+                          </div>
                         </div>
-                        {/* Row 2: collapsible details */}
-                        {isExpanded && (
-                          <div className="pl-[52px] pr-3 pb-3 flex flex-col gap-[6px]">
-                            <input value={item.link || ''} onChange={e => handleUpdateItem(item.id, { link: e.target.value })} placeholder="link (https://...)"
-                              className="w-full bg-transparent text-[10px] pb-[2px] outline-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
-                            <textarea value={item.story || ''} onChange={e => handleUpdateItem(item.id, { story: e.target.value })} placeholder="story (shown on long-press)" rows={2}
-                              className="w-full bg-transparent text-[10px] pb-[2px] outline-none resize-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {items.length === 0 && <div className="text-center py-12 text-[10px]" style={S.faint}>no items yet — upload your first treasure</div>}
-                </div>
+                      );
+                    })()}
+                  </>
+                )}
+
+                {/* Upload cell for empty state */}
+                {items.length === 0 && (
+                  <label className="mt-4 flex items-center justify-center gap-2 py-3 cursor-pointer transition-colors text-[10px] tracking-[0.12em]"
+                    style={{ border: '1px dashed var(--tb-border)', ...S.accent }}>
+                    + upload your first item
+                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUpload} className="hidden" />
+                  </label>
+                )}
               </div>
             )}
 
