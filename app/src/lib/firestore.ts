@@ -1,6 +1,7 @@
 import {
   doc, setDoc, getDoc, getDocs, deleteDoc,
-  collection, query, where, orderBy, updateDoc, limit
+  collection, query, where, orderBy, updateDoc, limit,
+  deleteField, increment,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getDb, getStorageInstance } from './firebase';
@@ -19,7 +20,7 @@ export async function saveBoxConfig(config: BoxConfig): Promise<void> {
   await setDoc(doc(getDb(), 'boxes', config.ownerId), {
     ...config,
     updatedAt: Date.now(),
-  });
+  }, { merge: true });
 }
 
 // ===== Items =====
@@ -33,12 +34,32 @@ export async function getItems(boxId: string): Promise<TreasureItem[]> {
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as TreasureItem));
 }
 
-export async function saveItem(boxId: string, item: TreasureItem): Promise<void> {
+export async function saveItem(boxId: string, item: TreasureItem, isNew = false): Promise<void> {
   await setDoc(doc(getDb(), 'boxes', boxId, 'items', item.id), item);
+  if (isNew) {
+    await updateDoc(doc(getDb(), 'boxes', boxId), {
+      itemCount: increment(1),
+      updatedAt: Date.now(),
+    });
+  }
 }
 
 export async function deleteItem(boxId: string, itemId: string): Promise<void> {
   await deleteDoc(doc(getDb(), 'boxes', boxId, 'items', itemId));
+}
+
+export async function deleteItemWithCleanup(userId: string, itemId: string): Promise<void> {
+  // Delete both storage images (original + processed), tolerating missing files
+  await Promise.allSettled([
+    deleteImage(`boxes/${userId}/${itemId}_original`),
+    deleteImage(`boxes/${userId}/processed_${itemId}`),
+  ]);
+  await deleteDoc(doc(getDb(), 'boxes', userId, 'items', itemId));
+  // Decrement itemCount on the box document
+  await updateDoc(doc(getDb(), 'boxes', userId), {
+    itemCount: increment(-1),
+    updatedAt: Date.now(),
+  });
 }
 
 // ===== Image Upload =====
@@ -108,12 +129,42 @@ export async function saveDrawerImages(
 }
 
 export async function clearDrawerImages(userId: string): Promise<void> {
-  // Firestore doesn't support deleting fields with updateDoc easily,
-  // so we set it to null (treated as undefined on read)
+  // Clean up drawer images from Storage
+  const drawerStates: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
+  await Promise.allSettled([
+    deleteImage(`boxes/${userId}/drawer/sprite.png`),
+    ...drawerStates.map(s => deleteImage(`boxes/${userId}/drawer/${s}.png`)),
+  ]);
+  // Remove the field entirely from Firestore (not just null)
   await updateDoc(doc(getDb(), 'boxes', userId), {
-    drawerImages: null,
+    drawerImages: deleteField(),
     updatedAt: Date.now(),
   });
+}
+
+// ===== Box Deletion =====
+
+export async function deleteBox(userId: string): Promise<void> {
+  // 1. Fetch all items and delete their Storage files
+  const allItems = await getItems(userId);
+  await Promise.allSettled(
+    allItems.flatMap(item => [
+      deleteImage(`boxes/${userId}/${item.id}_original`),
+      deleteImage(`boxes/${userId}/processed_${item.id}`),
+    ])
+  );
+  // 2. Delete drawer Storage files
+  const drawerStates: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
+  await Promise.allSettled([
+    deleteImage(`boxes/${userId}/drawer/sprite.png`),
+    ...drawerStates.map(s => deleteImage(`boxes/${userId}/drawer/${s}.png`)),
+  ]);
+  // 3. Delete all item subcollection docs
+  await Promise.allSettled(
+    allItems.map(item => deleteDoc(doc(getDb(), 'boxes', userId, 'items', item.id)))
+  );
+  // 4. Delete the box document itself
+  await deleteDoc(doc(getDb(), 'boxes', userId));
 }
 
 // ===== Public Gallery =====
@@ -130,7 +181,7 @@ export async function getPublicBoxes(limitCount = 50): Promise<BoxConfig[]> {
 }
 
 export async function getRandomPublicBox(): Promise<{ config: BoxConfig; items: TreasureItem[] } | null> {
-  const boxes = await getPublicBoxes();
+  const boxes = await getPublicBoxes(10);
   if (boxes.length === 0) return null;
   const config = boxes[Math.floor(Math.random() * boxes.length)];
   const items = await getPublicItems(config.ownerId);

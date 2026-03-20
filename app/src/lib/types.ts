@@ -95,6 +95,7 @@ export interface BoxConfig {
   drawerImages?: DrawerImages;  // undefined = use ASCII fallback
   boxDimensions?: BoxDimensions; // custom box shape/proportions
   embedSettings?: EmbedSettings; // embed configuration (mode, size, position)
+  itemCount?: number;            // cached count of items in the box
 }
 
 export type SoundPreset = 'metallic' | 'wooden' | 'glass' | 'paper' | 'silent';
