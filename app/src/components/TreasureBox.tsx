@@ -479,7 +479,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         const drawerCenterX = w / 2;
         const drawerY = h - 150;
         const dist = Math.sqrt((x - drawerCenterX) ** 2 + (y - drawerY) ** 2);
-        const shrink = Math.min(1, dist / 200); // closer = smaller
+        const shrink = Math.min(1, dist / 250); // closer = smaller
         size *= Math.max(0.1, shrink);
         if (size < 3) return; // skip tiny items
       }
@@ -612,45 +612,80 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       engine.gravity.x = 0;
     }
 
-    // Smooth position lerp: capture start positions, interpolate toward drawer center
+    // Arc animation: items fly up in a basketball-arc curve then descend into the drawer
     closingAnimRef.current = true;
     const startPositions = bodiesRef.current.map(b => ({ x: b.position.x, y: b.position.y }));
     const startTime = performance.now();
-    const duration = 300; // 300ms suck-in
+    const duration = 700; // slower, more graceful arc
+
+    // Per-item Bezier control points for unique arcs
+    const controlPoints = startPositions.map((start, i) => {
+      const midX = (start.x + drawerCenterX) / 2;
+      const highestY = Math.min(start.y, drawerY);
+      // Deterministic per-item variety
+      const seed = ((i * 7 + 3) % 11) / 11;
+      const arcHeight = 150 + seed * 150; // 150-300px above
+      const xJitter = (seed - 0.5) * 120; // -60..+60px horizontal offset
+      return { x: midX + xJitter, y: highestY - arcHeight };
+    });
+
+    // Stagger: each item starts 40ms after the previous
+    const staggerDelays = startPositions.map((_, i) => i * 40);
+    const maxStagger = staggerDelays[staggerDelays.length - 1] || 0;
 
     const pullInterval = setInterval(() => {
       if (!closingAnimRef.current) { clearInterval(pullInterval); return; }
-      const elapsed = performance.now() - startTime;
-      const t = Math.min(1, elapsed / duration);
-      // Cubic ease-in: slow start, accelerates into the drawer like a vortex
-      const eased = t * t * t;
+      const now = performance.now();
 
       bodiesRef.current.forEach((body, i) => {
         const start = startPositions[i];
-        if (!start) return;
-        Matter.Body.setPosition(body, {
-          x: start.x + (drawerCenterX - start.x) * eased,
-          y: start.y + (drawerY - start.y) * eased,
-        });
+        const cp = controlPoints[i];
+        if (!start || !cp) return;
+
+        const itemElapsed = now - startTime - staggerDelays[i];
+        if (itemElapsed < 0) return; // not started yet
+
+        const t = Math.min(1, itemElapsed / duration);
+        // Ease-in-out: smooth acceleration and deceleration
+        const eased = t < 0.5
+          ? 2 * t * t
+          : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+        // Quadratic Bezier: B(t) = (1-t)^2*P0 + 2(1-t)*t*P1 + t^2*P2
+        const oneMinusT = 1 - eased;
+        const x = oneMinusT * oneMinusT * start.x
+                + 2 * oneMinusT * eased * cp.x
+                + eased * eased * drawerCenterX;
+        const y = oneMinusT * oneMinusT * start.y
+                + 2 * oneMinusT * eased * cp.y
+                + eased * eased * drawerY;
+
+        Matter.Body.setPosition(body, { x, y });
         Matter.Body.setVelocity(body, { x: 0, y: 0 });
+
+        // Gentle tumbling spin during arc
+        if (t < 0.9) {
+          const spin = (i % 2 === 0 ? 1 : -1) * 0.02;
+          Matter.Body.setAngularVelocity(body, spin);
+        }
       });
     }, 16);
 
-    // Transition: CLOSING (brief 50% flash) → SLAMMING → IDLE
+    // Transition: CLOSING → SLAMMING (when items are descending) → IDLE
     setBoxState('CLOSING');
 
     managedTimeout(() => {
       setBoxState('SLAMMING');
       soundEngine.playDrawerClose();
 
-      // Items continue converging; clean up when done
+      // Clean up after all items have arrived
       managedTimeout(() => {
         closingAnimRef.current = false;
         clearInterval(pullInterval);
         clearPhysics();
         setBoxState('IDLE');
-      }, 260);
-    }, 40);
+      }, maxStagger + 300);
+    }, Math.round(duration * 0.6 + maxStagger));
   }, [isOpen, clearPhysics, clearAllTimeouts, managedTimeout, fullpageMode, onItemsReturned]);
 
   // Stable refs so handlers don't go stale across re-renders
