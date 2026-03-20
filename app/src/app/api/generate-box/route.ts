@@ -129,11 +129,15 @@ export async function POST(request: NextRequest) {
       bgRemoval = 'chroma-fallback';
     }
 
+    // Compute active area — tight bounding box of non-transparent pixels
+    const activeArea = await computeActiveArea(processedBase64, fullWidth, fullHeight, 5);
+
     return NextResponse.json({
       sprite: processedBase64,
       prompt: builtPrompt,
       mimeType: 'image/png',
       spriteSize: { width: fullWidth, height: fullHeight, frameCount: 5 },
+      activeArea,
       bgRemoval,
       visionObjects,
       ...(ratioWarning && { ratioWarning }),
@@ -288,4 +292,61 @@ function buildEdgeDistanceMap(
   }
 
   return map;
+}
+
+/**
+ * Scan the bg-removed sprite for non-transparent pixels across all frames.
+ * Returns a normalized (0-1) bounding box representing the union of active
+ * content across all 5 frames — relative to each frame's own dimensions.
+ */
+async function computeActiveArea(
+  base64: string,
+  spriteWidth: number,
+  spriteHeight: number,
+  frameCount: number,
+): Promise<{ x: number; y: number; width: number; height: number }> {
+  const { data } = await sharp(Buffer.from(base64, 'base64'))
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const pixels = new Uint8Array(data.buffer, data.byteOffset, data.length);
+  const frameW = Math.floor(spriteWidth / frameCount);
+
+  // Find the tightest bounding box of non-transparent pixels across all frames
+  // Coordinates are relative to each frame (not the full sprite)
+  let minX = frameW;
+  let minY = spriteHeight;
+  let maxX = 0;
+  let maxY = 0;
+
+  for (let frame = 0; frame < frameCount; frame++) {
+    const offsetX = frame * frameW;
+    for (let y = 0; y < spriteHeight; y++) {
+      for (let x = 0; x < frameW; x++) {
+        const pixelIdx = (y * spriteWidth + (offsetX + x)) * 4;
+        if (pixels[pixelIdx + 3] > 10) {
+          minX = Math.min(minX, x);
+          maxX = Math.max(maxX, x);
+          minY = Math.min(minY, y);
+          maxY = Math.max(maxY, y);
+        }
+      }
+    }
+  }
+
+  // Add a small padding (2% of frame dimensions)
+  const padX = Math.round(frameW * 0.02);
+  const padY = Math.round(spriteHeight * 0.02);
+  minX = Math.max(0, minX - padX);
+  minY = Math.max(0, minY - padY);
+  maxX = Math.min(frameW - 1, maxX + padX);
+  maxY = Math.min(spriteHeight - 1, maxY + padY);
+
+  return {
+    x: minX / frameW,
+    y: minY / spriteHeight,
+    width: (maxX - minX + 1) / frameW,
+    height: (maxY - minY + 1) / spriteHeight,
+  };
 }

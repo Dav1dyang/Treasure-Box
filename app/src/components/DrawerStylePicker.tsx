@@ -246,6 +246,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
         spriteUrl,
         style: cleanStyle,
         generatedAt: Date.now(),
+        ...(data.activeArea && { activeArea: data.activeArea }),
       };
 
       await saveDrawerImages(userId, drawerImages);

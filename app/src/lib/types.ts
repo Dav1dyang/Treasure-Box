@@ -54,11 +54,20 @@ export interface DrawerStyle {
   angle?: DrawerAngle;     // camera angle
 }
 
+/** Normalized bounding box of non-transparent pixels (0-1 within each frame) */
+export interface SpriteActiveArea {
+  x: number;       // left offset (0-1)
+  y: number;       // top offset (0-1)
+  width: number;   // content width (0-1)
+  height: number;  // content height (0-1)
+}
+
 export interface DrawerImages {
   urls: Record<BoxState, string>;  // legacy: per-state URLs (old boxes)
   spriteUrl?: string;              // new: single sprite sheet URL
   style: DrawerStyle;
   generatedAt: number;
+  activeArea?: SpriteActiveArea;   // tight bounding box of actual drawer content
 }
 
 // ===== Items =====

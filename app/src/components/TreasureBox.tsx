@@ -680,21 +680,31 @@ function DrawerImage({
 }) {
   const dropShadow = isLight ? 'none' : 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))';
 
-  // Compute frame dimensions from stored drawer style ratios
-  const wRatio = images.style?.drawerWidth || 3;
-  const hRatio = images.style?.drawerHeight || 2;
-  const maxFrameW = 420;
-  const frameW = maxFrameW;
-  const frameH = Math.round(maxFrameW * (hRatio / wRatio));
+  // Use active area (actual non-transparent content bounds) for tight cropping.
+  // Falls back to full frame if no activeArea is stored (legacy boxes).
+  const area = images.activeArea || { x: 0, y: 0, width: 1, height: 1 };
+
+  // Base frame size from sprite — use a reference width and derive height from active area ratio
+  const REF_WIDTH = 420;
+  const visibleW = REF_WIDTH;
+  const visibleH = Math.round(REF_WIDTH * (area.height / area.width));
+
+  // Full frame dimensions (before cropping) — needed to position the sprite
+  const fullFrameW = visibleW / area.width;
+  const fullFrameH = visibleH / area.height;
+
+  // Offset into each frame to reach the active content
+  const offsetX = area.x * fullFrameW;
+  const offsetY = area.y * fullFrameH;
 
   return (
-    <div className="relative" style={{ width: frameW, height: frameH }}>
+    <div className="relative" style={{ width: visibleW, height: visibleH }}>
       {images.spriteUrl ? (
-        // CSS sprite technique: oversized img inside clipping container, translateX to select frame
+        // CSS sprite technique: clip to active area, translateX to select frame
         <div
           style={{
-            width: frameW,
-            height: frameH,
+            width: visibleW,
+            height: visibleH,
             overflow: 'hidden',
             filter: dropShadow,
           }}
@@ -704,11 +714,10 @@ function DrawerImage({
             alt="drawer"
             className="pointer-events-none"
             style={{
-              width: frameW * 5,
-              height: frameH,
-              maxWidth: 'none', // prevent CSS resets from constraining width
-              transform: `translateX(-${STATE_TO_FRAME[currentState] * frameW}px)`,
-              // No transition — instant frame switching
+              width: fullFrameW * 5,
+              height: fullFrameH,
+              maxWidth: 'none',
+              transform: `translate(-${STATE_TO_FRAME[currentState] * fullFrameW + offsetX}px, -${offsetY}px)`,
             }}
             draggable={false}
           />
