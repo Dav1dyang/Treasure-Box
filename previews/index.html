@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Treasure Box — ASCII Drawer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0e0e0e;
+    --fg: #8a8a7a;
+    --accent: #b0a080;
+    --dim: #3a3a32;
+    --rust: #8a6a4a;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'IBM Plex Mono', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    overflow-x: hidden;
+    transition: background 0.6s;
+  }
+
+  /* ===== BG COLOR PICKER (simulates editor control) ===== */
+  .editor-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: rgba(14,14,14,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--dim);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 11px;
+    color: var(--dim);
+  }
+
+  .editor-bar label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+
+  .editor-bar .sep {
+    width: 1px;
+    height: 16px;
+    background: var(--dim);
+  }
+
+  .swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid var(--dim);
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s;
+  }
+  .swatch:hover { transform: scale(1.2); }
+  .swatch.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+  .bg-presets {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .custom-bg-input {
+    background: transparent;
+    border: 1px solid var(--dim);
+    color: var(--fg);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 2px 8px;
+    width: 80px;
+    border-radius: 3px;
+    outline: none;
+  }
+  .custom-bg-input:focus { border-color: var(--accent); }
+
+  /* ===== SCENE ===== */
+  .scene-container {
+    position: relative;
+    width: 700px;
+    height: 750px;
+    margin: 60px auto 10px;
+    overflow: hidden;
+  }
+
+  /* ===== ASCII DRAWER ===== */
+  .drawer-wrapper {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .ascii-box {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    line-height: 1.35;
+    color: var(--fg);
+    white-space: pre;
+    position: relative;
+    text-shadow: 0 0 8px rgba(138,138,122,0.08);
+  }
+
+  /* Drawer slide part */
+  .ascii-drawer-slide {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    line-height: 1.35;
+    color: var(--rust);
+    white-space: pre;
+    position: relative;
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 1s cubic-bezier(0.22, 1, 0.36, 1);
+    text-shadow: 0 0 6px rgba(138,106,74,0.1);
+  }
+  .ascii-drawer-slide.open {
+    max-height: 200px;
+  }
+
+  /* Patina chars scattered */
+  .patina {
+    color: var(--dim);
+    opacity: 0.5;
+  }
+
+  /* Rust accent */
+  .rust { color: var(--rust); }
+
+  /* Handle highlight */
+  .handle {
+    color: var(--accent);
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+  .handle:hover {
+    color: #d4c090;
+  }
+
+  .click-hint {
+    position: absolute;
+    bottom: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: var(--dim);
+    transition: opacity 0.5s;
+    white-space: nowrap;
+  }
+  .click-hint.hidden { opacity: 0; }
+
+  .click-hint .blink {
+    animation: blink 1.2s step-end infinite;
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  /* ===== PHYSICS CANVAS ===== */
+  #physics-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    pointer-events: none;
+  }
+  #physics-canvas.active { pointer-events: auto; }
+
+  /* ===== STORY OVERLAY ===== */
+  .story-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    z-index: 300;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .story-overlay.visible { display: flex; }
+
+  .story-card {
+    font-family: 'IBM Plex Mono', monospace;
+    border: 1px solid var(--dim);
+    border-radius: 2px;
+    padding: 30px 35px;
+    max-width: 400px;
+    background: var(--bg);
+  }
+
+  .story-card pre.story-border {
+    font-size: 11px;
+    color: var(--dim);
+    margin-bottom: 12px;
+  }
+
+  .story-card .story-emoji {
+    font-size: 36px;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .story-card .story-title {
+    font-size: 14px;
+    color: var(--accent);
+    margin-bottom: 6px;
+    text-align: center;
+    font-weight: 500;
+  }
+  .story-card .story-text {
+    font-size: 12px;
+    color: var(--fg);
+    line-height: 1.7;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .story-card .story-link {
+    display: block;
+    text-align: center;
+    font-size: 11px;
+    color: var(--rust);
+    text-decoration: none;
+    border-top: 1px solid var(--dim);
+    padding-top: 12px;
+    transition: color 0.2s;
+  }
+  .story-card .story-link:hover { color: var(--accent); }
+
+  /* ===== STATUS ===== */
+  .status-text {
+    font-size: 11px;
+    color: var(--dim);
+    text-align: center;
+    min-height: 20px;
+    z-index: 20;
+    position: relative;
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  .status-text.visible { opacity: 1; }
+
+  /* Scanline overlay */
+  .scanlines {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 999;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+  }
+</style>
+</head>
+<body>
+
+<div class="scanlines"></div>
+
+<!-- Editor bar — simulates the config panel's bg control -->
+<div class="editor-bar">
+  <span style="color:var(--accent)">embed config</span>
+  <div class="sep"></div>
+  <span>bg:</span>
+  <div class="bg-presets">
+    <div class="swatch active" style="background:#0e0e0e" data-bg="#0e0e0e" title="charcoal"></div>
+    <div class="swatch" style="background:#1a1714" data-bg="#1a1714" title="warm dark"></div>
+    <div class="swatch" style="background:#f5f0e8" data-bg="#f5f0e8" title="parchment"></div>
+    <div class="swatch" style="background:#e8e0d4" data-bg="#e8e0d4" title="linen"></div>
+    <div class="swatch" style="background:#ffffff" data-bg="#ffffff" title="white"></div>
+    <div class="swatch" style="background:#1e1e2e" data-bg="#1e1e2e" title="midnight"></div>
+    <div class="swatch" style="background:linear-gradient(135deg,#2a1a0a,#0a0a0a)" data-bg="#1a0f05" title="sepia dark"></div>
+  </div>
+  <input class="custom-bg-input" placeholder="#hex" id="custom-bg" />
+  <div class="sep"></div>
+  <span style="color:var(--dim)">drag items &bull; long-press for stories</span>
+</div>
+
+<div class="scene-container" id="scene">
+
+  <div class="drawer-wrapper" id="drawer-wrapper">
+
+    <!-- Upper part: opens/reveals when clicked -->
+    <div class="ascii-drawer-slide" id="drawer-slide">
+<span class="rust">    .  ~  _______________________________________________  ~  .
+    |    /                                               \    |
+    |   /  items are spilling out...                      \   |
+    |  /                                                   \  |
+    | /                                                     \ |
+    |/_______________________________________________________\|</span>
+</div>
+
+    <!-- The main box body (always visible) -->
+    <div class="ascii-box" id="ascii-box"><!--
+-->    <span class="patina">.</span>╔══════════════════════════════════════════════════╗<span class="patina">.</span>
+    ║<span class="patina"> ░</span>                                                <span class="patina">░</span>║
+    ║   ┌──────────────────────────────────────────┐   ║
+    ║   │<span class="patina">~</span>                                          <span class="patina">~</span>│   ║
+    ║   │           <span class="handle" id="handle">[ ═══ PULL  ═══ ]</span>            │   ║
+    ║   │<span class="patina">~</span>                                          <span class="patina">~</span>│   ║
+    ║   └──────────────────────────────────────────┘   ║
+    ║<span class="patina"> ░</span>                                                <span class="patina">░</span>║
+    ║                  <span class="rust">T R E A S U R E</span>                  ║
+    ║<span class="patina"> .</span>                  <span class="rust">·  B O X  ·</span>                  <span class="patina">.</span>║
+    ╠══════════════════════════════════════════════════╣
+    ║<span class="patina">▓░</span>                                              <span class="patina">░▓</span>║
+    ║<span class="patina">░</span>  <span class="rust">·</span>                                          <span class="rust">·</span>  <span class="patina">░</span>║
+    ║                                                  ║
+    ║<span class="patina">░</span>  <span class="rust">·</span>                                          <span class="rust">·</span>  <span class="patina">░</span>║
+    ║<span class="patina">▓░</span>                                              <span class="patina">░▓</span>║
+    ╚══════════════════════════════════════════════════╝
+    <span class="patina"> ·                                                  ·</span></div>
+
+    <div class="click-hint" id="click-hint">
+      <span class="blink">▸</span> click to open drawer
+    </div>
+  </div>
+
+  <canvas id="physics-canvas"></canvas>
+</div>
+
+<div class="status-text" id="status"></div>
+
+<div class="story-overlay" id="story-overlay">
+  <div class="story-card">
+    <div class="story-emoji" id="story-emoji"></div>
+    <div class="story-title" id="story-title"></div>
+    <div class="story-text" id="story-text"></div>
+    <a class="story-link" id="story-link" href="#" target="_blank">→ visit link</a>
+  </div>
+</div>
+
+<script>
+const ITEMS = [
+  { emoji: '📷', label: 'Polaroid Camera', story: 'Sarah gave me this at graduation. We took our first group photo with it.', link: '#', color: '#6B5B45' },
+  { emoji: '🎸', label: 'Guitar Pick', story: 'From the concert where I met half my friend group. Still smells like rain.', link: '#', color: '#5B4226' },
+  { emoji: '📖', label: 'Worn Notebook', story: 'Filled with sketches from our road trip through the coast.', link: '#', color: '#4B5B3A' },
+  { emoji: '🎵', label: 'Mixtape USB', story: 'Alex made this for my birthday. 47 songs, each one with a memory.', link: '#', color: '#6A4A3A' },
+  { emoji: '✉️', label: 'Letter', story: 'The only handwritten letter I received in college. I still re-read it.', link: '#', color: '#5A6A4A' },
+  { emoji: '🔑', label: 'Old Key', story: 'Key to our first shared apartment. The lock was always sticky.', link: '#', color: '#7A5A3A' },
+  { emoji: '🎁', label: 'Small Box', story: 'Inside: a folded note that says "open when you miss us"', link: '#', color: '#4A5A6A' },
+  { emoji: '🧭', label: 'Compass', story: 'Found this at the flea market together. It always points slightly east.', link: '#', color: '#6A5A4A' },
+];
+
+const canvas = document.getElementById('physics-canvas');
+const scene = document.getElementById('scene');
+const drawerWrapper = document.getElementById('drawer-wrapper');
+const drawerSlide = document.getElementById('drawer-slide');
+const hint = document.getElementById('click-hint');
+const statusEl = document.getElementById('status');
+const storyOverlay = document.getElementById('story-overlay');
+
+let isOpen = false;
+let engine, world, runner;
+let itemBodies = [];
+let longPressTimer = null;
+let spawnInterval = null;
+
+function resizeCanvas() {
+  canvas.width = scene.offsetWidth;
+  canvas.height = scene.offsetHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+function initPhysics() {
+  engine = Matter.Engine.create({ gravity: { x: 0, y: 2 } });
+  world = engine.world;
+  runner = Matter.Runner.create();
+
+  const boxEl = document.getElementById('ascii-box');
+  const boxRect = boxEl.getBoundingClientRect();
+  const sceneRect = scene.getBoundingClientRect();
+
+  // Floor = top of the ASCII box
+  const floorY = boxRect.top - sceneRect.top + 8;
+  const boxCenterX = boxRect.left - sceneRect.left + boxRect.width / 2;
+  const boxWidth = boxRect.width - 40;
+
+  const floor = Matter.Bodies.rectangle(boxCenterX, floorY, boxWidth + 60, 12, {
+    isStatic: true, friction: 0.9, restitution: 0.15
+  });
+
+  // Walls to keep items from flying off
+  const leftWall = Matter.Bodies.rectangle(
+    boxCenterX - boxWidth / 2 - 20, floorY - 200, 12, 500,
+    { isStatic: true }
+  );
+  const rightWall = Matter.Bodies.rectangle(
+    boxCenterX + boxWidth / 2 + 20, floorY - 200, 12, 500,
+    { isStatic: true }
+  );
+
+  Matter.Composite.add(world, [floor, leftWall, rightWall]);
+
+  // Mouse
+  const mouse = Matter.Mouse.create(canvas);
+  mouse.pixelRatio = window.devicePixelRatio || 1;
+  const mouseConstraint = Matter.MouseConstraint.create(engine, {
+    mouse,
+    constraint: { stiffness: 0.5, render: { visible: false } }
+  });
+  Matter.Composite.add(world, mouseConstraint);
+
+  // Long press
+  Matter.Events.on(mouseConstraint, 'mousedown', (e) => {
+    const body = e.source.body;
+    if (body && body.itemData) {
+      longPressTimer = setTimeout(() => showStory(body.itemData), 800);
+    }
+  });
+  Matter.Events.on(mouseConstraint, 'mouseup', () => clearTimeout(longPressTimer));
+  Matter.Events.on(mouseConstraint, 'mousemove', () => clearTimeout(longPressTimer));
+
+  Matter.Runner.start(runner, engine);
+  requestAnimationFrame(renderLoop);
+}
+
+// Spawn items one by one from the drawer opening
+function spawnItemsSequentially() {
+  const boxEl = document.getElementById('ascii-box');
+  const boxRect = boxEl.getBoundingClientRect();
+  const sceneRect = scene.getBoundingClientRect();
+  const boxCenterX = boxRect.left - sceneRect.left + boxRect.width / 2;
+  const spawnY = boxRect.top - sceneRect.top - 10;
+
+  let i = 0;
+  spawnInterval = setInterval(() => {
+    if (i >= ITEMS.length) {
+      clearInterval(spawnInterval);
+      return;
+    }
+
+    const item = ITEMS[i];
+    // Spawn from narrow area (the drawer slot) with slight random x
+    const x = boxCenterX + (Math.random() - 0.5) * 120;
+    const y = spawnY + 20; // just above the box top, inside the drawer opening
+
+    const body = Matter.Bodies.rectangle(x, y, 54, 54, {
+      restitution: 0.25,
+      friction: 0.7,
+      density: 0.003,
+      angle: (Math.random() - 0.5) * 0.8,
+      chamfer: { radius: 5 },
+    });
+
+    // Give it an upward + sideways impulse (popping out of drawer)
+    Matter.Body.setVelocity(body, {
+      x: (Math.random() - 0.5) * 6,
+      y: -(3 + Math.random() * 5)
+    });
+
+    body.itemData = item;
+    body.itemIndex = i;
+    itemBodies.push(body);
+    Matter.Composite.add(world, body);
+
+    i++;
+  }, 250);
+
+  canvas.classList.add('active');
+}
+
+function renderLoop() {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Determine if bg is light or dark for text color
+  const bgColor = getComputedStyle(document.body).backgroundColor;
+  const isLightBg = isLight(bgColor);
+
+  itemBodies.forEach(body => {
+    const { x, y } = body.position;
+    const angle = body.angle;
+    const item = body.itemData;
+    const size = 54;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    // Shadow
+    ctx.shadowColor = isLightBg ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 4;
+
+    // Background
+    ctx.fillStyle = item.color;
+    ctx.beginPath();
+    ctx.roundRect(-size/2, -size/2, size, size, 5);
+    ctx.fill();
+
+    // Inner gradient
+    ctx.shadowColor = 'transparent';
+    const grad = ctx.createLinearGradient(-size/2, -size/2, size/2, size/2);
+    grad.addColorStop(0, 'rgba(255,255,255,0.1)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.1)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(-size/2, -size/2, size, size, 5);
+    ctx.fill();
+
+    // Border
+    ctx.strokeStyle = isLightBg ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(-size/2, -size/2, size, size, 5);
+    ctx.stroke();
+
+    // Emoji
+    ctx.font = '24px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(item.emoji, 0, 2);
+
+    // Label below
+    ctx.font = '500 8px "IBM Plex Mono", monospace';
+    ctx.fillStyle = isLightBg ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)';
+    ctx.fillText(item.label.substring(0, 10), 0, size/2 - 6);
+
+    ctx.restore();
+  });
+
+  requestAnimationFrame(renderLoop);
+}
+
+// Open drawer
+drawerWrapper.addEventListener('click', () => {
+  if (isOpen) return;
+  isOpen = true;
+
+  // Animate the ASCII drawer open
+  drawerSlide.classList.add('open');
+  hint.classList.add('hidden');
+
+  statusEl.textContent = '// items emerging from drawer...';
+  statusEl.classList.add('visible');
+
+  setTimeout(() => {
+    initPhysics();
+    // Small delay so physics is ready
+    setTimeout(() => {
+      spawnItemsSequentially();
+      setTimeout(() => {
+        statusEl.textContent = '// drag to move · long-press for hidden stories';
+        setTimeout(() => statusEl.classList.remove('visible'), 4000);
+      }, ITEMS.length * 250 + 500);
+    }, 200);
+  }, 600);
+});
+
+// Story
+function showStory(item) {
+  document.getElementById('story-emoji').textContent = item.emoji;
+  document.getElementById('story-title').textContent = item.label;
+  document.getElementById('story-text').textContent = item.story;
+  document.getElementById('story-link').href = item.link;
+  storyOverlay.classList.add('visible');
+}
+storyOverlay.addEventListener('click', () => storyOverlay.classList.remove('visible'));
+
+// === BG COLOR PICKER ===
+const swatches = document.querySelectorAll('.swatch');
+const customBgInput = document.getElementById('custom-bg');
+
+swatches.forEach(s => {
+  s.addEventListener('click', () => {
+    swatches.forEach(sw => sw.classList.remove('active'));
+    s.classList.add('active');
+    const bg = s.dataset.bg;
+    document.body.style.background = bg;
+    customBgInput.value = bg;
+    updateASCIIColors(bg);
+  });
+});
+
+customBgInput.addEventListener('input', (e) => {
+  const val = e.target.value.trim();
+  if (/^#[0-9a-fA-F]{3,8}$/.test(val)) {
+    document.body.style.background = val;
+    swatches.forEach(sw => sw.classList.remove('active'));
+    updateASCIIColors(val);
+  }
+});
+
+function updateASCIIColors(bg) {
+  const light = isLight(bg);
+  const root = document.documentElement;
+  if (light) {
+    root.style.setProperty('--fg', '#4a4a40');
+    root.style.setProperty('--accent', '#6a5a3a');
+    root.style.setProperty('--dim', '#c0b8a8');
+    root.style.setProperty('--rust', '#8a5a30');
+  } else {
+    root.style.setProperty('--fg', '#8a8a7a');
+    root.style.setProperty('--accent', '#b0a080');
+    root.style.setProperty('--dim', '#3a3a32');
+    root.style.setProperty('--rust', '#8a6a4a');
+  }
+}
+
+function isLight(color) {
+  let r, g, b;
+  if (color.startsWith('#')) {
+    const hex = color.replace('#', '');
+    if (hex.length === 3) {
+      r = parseInt(hex[0]+hex[0], 16);
+      g = parseInt(hex[1]+hex[1], 16);
+      b = parseInt(hex[2]+hex[2], 16);
+    } else {
+      r = parseInt(hex.substring(0,2), 16);
+      g = parseInt(hex.substring(2,4), 16);
+      b = parseInt(hex.substring(4,6), 16);
+    }
+  } else {
+    const match = color.match(/\d+/g);
+    if (!match) return false;
+    [r, g, b] = match.map(Number);
+  }
+  return (r * 299 + g * 587 + b * 114) / 1000 > 128;
+}
+
+// Accelerometer
+if (window.DeviceMotionEvent) {
+  window.addEventListener('devicemotion', (e) => {
+    if (!engine) return;
+    const ax = e.accelerationIncludingGravity?.x;
+    const ay = e.accelerationIncludingGravity?.y;
+    if (ax != null && ay != null) {
+      engine.gravity.x = ax * -0.15;
+      engine.gravity.y = Math.max(0.5, ay * 0.15);
+    }
+  });
+}
+</script>
+
+</body>
+</html>

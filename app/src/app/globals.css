@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --font-mono: "IBM Plex Mono", monospace;
+  --color-rust: #8a6a4a;
+  --color-patina: #3a3a32;
+  --color-accent: #b0a080;
+  --color-fg: #8a8a7a;
+  --color-bg: #0e0e0e;
+}
+
+/* ═══ DARK MODE (default) ═══ */
+:root,
+[data-theme="dark"] {
+  --tb-bg: #0e0e0e;
+  --tb-bg-subtle: #181816;
+  --tb-bg-muted: #222220;
+  --tb-border: #3a3a34;
+  --tb-border-subtle: #2a2a26;
+  --tb-fg: #b8b8a8;
+  --tb-fg-muted: #8a8a7a;
+  --tb-fg-faint: #5e5e52;
+  --tb-fg-ghost: #3e3e36;
+  --tb-accent: #d0b888;
+  --tb-accent-hover: #e0c898;
+  --tb-highlight: #9a7a5a;
+}
+
+/* ═══ LIGHT MODE ═══ */
+[data-theme="light"] {
+  --tb-bg: #f5f2ec;
+  --tb-bg-subtle: #edeae4;
+  --tb-bg-muted: #e4e0d8;
+  --tb-border: #d0ccc2;
+  --tb-border-subtle: #ddd9d0;
+  --tb-fg: #3a3832;
+  --tb-fg-muted: #6a685e;
+  --tb-fg-faint: #9a9888;
+  --tb-fg-ghost: #c0beb4;
+  --tb-accent: #8a6a3a;
+  --tb-accent-hover: #7a5a2a;
+  --tb-highlight: #b08a5a;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-mono);
+    background: var(--tb-bg);
+    color: var(--tb-fg);
+    transition: background-color 0.2s, color 0.2s;
+  }
+}

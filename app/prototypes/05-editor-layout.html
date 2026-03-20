@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Treasure Box — Editor Layout</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0e0e0e;
+    color: #8a8a7a;
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 44px;
+    border-bottom: 1px solid #1a1a16;
+    flex-shrink: 0;
+  }
+  header .left { display: flex; align-items: center; gap: 12px; }
+  header .brand {
+    color: #b0a080;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    text-decoration: none;
+  }
+  header .sep { color: #2a2a2a; }
+  header .user-email { color: #3a3a32; font-size: 10px; }
+  header .right { display: flex; align-items: center; gap: 16px; }
+  header .header-btn {
+    font-family: inherit; font-size: 10px; background: none; border: none;
+    color: #3a3a32; cursor: pointer; padding: 4px 0;
+    text-transform: lowercase; letter-spacing: 0.04em;
+  }
+  header .header-btn:hover { color: #8a8a7a; }
+  header .header-btn.accent { color: #b0a080; }
+
+  /* ── MAIN LAYOUT ── */
+  .editor-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    height: calc(100vh - 44px);
+    overflow: hidden;
+  }
+
+  /* ── LEFT: EDIT PANEL ── */
+  .edit-panel {
+    border-right: 1px solid #1a1a16;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0; /* allow flex children to scroll in grid */
+  }
+
+  .panel-tabs {
+    display: flex;
+    border-bottom: 1px solid #1a1a16;
+    flex-shrink: 0;
+  }
+  .panel-tab {
+    font-family: inherit; font-size: 10px; background: none; border: none;
+    color: #3a3a32; padding: 10px 16px; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    text-transform: lowercase; letter-spacing: 0.04em; transition: color 0.15s;
+  }
+  .panel-tab:hover { color: #8a8a7a; }
+  .panel-tab.active { color: #b0a080; border-bottom-color: #b0a080; }
+
+  .panel-content {
+    flex: 1 1 0;
+    overflow-y: auto;
+    padding: 16px;
+    min-height: 0;
+  }
+
+  /* ── Items ── */
+  .items-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .items-header h2 { font-size: 11px; color: #b0a080; font-weight: 500; }
+  .upload-btn {
+    font-family: inherit; font-size: 10px; background: none;
+    border: 1px solid #3a3a32; color: #b0a080; padding: 6px 14px;
+    cursor: pointer; transition: background 0.15s; letter-spacing: 0.04em;
+  }
+  .upload-btn:hover { background: #1a1a16; }
+
+  .item-card {
+    border: 1px solid #1a1a16;
+    padding: 12px;
+    margin-bottom: 8px;
+    display: grid;
+    grid-template-columns: 56px 1fr 20px;
+    gap: 12px;
+    transition: border-color 0.15s;
+  }
+  .item-card:hover { border-color: #2a2a2a; }
+  .item-card.selected { border-color: #b0a080; }
+
+  .item-thumb {
+    width: 56px; height: 56px; background: #1a1a16;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; color: #3a3a32; overflow: hidden;
+  }
+  .item-fields { display: flex; flex-direction: column; gap: 6px; }
+  .item-fields input,
+  .item-fields textarea {
+    font-family: inherit; font-size: 10px; background: transparent;
+    border: none; border-bottom: 1px solid #1a1a16; color: #8a8a7a;
+    padding: 2px 0; outline: none; transition: border-color 0.15s; resize: none;
+  }
+  .item-fields input:focus,
+  .item-fields textarea:focus { border-color: #3a3a32; }
+  .item-fields input.label-field { color: #b0a080; font-size: 11px; }
+  .item-fields input::placeholder,
+  .item-fields textarea::placeholder { color: #2a2a2a; }
+
+  /* Rotation control */
+  .item-rotation {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+  }
+  .item-rotation .rot-label {
+    font-size: 9px;
+    color: #3a3a32;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+  .rotation-bar {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+  .rot-seg {
+    width: 12px;
+    height: 10px;
+    border: 1px solid #1a1a16;
+    cursor: pointer;
+    transition: all 0.1s;
+    position: relative;
+  }
+  .rot-seg:hover { border-color: #3a3a32; }
+  .rot-seg.neg { background: #2a1a1a; border-color: #3a2a2a; }
+  .rot-seg.pos { background: #1a2a1a; border-color: #2a3a2a; }
+  .rot-seg.active-neg { background: #5a3a3a; border-color: #6a4a4a; }
+  .rot-seg.active-pos { background: #3a5a3a; border-color: #4a6a4a; }
+  .rot-seg.center {
+    width: 2px;
+    height: 12px;
+    background: #3a3a32;
+    border: none;
+    cursor: default;
+  }
+  .rot-value {
+    font-size: 9px;
+    color: #555;
+    min-width: 32px;
+    text-align: right;
+  }
+
+  .item-delete {
+    font-family: inherit; font-size: 14px; background: none; border: none;
+    color: #2a2a2a; cursor: pointer; padding: 0; line-height: 1; align-self: start;
+  }
+  .item-delete:hover { color: #8a4a4a; }
+
+  /* ── Config ── */
+  .config-group {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #1a1a16;
+  }
+  .config-group:last-child { border-bottom: none; }
+  .config-group > label {
+    display: block; font-size: 10px; color: #3a3a32;
+    margin-bottom: 8px; text-transform: lowercase; letter-spacing: 0.04em;
+  }
+  .config-group input[type="text"] {
+    font-family: inherit; font-size: 10px; background: transparent;
+    border: 1px solid #1a1a16; color: #b0a080; padding: 8px 10px;
+    width: 100%; outline: none;
+  }
+  .config-group input[type="text"]:focus { border-color: #3a3a32; }
+
+  /* Color picker */
+  .color-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .color-wheel-wrapper {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+  .color-wheel-wrapper input[type="color"] {
+    width: 44px;
+    height: 44px;
+    border: 1px solid #3a3a32;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .color-wheel-wrapper input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+  .color-wheel-wrapper input[type="color"]::-webkit-color-swatch { border: none; }
+  .color-hex-input {
+    width: 80px !important;
+    font-size: 10px !important;
+  }
+  .transparent-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .transparent-toggle .check-box {
+    width: 14px; height: 14px;
+    border: 1px solid #3a3a32;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 10px; color: #b0a080;
+    flex-shrink: 0;
+  }
+  .transparent-toggle .check-box.checked { background: #1a1a16; }
+  .transparent-toggle span {
+    font-size: 10px; color: #5a5a4a;
+  }
+
+  /* Toggle group */
+  .toggle-group { display: flex; gap: 0; flex-wrap: wrap; }
+  .toggle-btn {
+    font-family: inherit; font-size: 10px; background: none;
+    border: 1px solid #1a1a16; color: #3a3a32;
+    padding: 6px 14px; cursor: pointer; transition: all 0.15s;
+  }
+  .toggle-btn + .toggle-btn { border-left: none; }
+  .toggle-btn.active { border-color: #b0a080; color: #b0a080; }
+  .toggle-btn:hover:not(.active) { color: #8a8a7a; }
+
+  .config-hint {
+    font-size: 9px; color: #2a2a2a; margin-top: 6px;
+  }
+
+  /* Design reference upload */
+  .ref-upload-area { margin-bottom: 4px; }
+  .ref-dropzone {
+    border: 1px dashed #2a2a2a;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .ref-dropzone:hover { border-color: #3a3a32; background: #1a1a16; }
+  .ref-icon { font-size: 18px; opacity: 0.4; }
+  .ref-text { font-size: 10px; color: #5a5a4a; }
+  .ref-hint { font-size: 9px; color: #2a2a2a; }
+  .ref-preview {
+    position: relative;
+    width: 100%;
+    max-height: 120px;
+    overflow: hidden;
+    border: 1px solid #1a1a16;
+  }
+  .ref-preview img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    display: block;
+    opacity: 0.7;
+  }
+  .ref-preview .ref-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    font-family: inherit;
+    font-size: 10px;
+    background: #0e0e0e;
+    border: 1px solid #2a2a2a;
+    color: #8a4a4a;
+    padding: 2px 8px;
+    cursor: pointer;
+  }
+  .ref-preview .ref-remove:hover { color: #c06060; border-color: #8a4a4a; }
+
+  /* Boxy volume control */
+  .volume-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .volume-bars {
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+  }
+  .vol-bar {
+    width: 14px;
+    background: #1a1a16;
+    border: 1px solid #1a1a16;
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .vol-bar:hover { border-color: #3a3a32; }
+  .vol-bar.filled {
+    background: #b0a080;
+    border-color: #b0a080;
+  }
+  .vol-bar.filled:hover { background: #c0b090; }
+  /* Each bar gets taller: 10% increments */
+  .vol-bar:nth-child(1)  { height: 6px; }
+  .vol-bar:nth-child(2)  { height: 8px; }
+  .vol-bar:nth-child(3)  { height: 10px; }
+  .vol-bar:nth-child(4)  { height: 12px; }
+  .vol-bar:nth-child(5)  { height: 14px; }
+  .vol-bar:nth-child(6)  { height: 16px; }
+  .vol-bar:nth-child(7)  { height: 18px; }
+  .vol-bar:nth-child(8)  { height: 20px; }
+  .vol-bar:nth-child(9)  { height: 22px; }
+  .vol-bar:nth-child(10) { height: 24px; }
+  .volume-value {
+    font-size: 10px;
+    color: #5a5a4a;
+    min-width: 28px;
+  }
+
+  .save-btn {
+    font-family: inherit; font-size: 10px; background: none;
+    border: 1px solid #3a3a32; color: #b0a080; padding: 8px 24px;
+    cursor: pointer; transition: all 0.15s; letter-spacing: 0.04em;
+    margin-top: 8px;
+  }
+  .save-btn:hover { background: #1a1a16; border-color: #b0a080; }
+
+  /* ── Embed ── */
+  .embed-block { margin-bottom: 20px; }
+  .embed-block label { display: block; font-size: 10px; color: #3a3a32; margin-bottom: 6px; }
+  .embed-block pre {
+    background: #1a1a16; padding: 12px; font-size: 9px; color: #666;
+    overflow-x: auto; white-space: pre-wrap; word-break: break-all; line-height: 1.6;
+  }
+  .embed-block .copy-btn {
+    font-family: inherit; font-size: 9px; background: none;
+    border: 1px solid #2a2a2a; color: #5a5a4a; padding: 4px 12px;
+    cursor: pointer; margin-top: 6px;
+  }
+  .embed-block .copy-btn:hover { color: #b0a080; border-color: #3a3a32; }
+
+  /* ── RIGHT: LIVE PREVIEW ── */
+  .preview-panel {
+    display: flex; flex-direction: column; background: #0a0a0a; overflow: hidden;
+  }
+  .preview-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; border-bottom: 1px solid #1a1a16; flex-shrink: 0;
+  }
+  .preview-header span { font-size: 10px; color: #3a3a32; text-transform: lowercase; letter-spacing: 0.04em; }
+  .preview-header .preview-badge {
+    font-size: 9px; color: #2a2a2a; border: 1px solid #1a1a16;
+    padding: 2px 8px; letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .preview-canvas {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+
+  /* Transparent bg pattern */
+  .preview-canvas.transparent-bg {
+    background:
+      repeating-conic-gradient(#1a1a1a 0% 25%, #141414 0% 50%)
+      50% / 16px 16px;
+  }
+
+  .preview-box {
+    width: 90%; max-width: 500px; aspect-ratio: 1; position: relative;
+  }
+  .preview-box .ascii-frame {
+    position: absolute; inset: 0; display: flex;
+    align-items: center; justify-content: center; pointer-events: none;
+  }
+  .preview-box .ascii-frame pre {
+    color: #3a3a32; font-size: 9px; line-height: 1.4; text-align: center;
+  }
+  .preview-box .preview-item {
+    position: absolute; width: 52px; height: 52px;
+    background: #1e1e1e; border: 1px solid #2a2a2a;
+  }
+  .preview-box .preview-item .p-label {
+    position: absolute; bottom: -13px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 7px; color: #444; white-space: nowrap;
+  }
+
+  /* Owner name display in preview */
+  .preview-owner {
+    position: absolute;
+    bottom: 8px;
+    left: 12px;
+    font-size: 8px;
+    color: #3a3a32;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── MOBILE ── */
+  @media (max-width: 900px) {
+    body { overflow: auto; height: auto; }
+
+    .editor-layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto;
+      height: auto;
+      min-height: calc(100vh - 44px);
+    }
+
+    .edit-panel {
+      border-right: none;
+      border-bottom: 1px solid #1a1a16;
+      overflow: visible;
+    }
+
+    .panel-content {
+      overflow-y: auto;
+      max-height: none;
+    }
+
+    /* Preview becomes a sticky bottom bar or a collapsible section */
+    .preview-panel {
+      position: sticky;
+      bottom: 0;
+      height: 50vh;
+      min-height: 300px;
+      border-top: 1px solid #1a1a16;
+    }
+
+    .preview-box {
+      width: 85%; max-width: 340px;
+    }
+
+    .item-card {
+      grid-template-columns: 40px 1fr 20px;
+      gap: 8px;
+      padding: 10px;
+    }
+    .item-thumb { width: 40px; height: 40px; }
+
+    .toggle-group { flex-wrap: wrap; }
+    .toggle-btn { padding: 6px 10px; font-size: 9px; }
+
+    header { padding: 0 12px; }
+    header .user-email { display: none; }
+    header .sep { display: none; }
+  }
+
+  @media (max-width: 480px) {
+    .panel-content { padding: 12px; }
+
+    .item-card {
+      grid-template-columns: 1fr 20px;
+      gap: 6px;
+    }
+    .item-thumb { display: none; }
+
+    .preview-panel { height: 40vh; min-height: 250px; }
+
+    .color-picker-row { flex-wrap: wrap; }
+
+    .rotation-bar { gap: 1px; }
+    .rot-seg { width: 10px; height: 8px; }
+
+    .volume-bars { gap: 2px; }
+    .vol-bar { width: 11px; }
+
+    header .right { gap: 10px; }
+    header .header-btn { font-size: 9px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="left">
+    <a href="#" class="brand">treasure box</a>
+    <span class="sep">|</span>
+    <span class="user-email">user@example.com</span>
+  </div>
+  <div class="right">
+    <button class="header-btn accent">back to home</button>
+    <button class="header-btn">sign out</button>
+  </div>
+</header>
+
+<div class="editor-layout">
+
+  <!-- LEFT: EDIT PANEL -->
+  <div class="edit-panel">
+    <div class="panel-tabs">
+      <button class="panel-tab active" onclick="showTab('items')">items</button>
+      <button class="panel-tab" onclick="showTab('config')">config</button>
+      <button class="panel-tab" onclick="showTab('embed')">embed</button>
+    </div>
+
+    <!-- ═══ ITEMS TAB ═══ -->
+    <div class="panel-content" id="tab-items">
+      <div class="items-header">
+        <h2>items (5)</h2>
+        <button class="upload-btn">+ upload</button>
+      </div>
+
+      <!-- Item 1: selected -->
+      <div class="item-card selected">
+        <div class="item-thumb"></div>
+        <div class="item-fields">
+          <input class="label-field" value="old key" placeholder="label">
+          <input value="" placeholder="link (https://...)">
+          <textarea rows="2" placeholder="story (shown on long-press)">found this in grandma's attic. she never told us what it opened.</textarea>
+          <div class="item-rotation">
+            <span class="rot-label">rot</span>
+            <div class="rotation-bar">
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg active-neg"></div>
+              <div class="rot-seg active-neg"></div>
+              <div class="rot-seg active-neg"></div>
+              <div class="rot-seg center"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+            </div>
+            <span class="rot-value">-15&deg;</span>
+          </div>
+        </div>
+        <button class="item-delete">&times;</button>
+      </div>
+
+      <!-- Item 2 -->
+      <div class="item-card">
+        <div class="item-thumb"></div>
+        <div class="item-fields">
+          <input class="label-field" value="letter" placeholder="label">
+          <input value="" placeholder="link (https://...)">
+          <textarea rows="2" placeholder="story (shown on long-press)"></textarea>
+          <div class="item-rotation">
+            <span class="rot-label">rot</span>
+            <div class="rotation-bar">
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg center"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg active-pos"></div>
+              <div class="rot-seg active-pos"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+            </div>
+            <span class="rot-value">+10&deg;</span>
+          </div>
+        </div>
+        <button class="item-delete">&times;</button>
+      </div>
+
+      <!-- Item 3 -->
+      <div class="item-card">
+        <div class="item-thumb"></div>
+        <div class="item-fields">
+          <input class="label-field" value="polaroid" placeholder="label">
+          <input value="" placeholder="link (https://...)">
+          <textarea rows="2" placeholder="story (shown on long-press)">summer '97, lake house</textarea>
+          <div class="item-rotation">
+            <span class="rot-label">rot</span>
+            <div class="rotation-bar">
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg center"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+            </div>
+            <span class="rot-value">0&deg;</span>
+          </div>
+        </div>
+        <button class="item-delete">&times;</button>
+      </div>
+
+      <!-- Item 4 -->
+      <div class="item-card">
+        <div class="item-thumb"></div>
+        <div class="item-fields">
+          <input class="label-field" value="coin" placeholder="label">
+          <input value="https://en.wikipedia.org/wiki/Denarius" placeholder="link (https://...)">
+          <textarea rows="2" placeholder="story (shown on long-press)"></textarea>
+          <div class="item-rotation">
+            <span class="rot-label">rot</span>
+            <div class="rotation-bar">
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg center"></div>
+              <div class="rot-seg active-pos"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+            </div>
+            <span class="rot-value">+5&deg;</span>
+          </div>
+        </div>
+        <button class="item-delete">&times;</button>
+      </div>
+
+      <!-- Item 5 -->
+      <div class="item-card">
+        <div class="item-thumb"></div>
+        <div class="item-fields">
+          <input class="label-field" value="shell" placeholder="label">
+          <input value="" placeholder="link (https://...)">
+          <textarea rows="2" placeholder="story (shown on long-press)">beach walk with dad</textarea>
+          <div class="item-rotation">
+            <span class="rot-label">rot</span>
+            <div class="rotation-bar">
+              <div class="rot-seg neg"></div>
+              <div class="rot-seg active-neg"></div>
+              <div class="rot-seg active-neg"></div>
+              <div class="rot-seg active-neg"></div>
+              <div class="rot-seg active-neg"></div>
+              <div class="rot-seg center"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+              <div class="rot-seg pos"></div>
+            </div>
+            <span class="rot-value">-20&deg;</span>
+          </div>
+        </div>
+        <button class="item-delete">&times;</button>
+      </div>
+    </div>
+
+    <!-- ═══ CONFIG TAB ═══ -->
+    <div class="panel-content" id="tab-config" style="display:none;">
+
+      <!-- 1. Visibility -->
+      <div class="config-group">
+        <label>visibility</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active">private</button>
+          <button class="toggle-btn">public</button>
+        </div>
+        <div class="config-hint">public boxes appear in the gallery on the landing page</div>
+      </div>
+
+      <!-- 2. Owner name -->
+      <div class="config-group">
+        <label>owner name (optional)</label>
+        <input type="text" value="" placeholder="displayed on your box, e.g. 'david's box'">
+        <div class="config-hint">shown at the bottom corner of your treasure box</div>
+      </div>
+
+      <!-- 3. Drawer label -->
+      <div class="config-group">
+        <label>drawer label</label>
+        <input type="text" value="TREASURE BOX">
+      </div>
+
+      <!-- 4. Background color -->
+      <div class="config-group">
+        <label>background</label>
+        <div class="transparent-toggle">
+          <div class="check-box checked">&#x2713;</div>
+          <span>transparent (default)</span>
+        </div>
+        <div class="color-picker-row">
+          <div class="color-wheel-wrapper">
+            <input type="color" value="#0e0e0e">
+          </div>
+          <input type="text" class="color-hex-input" value="transparent" placeholder="#hex">
+        </div>
+        <div class="config-hint">transparent inherits the background of the page it's embedded on</div>
+      </div>
+
+      <!-- 5. Design reference (AI) -->
+      <div class="config-group">
+        <label>design reference (optional)</label>
+        <div class="ref-upload-area">
+          <div class="ref-dropzone" id="refDropzone">
+            <span class="ref-icon">&#x1F5BC;</span>
+            <span class="ref-text">drop image or click to upload</span>
+            <span class="ref-hint">AI will reference this when styling your box</span>
+          </div>
+        </div>
+        <div class="config-hint">upload a mood board, photo, or aesthetic reference — AI uses it to suggest drawer style, colors, and layout</div>
+      </div>
+
+      <!-- 6. Drawer style -->
+      <div class="config-group">
+        <label>drawer style</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active">ascii</button>
+          <button class="toggle-btn">clay</button>
+          <button class="toggle-btn">metal</button>
+          <button class="toggle-btn">wood</button>
+          <button class="toggle-btn">pixel</button>
+          <button class="toggle-btn">glass</button>
+        </div>
+        <div class="config-hint">non-ascii styles use AI-generated drawer images</div>
+      </div>
+
+      <!-- 6. Sound preset -->
+      <div class="config-group">
+        <label>collision sound</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active">metallic</button>
+          <button class="toggle-btn">wooden</button>
+          <button class="toggle-btn">glass</button>
+          <button class="toggle-btn">paper</button>
+          <button class="toggle-btn">silent</button>
+        </div>
+      </div>
+
+      <!-- 7. Volume (boxy bars) -->
+      <div class="config-group">
+        <label>volume</label>
+        <div class="volume-control">
+          <div class="volume-bars">
+            <div class="vol-bar filled"></div>
+            <div class="vol-bar filled"></div>
+            <div class="vol-bar filled"></div>
+            <div class="vol-bar"></div>
+            <div class="vol-bar"></div>
+            <div class="vol-bar"></div>
+            <div class="vol-bar"></div>
+            <div class="vol-bar"></div>
+            <div class="vol-bar"></div>
+            <div class="vol-bar"></div>
+          </div>
+          <span class="volume-value">30%</span>
+        </div>
+      </div>
+
+      <button class="save-btn">save config</button>
+    </div>
+
+    <!-- ═══ EMBED TAB ═══ -->
+    <div class="panel-content" id="tab-embed" style="display:none;">
+      <div class="embed-block">
+        <label>iframe (recommended)</label>
+        <pre>&lt;iframe
+  src="https://treasurebox.app/embed?box=abc123"
+  width="700" height="700"
+  style="border:none;overflow:hidden"
+  loading="lazy"
+&gt;&lt;/iframe&gt;</pre>
+        <button class="copy-btn">copy</button>
+      </div>
+      <div class="embed-block">
+        <label>inline script</label>
+        <pre>&lt;div id="treasure-box-embed"&gt;&lt;/div&gt;
+&lt;script src="https://treasurebox.app/embed/widget.js"
+  data-box-id="abc123"
+  data-width="700"
+  data-height="700"&gt;
+&lt;/script&gt;</pre>
+        <button class="copy-btn">copy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: LIVE PREVIEW -->
+  <div class="preview-panel">
+    <div class="preview-header">
+      <span>live preview</span>
+      <span class="preview-badge">live</span>
+    </div>
+    <div class="preview-canvas transparent-bg">
+      <div class="preview-box">
+        <div class="ascii-frame">
+          <pre>
+╔════════════════════════════════════════╗
+║                                        ║
+║                                        ║
+║                                        ║
+║                                        ║
+║                                        ║
+║                                        ║
+║                                        ║
+║                                        ║
+║                                        ║
+║  ┌──────────────────────────────────┐  ║
+║  │       [ ═══ PULL ═══ ]          │  ║
+║  └──────────────────────────────────┘  ║
+╚════════════════════════════════════════╝
+          </pre>
+        </div>
+        <div class="preview-item" style="top: 60px; left: 40px; transform: rotate(-15deg);">
+          <span class="p-label">old key</span>
+        </div>
+        <div class="preview-item" style="top: 120px; left: 200px; transform: rotate(10deg);">
+          <span class="p-label">letter</span>
+        </div>
+        <div class="preview-item" style="top: 200px; left: 100px; transform: rotate(0deg);">
+          <span class="p-label">polaroid</span>
+        </div>
+        <div class="preview-item" style="top: 130px; left: 320px; transform: rotate(5deg);">
+          <span class="p-label">coin</span>
+        </div>
+        <div class="preview-item" style="top: 240px; left: 280px; transform: rotate(-20deg);">
+          <span class="p-label">shell</span>
+        </div>
+      </div>
+      <div class="preview-owner">david's box</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function showTab(name) {
+    document.querySelectorAll('.panel-content').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.panel-tab').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + name).style.display = 'block';
+    event.target.classList.add('active');
+  }
+
+  // Volume bar click simulation
+  document.querySelectorAll('.vol-bar').forEach((bar, i) => {
+    bar.addEventListener('click', () => {
+      document.querySelectorAll('.vol-bar').forEach((b, j) => {
+        b.classList.toggle('filled', j <= i);
+      });
+      document.querySelector('.volume-value').textContent = ((i + 1) * 10) + '%';
+    });
+  });
+
+  // Transparent toggle
+  document.querySelector('.check-box').addEventListener('click', function() {
+    this.classList.toggle('checked');
+    const isChecked = this.classList.contains('checked');
+    this.innerHTML = isChecked ? '&#x2713;' : '';
+    document.querySelector('.color-hex-input').value = isChecked ? 'transparent' : '#0e0e0e';
+    document.querySelector('.preview-canvas').classList.toggle('transparent-bg', isChecked);
+  });
+</script>
+
+</body>
+</html>

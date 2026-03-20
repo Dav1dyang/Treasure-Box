@@ -1,0 +1,785 @@
+'use client';
+
+import { useEffect, useRef, useState, useCallback } from 'react';
+import Matter from 'matter-js';
+import { soundEngine } from '@/lib/sounds';
+import { contourToVertices } from '@/lib/contour';
+import type { TreasureItem, BoxConfig, BoxState, DrawerImages, BoxDimensions } from '@/lib/types';
+import { DEFAULT_BOX_DIMENSIONS } from '@/lib/types';
+import StoryCard from './StoryCard';
+
+interface Props {
+  items: TreasureItem[];
+  config: BoxConfig;
+  backgroundColor?: string;
+}
+
+const ALL_BOX_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'SLAMMING'];
+
+export default function TreasureBox({ items, config, backgroundColor }: Props) {
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const engineRef = useRef<Matter.Engine | null>(null);
+  const runnerRef = useRef<Matter.Runner | null>(null);
+  const bodiesRef = useRef<(Matter.Body & { itemData?: TreasureItem })[]>([]);
+  const imagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
+
+  // Drawer state machine
+  const [boxState, setBoxState] = useState<BoxState>('IDLE');
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeStory, setActiveStory] = useState<TreasureItem | null>(null);
+
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const spawnIndexRef = useRef(0);
+  const animFrameRef = useRef<number>(0);
+  const slamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const hasGeneratedImages = !!(config.drawerImages && config.drawerImages.urls?.IDLE);
+  const bg = backgroundColor || config.backgroundColor || '#0e0e0e';
+  const isTransparent = bg === 'transparent' || bg === 'rgba(0,0,0,0)';
+  const isLightBg = isTransparent ? false : isLightColor(bg);
+
+  // Preload item images — fetch as blob to avoid CORS canvas tainting
+  const [imagesLoaded, setImagesLoaded] = useState(0);
+  useEffect(() => {
+    items.forEach(item => {
+      if (!imagesRef.current.has(item.id)) {
+        // Create placeholder immediately
+        const placeholder = new Image();
+        imagesRef.current.set(item.id, placeholder);
+
+        // Fetch as blob to get a local object URL (avoids CORS issues on canvas)
+        fetch(item.imageUrl)
+          .then(res => res.blob())
+          .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const img = new Image();
+            img.onload = () => {
+              imagesRef.current.set(item.id, img);
+              setImagesLoaded(n => n + 1);
+            };
+            img.src = url;
+          })
+          .catch(() => {
+            // Fallback: load directly (may show as grey if CORS blocks canvas)
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              imagesRef.current.set(item.id, img);
+              setImagesLoaded(n => n + 1);
+            };
+            img.src = item.imageUrl;
+          });
+      }
+    });
+  }, [items]);
+
+  // Preload drawer state images
+  useEffect(() => {
+    if (!config.drawerImages?.urls) return;
+    const urls = config.drawerImages.urls;
+    ALL_BOX_STATES.forEach(state => {
+      const url = urls[state];
+      if (url && !imagesRef.current.has(`drawer_${state}`)) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = url;
+        imagesRef.current.set(`drawer_${state}`, img);
+      }
+    });
+  }, [config.drawerImages]);
+
+  // Init sound
+  useEffect(() => {
+    soundEngine.init();
+    soundEngine.setEnabled(config.soundEnabled);
+    soundEngine.setVolume(config.soundVolume);
+    soundEngine.setPreset(config.soundPreset);
+  }, [config]);
+
+  const resizeCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    const scene = sceneRef.current;
+    if (!canvas || !scene) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = scene.offsetWidth * dpr;
+    canvas.height = scene.offsetHeight * dpr;
+    canvas.style.width = scene.offsetWidth + 'px';
+    canvas.style.height = scene.offsetHeight + 'px';
+    const ctx = canvas.getContext('2d');
+    if (ctx) ctx.scale(dpr, dpr);
+  }, []);
+
+  useEffect(() => {
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, [resizeCanvas]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      if (runnerRef.current) Matter.Runner.stop(runnerRef.current);
+      if (engineRef.current) Matter.Engine.clear(engineRef.current);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (slamTimeoutRef.current) clearTimeout(slamTimeoutRef.current);
+    };
+  }, []);
+
+  const clearPhysics = useCallback(() => {
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    if (runnerRef.current) Matter.Runner.stop(runnerRef.current);
+    if (engineRef.current) {
+      Matter.Engine.clear(engineRef.current);
+      engineRef.current = null;
+    }
+    runnerRef.current = null;
+    bodiesRef.current = [];
+    // Clear canvas
+    const ctx = canvasRef.current?.getContext('2d');
+    if (ctx && canvasRef.current) {
+      ctx.clearRect(0, 0, canvasRef.current.clientWidth, canvasRef.current.clientHeight);
+    }
+  }, []);
+
+  const initPhysics = useCallback(() => {
+    const canvas = canvasRef.current;
+    const scene = sceneRef.current;
+    if (!canvas || !scene) return;
+
+    const engine = Matter.Engine.create({ gravity: { x: 0, y: 2 } });
+    engineRef.current = engine;
+
+    const w = scene.offsetWidth;
+    const h = scene.offsetHeight;
+    const boxW = Math.min(420, w - 60);
+    const boxCenterX = w / 2;
+    const floorY = h - 180;
+
+    const wallOpts = { isStatic: true, friction: 0.9, restitution: 0.15 };
+    const floor = Matter.Bodies.rectangle(boxCenterX, floorY, boxW, 14, wallOpts);
+    const leftWall = Matter.Bodies.rectangle(
+      boxCenterX - boxW / 2 - 7, floorY - 300, 14, 700, wallOpts
+    );
+    const rightWall = Matter.Bodies.rectangle(
+      boxCenterX + boxW / 2 + 7, floorY - 300, 14, 700, wallOpts
+    );
+
+    Matter.Composite.add(engine.world, [floor, leftWall, rightWall]);
+
+    const mouse = Matter.Mouse.create(canvas);
+    mouse.pixelRatio = window.devicePixelRatio || 1;
+    const mouseConstraint = Matter.MouseConstraint.create(engine, {
+      mouse,
+      constraint: { stiffness: 0.5, render: { visible: false } },
+    });
+    Matter.Composite.add(engine.world, mouseConstraint);
+
+    // Long press for story
+    Matter.Events.on(mouseConstraint, 'mousedown', (e: any) => {
+      const body = e.source.body;
+      if (body?.itemData) {
+        longPressRef.current = setTimeout(() => {
+          setActiveStory(body.itemData);
+        }, 800);
+      }
+    });
+    Matter.Events.on(mouseConstraint, 'mouseup', () => {
+      if (longPressRef.current) clearTimeout(longPressRef.current);
+    });
+    Matter.Events.on(mouseConstraint, 'mousemove', () => {
+      if (longPressRef.current) clearTimeout(longPressRef.current);
+    });
+
+    // Collision sounds
+    Matter.Events.on(engine, 'collisionStart', (e) => {
+      e.pairs.forEach(pair => {
+        const vel = Math.sqrt(
+          Math.pow(pair.bodyA.velocity.x - pair.bodyB.velocity.x, 2) +
+          Math.pow(pair.bodyA.velocity.y - pair.bodyB.velocity.y, 2)
+        );
+        soundEngine.playCollision(vel);
+      });
+    });
+
+    const runner = Matter.Runner.create();
+    runnerRef.current = runner;
+    Matter.Runner.run(runner, engine);
+  }, []);
+
+  const spawnItems = useCallback(() => {
+    const scene = sceneRef.current;
+    const engine = engineRef.current;
+    if (!scene || !engine) return;
+
+    const w = scene.offsetWidth;
+    const h = scene.offsetHeight;
+    const spawnY = h - 200;
+    const centerX = w / 2;
+
+    spawnIndexRef.current = 0;
+
+    const interval = setInterval(() => {
+      const idx = spawnIndexRef.current;
+      if (idx >= items.length) {
+        clearInterval(interval);
+        return;
+      }
+
+      const item = items[idx];
+      const x = centerX + (Math.random() - 0.5) * 100;
+      const size = 50 + Math.random() * 10;
+
+      let body: Matter.Body & { itemData?: TreasureItem };
+
+      if (item.contourPoints && item.contourPoints.length >= 4) {
+        try {
+          const verts = contourToVertices(item.contourPoints, size, size);
+          body = Matter.Bodies.fromVertices(x, spawnY, [verts], {
+            restitution: 0.25, friction: 0.7, density: 0.003, chamfer: { radius: 2 },
+          }) as any;
+        } catch {
+          body = Matter.Bodies.rectangle(x, spawnY, size, size * 0.8, {
+            restitution: 0.25, friction: 0.7, density: 0.003, chamfer: { radius: 4 },
+          }) as any;
+        }
+      } else {
+        const aspectRatio = 0.7 + Math.random() * 0.6;
+        body = Matter.Bodies.rectangle(x, spawnY, size, size * aspectRatio, {
+          restitution: 0.25, friction: 0.7, density: 0.003, chamfer: { radius: 4 },
+        }) as any;
+      }
+
+      body.itemData = item;
+
+      // Set initial rotation from item config (degrees to radians), or random
+      if (item.rotation !== undefined) {
+        Matter.Body.setAngle(body, (item.rotation * Math.PI) / 180);
+      }
+
+      Matter.Body.setVelocity(body, {
+        x: (Math.random() - 0.5) * 5,
+        y: -(4 + Math.random() * 6),
+      });
+      Matter.Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.15);
+
+      bodiesRef.current.push(body);
+      Matter.Composite.add(engine.world, body);
+
+      spawnIndexRef.current++;
+    }, 200);
+  }, [items]);
+
+  const renderLoop = useCallback(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx || !canvas) return;
+
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    bodiesRef.current.forEach(body => {
+      const { x, y } = body.position;
+      const angle = body.angle;
+      const item = body.itemData;
+      if (!item) return;
+
+      const size = 52;
+      const img = imagesRef.current.get(item.id);
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+
+      ctx.shadowColor = isLightBg ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 4;
+
+      if (img && img.complete && img.naturalWidth > 0) {
+        const imgAspect = img.naturalWidth / img.naturalHeight;
+        let drawW = size;
+        let drawH = size;
+        if (imgAspect > 1) drawH = size / imgAspect;
+        else drawW = size * imgAspect;
+
+        ctx.beginPath();
+        ctx.roundRect(-drawW / 2, -drawH / 2, drawW, drawH, 4);
+        ctx.clip();
+        ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+      } else {
+        ctx.fillStyle = '#5a5a4a';
+        ctx.beginPath();
+        ctx.roundRect(-size / 2, -size / 2, size, size, 4);
+        ctx.fill();
+      }
+
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = isLightBg ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+
+      ctx.restore();
+
+      ctx.save();
+      ctx.font = '500 8px "IBM Plex Mono", monospace';
+      ctx.fillStyle = isLightBg ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.25)';
+      ctx.textAlign = 'center';
+      ctx.fillText(item.label.substring(0, 14), x, y + size / 2 + 14);
+      ctx.restore();
+    });
+
+    animFrameRef.current = requestAnimationFrame(renderLoop);
+  }, [isLightBg]);
+
+  // ===== State machine handlers =====
+
+  const openDrawer = useCallback(() => {
+    if (isOpen) return;
+    setIsOpen(true);
+    setBoxState('OPEN');
+
+    setTimeout(() => {
+      initPhysics();
+      setTimeout(() => {
+        spawnItems();
+        renderLoop();
+      }, 200);
+    }, 600);
+  }, [isOpen, initPhysics, spawnItems, renderLoop]);
+
+  const closeDrawer = useCallback(() => {
+    if (!isOpen) return;
+    setBoxState('HOVER_CLOSE');
+
+    // Pull items toward drawer center (sucking them back in)
+    const scene = sceneRef.current;
+    const engine = engineRef.current;
+    if (scene && engine) {
+      const centerX = scene.offsetWidth / 2;
+      const drawerY = scene.offsetHeight - 160;
+
+      // Reverse gravity to pull items upward into drawer
+      engine.gravity.y = -3;
+      engine.gravity.x = 0;
+
+      // Apply force toward drawer center on each body
+      bodiesRef.current.forEach(body => {
+        const dx = centerX - body.position.x;
+        const dy = drawerY - body.position.y;
+        const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+        Matter.Body.applyForce(body, body.position, {
+          x: (dx / dist) * 0.008,
+          y: (dy / dist) * 0.008,
+        });
+      });
+    }
+
+    // After items start flying back, slam shut
+    slamTimeoutRef.current = setTimeout(() => {
+      setBoxState('SLAMMING');
+
+      // Final clear after slam
+      setTimeout(() => {
+        clearPhysics();
+        setIsOpen(false);
+        setBoxState('IDLE');
+      }, 350);
+    }, 500);
+  }, [isOpen, clearPhysics]);
+
+  const handleDrawerMouseEnter = useCallback(() => {
+    if (boxState === 'IDLE') {
+      setBoxState('HOVER_PEEK');
+    } else if (boxState === 'OPEN') {
+      setBoxState('HOVER_CLOSE');
+    }
+  }, [boxState]);
+
+  const handleDrawerMouseLeave = useCallback(() => {
+    if (boxState === 'HOVER_PEEK') {
+      setBoxState('IDLE');
+    } else if (boxState === 'HOVER_CLOSE') {
+      setBoxState('OPEN');
+    }
+  }, [boxState]);
+
+  const handleDrawerClick = useCallback(() => {
+    if (boxState === 'IDLE' || boxState === 'HOVER_PEEK') {
+      openDrawer();
+    } else if (boxState === 'OPEN' || boxState === 'HOVER_CLOSE') {
+      closeDrawer();
+    }
+  }, [boxState, openDrawer, closeDrawer]);
+
+  // Accelerometer for mobile
+  useEffect(() => {
+    const handler = (e: DeviceMotionEvent) => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      const ax = e.accelerationIncludingGravity?.x;
+      const ay = e.accelerationIncludingGravity?.y;
+      if (ax != null && ay != null) {
+        engine.gravity.x = ax * -0.15;
+        engine.gravity.y = Math.max(0.5, ay * 0.15);
+      }
+    };
+    window.addEventListener('devicemotion', handler);
+    return () => window.removeEventListener('devicemotion', handler);
+  }, []);
+
+  return (
+    <div
+      ref={sceneRef}
+      className="relative w-full h-full min-h-[400px] overflow-hidden select-none"
+      style={{ background: isTransparent ? 'transparent' : bg }}
+    >
+      {/* Drawer area */}
+      <div
+        className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[5] cursor-pointer"
+        onMouseEnter={handleDrawerMouseEnter}
+        onMouseLeave={handleDrawerMouseLeave}
+        onClick={handleDrawerClick}
+      >
+        {hasGeneratedImages ? (
+          // === AI-Generated Image Drawer ===
+          <DrawerImage
+            images={config.drawerImages!}
+            currentState={boxState}
+            isLight={isLightBg}
+          />
+        ) : (
+          // === ASCII Art Fallback (dimension-aware) ===
+          <DynamicASCIIBox
+            dimensions={config.boxDimensions || DEFAULT_BOX_DIMENSIONS}
+            label={config.drawerLabel || 'TREASURE BOX'}
+            state={boxState}
+            isOpen={isOpen}
+            isLight={isLightBg}
+          />
+        )}
+      </div>
+
+      {/* Physics canvas */}
+      <canvas
+        ref={canvasRef}
+        className={`absolute inset-0 z-10 ${isOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}
+      />
+
+      {/* Story overlay */}
+      {activeStory && (
+        <StoryCard item={activeStory} onClose={() => setActiveStory(null)} isLight={isLightBg} />
+      )}
+
+      {/* Subtle scanlines */}
+      <div
+        className="absolute inset-0 pointer-events-none z-[999]"
+        style={{
+          background: `repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.015) 2px, rgba(0,0,0,0.015) 4px)`,
+          mixBlendMode: 'multiply',
+        }}
+      />
+    </div>
+  );
+}
+
+// ===== AI-Generated Drawer Image Component =====
+
+function DrawerImage({
+  images,
+  currentState,
+  isLight,
+}: {
+  images: DrawerImages;
+  currentState: BoxState;
+  isLight: boolean;
+}) {
+  return (
+    <div className="relative" style={{ width: 420, height: 300 }}>
+      {ALL_BOX_STATES.map(state => (
+        <img
+          key={state}
+          src={images.urls[state]}
+          alt={state}
+          className="absolute inset-0 w-full h-full object-contain transition-opacity duration-200 pointer-events-none"
+          style={{
+            opacity: currentState === state ? 1 : 0,
+            filter: isLight ? 'none' : 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))',
+          }}
+          draggable={false}
+        />
+      ))}
+
+      {/* Hint text for IDLE state */}
+      {currentState === 'IDLE' && (
+        <div
+          className="absolute bottom-0 left-0 right-0 text-center text-[10px] animate-pulse"
+          style={{ color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.25)' }}
+        >
+          ▸ hover to peek, click to open
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===== Dynamic ASCII Box (dimension-aware) =====
+
+function DynamicASCIIBox({
+  dimensions,
+  label,
+  state,
+  isOpen,
+  isLight,
+}: {
+  dimensions: BoxDimensions;
+  label: string;
+  state: BoxState;
+  isOpen: boolean;
+  isLight: boolean;
+}) {
+  const fg = isLight ? '#5a5a50' : '#7a7a6a';
+  const dim = isLight ? '#c0b8a8' : '#3a3a32';
+  const rust = isLight ? '#8a5a30' : '#8a6a4a';
+  const accent = isLight ? '#6a5a3a' : '#b0a080';
+
+  const w = dimensions.boxWidth;
+  const bodyH = dimensions.boxHeight;
+  const drawerH = dimensions.drawerHeight;
+  const pullout = dimensions.drawerPullout[state];
+  const innerW = w - 4;
+  const handleStyle = dimensions.handleStyle;
+
+  // Build handle string
+  const renderHandle = () => {
+    const available = innerW - 2;
+    switch (handleStyle) {
+      case 'knob': {
+        const pad = Math.floor((available - 3) / 2);
+        return { before: ' '.repeat(pad), handle: '(O)', after: ' '.repeat(available - pad - 3) };
+      }
+      case 'pull-bar': {
+        const barW = Math.min(16, available - 4);
+        const pad = Math.floor((available - barW) / 2);
+        const bar = `[ ${'═'.repeat(Math.max(0, barW - 4))} ]`;
+        return { before: ' '.repeat(pad), handle: bar, after: ' '.repeat(Math.max(0, available - pad - barW)) };
+      }
+      case 'ring': {
+        const pad = Math.floor((available - 5) / 2);
+        return { before: ' '.repeat(pad), handle: '(( ))', after: ' '.repeat(available - pad - 5) };
+      }
+      case 'tab': {
+        const pad = Math.floor((available - 7) / 2);
+        return { before: ' '.repeat(pad), handle: '[_____]', after: ' '.repeat(available - pad - 7) };
+      }
+    }
+  };
+
+  const { before: hPad, handle: hText, after: hAfter } = renderHandle();
+  const rivet = dimensions.hasRivets;
+
+  // Padded label
+  const maxLabelW = innerW - 4;
+  const truncLabel = label.substring(0, maxLabelW);
+  const padLabel = truncLabel.padStart(Math.floor((maxLabelW + truncLabel.length) / 2)).padEnd(maxLabelW);
+
+  return (
+    <div>
+      {/* Slide-out portion */}
+      <div
+        className="overflow-hidden transition-[max-height] duration-700 ease-out"
+        style={{ maxHeight: pullout > 0 ? 300 : 0 }}
+      >
+        {pullout > 0 && (
+          <pre className="font-mono text-[11px] leading-[1.3]" style={{ color: fg, whiteSpace: 'pre' }}>
+            {(() => {
+              const slideRows = Math.max(1, Math.round((pullout / 100) * (drawerH + 2)));
+              const lines: React.ReactElement[] = [];
+
+              // 2.5D depth: 0-9%→0, 10-30%→1, 31-60%→2, 61+→3
+              const maxDepth = 3;
+              const depth = pullout < 10 ? 0 : Math.min(maxDepth, Math.ceil(pullout / 30));
+              const safeDepth = Math.min(depth, Math.floor((innerW - 2 - 8) / 2));
+
+              if (safeDepth === 0) {
+                // Flat fallback (SLAMMING or very small pullout)
+                const slideW = innerW - 2;
+                lines.push(
+                  <span key="st">{'    '}{'┌'}{'─'.repeat(slideW)}{'┐'}{'\n'}</span>
+                );
+                for (let i = 0; i < slideRows - 1; i++) {
+                  if (i === 0 && pullout > 50) {
+                    lines.push(
+                      <span key={`si${i}`}>{'    │ '}<span style={{ color: dim }}>{'░'.repeat(slideW - 2)}</span>{' │\n'}</span>
+                    );
+                  } else {
+                    lines.push(
+                      <span key={`si${i}`}>{'    │'}{' '.repeat(slideW)}{'│\n'}</span>
+                    );
+                  }
+                }
+                lines.push(
+                  <span key="sb">{'    '}{'└'}{'─'.repeat(slideW)}{'┘'}{'\n'}</span>
+                );
+              } else {
+                // 2.5D trapezoid: narrower top, wider bottom aligning with box
+                const topW = innerW - 2 * safeDepth;
+
+                // Top border (narrowest, indented)
+                lines.push(
+                  <span key="st">{' '.repeat(2 + safeDepth)}{'┌'}{'─'.repeat(topW)}{'┐'}{'\n'}</span>
+                );
+
+                // Interior rows with expanding perspective lines
+                for (let i = 0; i < slideRows; i++) {
+                  const progress = slideRows > 1 ? (i + 1) / (slideRows + 1) : 0.5;
+                  const sideW = Math.min(safeDepth, Math.round(progress * safeDepth));
+                  const indent = safeDepth - sideW;
+
+                  const leftPersp = sideW > 0
+                    ? <><span style={{ color: dim }}>{'╱'}</span>{' '.repeat(sideW - 1)}</>
+                    : null;
+                  const rightPersp = sideW > 0
+                    ? <>{' '.repeat(sideW - 1)}<span style={{ color: dim }}>{'╲'}</span></>
+                    : null;
+
+                  const content = (i === 0 && pullout > 50)
+                    ? <span style={{ color: dim }}>{'░'.repeat(topW)}</span>
+                    : ' '.repeat(topW);
+
+                  lines.push(
+                    <span key={`si${i}`}>
+                      {' '.repeat(2 + indent)}{leftPersp}{'│'}{content}{'│'}{rightPersp}{'\n'}
+                    </span>
+                  );
+                }
+                // No bottom border — main box ╔═╗ serves as the drawer floor
+              }
+
+              return lines;
+            })()}
+          </pre>
+        )}
+      </div>
+
+      {/* Main box */}
+      <pre className="font-mono text-[11px] leading-[1.3]" style={{ color: fg, whiteSpace: 'pre' }}>
+        {/* Top border */}
+        {'  ╔'}{'═'.repeat(innerW)}{'╗\n'}
+
+        {/* Drawer face rows */}
+        {Array.from({ length: drawerH }).map((_, row) => {
+          const mid = Math.floor(drawerH / 2);
+          const isRivetRow = rivet && (row === 0 || row === drawerH - 1);
+
+          if (row === mid) {
+            return (
+              <span key={`d${row}`}>
+                {'  ║'}
+                {isRivetRow ? <span style={{ color: rust }}>o</span> : ' '}
+                {hPad}<span style={{ color: accent }}>{hText}</span>{hAfter}
+                {isRivetRow ? <span style={{ color: rust }}>o</span> : ' '}
+                {'║\n'}
+              </span>
+            );
+          }
+
+          if (row === mid - 1 && drawerH > 4) {
+            // Label row
+            return (
+              <span key={`d${row}`}>
+                {'  ║'}
+                {isRivetRow ? <span style={{ color: rust }}>o</span> : ' '}
+                {' '}<span style={{ color: rust }}>{padLabel}</span>{' '}
+                {isRivetRow ? <span style={{ color: rust }}>o</span> : ' '}
+                {'║\n'}
+              </span>
+            );
+          }
+
+          if (row === mid + 1 && dimensions.hasKeyhole) {
+            const kPad = Math.floor((innerW - 5) / 2);
+            return (
+              <span key={`d${row}`}>
+                {'  ║'}{' '.repeat(kPad)}<span style={{ color: accent }}>{'[@]'}</span>{' '.repeat(innerW - kPad - 3)}{'║\n'}
+              </span>
+            );
+          }
+
+          return (
+            <span key={`d${row}`}>
+              {'  ║'}
+              {isRivetRow ? <span style={{ color: rust }}>o</span> : ' '}
+              {' '.repeat(innerW - 2)}
+              {isRivetRow ? <span style={{ color: rust }}>o</span> : ' '}
+              {'║\n'}
+            </span>
+          );
+        })}
+
+        {/* Divider */}
+        {'  ╠'}{'═'.repeat(innerW)}{'╣\n'}
+
+        {/* Body rows */}
+        {Array.from({ length: bodyH }).map((_, row) => {
+          const isRivetRow = rivet && (row === 0 || row === bodyH - 1);
+          const isTexRow = row === 1 || row === bodyH - 2;
+
+          return (
+            <span key={`b${row}`}>
+              {'  ║'}
+              {isRivetRow ? <span style={{ color: rust }}>o</span> : ' '}
+              {isTexRow
+                ? <span style={{ color: dim }}>{'░'.repeat(innerW - 2)}</span>
+                : ' '.repeat(innerW - 2)
+              }
+              {isRivetRow ? <span style={{ color: rust }}>o</span> : ' '}
+              {'║\n'}
+            </span>
+          );
+        })}
+
+        {/* Bottom border */}
+        {'  ╚'}{'═'.repeat(innerW)}{'╝\n'}
+
+        {/* Shadow */}
+        <span style={{ color: dim }}>{'  '}{'·'.repeat(innerW + 2)}</span>
+      </pre>
+
+      {/* Hint */}
+      {state === 'IDLE' && (
+        <div
+          className="text-center text-[10px] mt-3 animate-pulse"
+          style={{ color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.25)' }}
+        >
+          ▸ click to open drawer
+        </div>
+      )}
+
+      {/* Slam effect */}
+      {state === 'SLAMMING' && (
+        <div className="text-center text-[10px] mt-1" style={{ color: rust }}>
+          ~ ~ ~ SLAM ~ ~ ~
+        </div>
+      )}
+    </div>
+  );
+}
+
+function isLightColor(color: string): boolean {
+  let r = 0, g = 0, b = 0;
+  if (color.startsWith('#')) {
+    const hex = color.replace('#', '');
+    if (hex.length === 3) {
+      r = parseInt(hex[0] + hex[0], 16);
+      g = parseInt(hex[1] + hex[1], 16);
+      b = parseInt(hex[2] + hex[2], 16);
+    } else {
+      r = parseInt(hex.substring(0, 2), 16);
+      g = parseInt(hex.substring(2, 4), 16);
+      b = parseInt(hex.substring(4, 6), 16);
+    }
+  }
+  return (r * 299 + g * 587 + b * 114) / 1000 > 128;
+}

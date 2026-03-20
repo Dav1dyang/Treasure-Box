@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Treasure Box — User Interaction Flow</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0e0e0e;
+    color: #8a8a7a;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    padding: 40px;
+  }
+
+  h1 {
+    color: #b0a080;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+  .subtitle {
+    color: #3a3a32;
+    font-size: 10px;
+    margin-bottom: 48px;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Flow sections ── */
+  .flow-section {
+    margin-bottom: 56px;
+  }
+  .flow-section h2 {
+    color: #b0a080;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #1a1a16;
+  }
+
+  /* ── Flow diagram ── */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    max-width: 800px;
+  }
+
+  .flow-step {
+    display: grid;
+    grid-template-columns: 80px 1fr 280px;
+    gap: 16px;
+    align-items: start;
+    padding: 16px 0;
+  }
+  .flow-step + .flow-step {
+    border-top: 1px dashed #1a1a16;
+  }
+
+  .step-id {
+    color: #3a3a32;
+    font-size: 10px;
+    padding-top: 2px;
+  }
+
+  .step-box {
+    border: 1px solid #2a2a2a;
+    padding: 12px 16px;
+    position: relative;
+  }
+  .step-box.screen {
+    border-color: #b0a080;
+  }
+  .step-box.action {
+    border-color: #5a5a4a;
+    border-style: dashed;
+  }
+  .step-box.decision {
+    border-color: #8a6a4a;
+    background: #141210;
+  }
+
+  .step-box .step-label {
+    font-size: 10px;
+    color: #b0a080;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  .step-box .step-desc {
+    font-size: 10px;
+    color: #666;
+    line-height: 1.6;
+  }
+  .step-box.action .step-label { color: #5a5a4a; }
+  .step-box.decision .step-label { color: #8a6a4a; }
+
+  .step-notes {
+    font-size: 9px;
+    color: #444;
+    line-height: 1.7;
+    padding-top: 2px;
+  }
+  .step-notes .note-tag {
+    color: #5a5a4a;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Arrow connector ── */
+  .arrow {
+    text-align: center;
+    color: #2a2a2a;
+    font-size: 14px;
+    padding: 4px 0;
+    margin-left: 80px;
+  }
+  .arrow.branch {
+    color: #8a6a4a;
+  }
+  .arrow-label {
+    font-size: 9px;
+    color: #444;
+    margin-left: 8px;
+  }
+
+  /* ── Page states ── */
+  .states-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .state-card {
+    border: 1px solid #1a1a16;
+    padding: 14px;
+  }
+  .state-card .state-name {
+    font-size: 10px;
+    color: #b0a080;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+  .state-card .state-what {
+    font-size: 9px;
+    color: #555;
+    line-height: 1.7;
+  }
+  .state-card .state-visible {
+    font-size: 9px;
+    color: #3a3a32;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #1a1a16;
+  }
+  .state-card .state-visible span {
+    color: #5a5a4a;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 9px;
+    color: #555;
+  }
+  .legend-swatch {
+    width: 24px;
+    height: 12px;
+    border: 1px solid;
+  }
+  .legend-swatch.screen { border-color: #b0a080; }
+  .legend-swatch.action { border-color: #5a5a4a; border-style: dashed; }
+  .legend-swatch.decision { border-color: #8a6a4a; background: #141210; }
+</style>
+</head>
+<body>
+
+<h1>User Interaction Flow</h1>
+<p class="subtitle">treasure box &mdash; all user paths from landing to sharing</p>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch screen"></div> screen / view</div>
+  <div class="legend-item"><div class="legend-swatch action"></div> user action</div>
+  <div class="legend-item"><div class="legend-swatch decision"></div> decision / branch</div>
+</div>
+
+<!-- ═══════════════════════════════════
+     FLOW 1: NEW VISITOR
+     ═══════════════════════════════════ -->
+<div class="flow-section">
+  <h2>Flow 1 &mdash; New Visitor (anonymous)</h2>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="step-id">1.1</div>
+      <div class="step-box screen">
+        <div class="step-label">Landing Page &mdash; Idle</div>
+        <div class="step-desc">
+          Full-screen treasure box (random public box).<br>
+          Pulsing "pull the drawer" hint.<br>
+          Faint "treasure box" in corner.<br>
+          Nav hidden.
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">visible:</span> box + idle hint only<br>
+        <span class="note-tag">nav:</span> hidden (hover top-right to reveal)<br>
+        <span class="note-tag">nav items:</span> gallery &middot; sign in
+      </div>
+    </div>
+
+    <div class="arrow">&#x25BC;</div>
+
+    <div class="flow-step">
+      <div class="step-id">1.2</div>
+      <div class="step-box decision">
+        <div class="step-label">What does the visitor do?</div>
+        <div class="step-desc">
+          A) Pull the drawer / interact with items<br>
+          B) Scroll down without interacting<br>
+          C) Hover top-right corner<br>
+          D) Do nothing (idle)
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">path A:</span> &rarr; 1.3 (interacted state)<br>
+        <span class="note-tag">path B:</span> &rarr; 1.5 (below fold, no scroll hint shown)<br>
+        <span class="note-tag">path C:</span> nav fades in temporarily<br>
+        <span class="note-tag">path D:</span> hint keeps pulsing
+      </div>
+    </div>
+
+    <div class="arrow branch">&#x25BC; <span class="arrow-label">path A: interacts</span></div>
+
+    <div class="flow-step">
+      <div class="step-id">1.3</div>
+      <div class="step-box screen">
+        <div class="step-label">Landing Page &mdash; Interacted</div>
+        <div class="step-desc">
+          Items spill out / physics active.<br>
+          "Pull the drawer" hint fades out.<br>
+          Interaction hints appear: "drag" "hold" "tilt".<br>
+          Nav fades in: gallery &middot; sign in.<br>
+          "Scroll to explore" appears at bottom.
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">trigger:</span> click/drag on drawer or items<br>
+        <span class="note-tag">new elements:</span> nav, interaction hints, scroll indicator<br>
+        <span class="note-tag">corner title:</span> brightens
+      </div>
+    </div>
+
+    <div class="arrow">&#x25BC;</div>
+
+    <div class="flow-step">
+      <div class="step-id">1.4</div>
+      <div class="step-box action">
+        <div class="step-label">Explore the box</div>
+        <div class="step-desc">
+          Drag items around (physics).<br>
+          Long-press item &rarr; story card overlay.<br>
+          Tilt phone &rarr; items shift with gravity.<br>
+          Click item link &rarr; opens URL.
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">story card:</span> shows item label, story text, optional link<br>
+        <span class="note-tag">dismiss:</span> click outside or close button
+      </div>
+    </div>
+
+    <div class="arrow">&#x25BC; <span class="arrow-label">scrolls down</span></div>
+
+    <div class="flow-step">
+      <div class="step-id">1.5</div>
+      <div class="step-box screen">
+        <div class="step-label">Below the Fold &mdash; About</div>
+        <div class="step-desc">
+          ASCII-framed tagline: "a tangible memory box for the web".<br>
+          Brief description paragraph.
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">always visible:</span> accessible by scrolling regardless of interaction state
+      </div>
+    </div>
+
+    <div class="arrow">&#x25BC;</div>
+
+    <div class="flow-step">
+      <div class="step-id">1.6</div>
+      <div class="step-box screen">
+        <div class="step-label">Make Your Own Box &mdash; CTA</div>
+        <div class="step-desc">
+          ASCII-framed "make your own treasure box".<br>
+          Short copy + "make your own box &rarr;" button.
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">button action:</span> navigates to /editor<br>
+        <span class="note-tag">if not signed in:</span> editor shows sign-in prompt first
+      </div>
+    </div>
+
+    <div class="arrow">&#x25BC;</div>
+
+    <div class="flow-step">
+      <div class="step-id">1.7</div>
+      <div class="step-box screen">
+        <div class="step-label">Public Gallery</div>
+        <div class="step-desc">
+          "public boxes" header with count.<br>
+          Grid of gallery cards (mini box previews).<br>
+          Each card: numbered, title, item count, background color.
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">click card:</span> opens /embed?box={id} in new tab<br>
+        <span class="note-tag">empty state:</span> "no public boxes yet &mdash; be the first"
+      </div>
+    </div>
+
+    <div class="arrow">&#x25BC;</div>
+
+    <div class="flow-step">
+      <div class="step-id">1.8</div>
+      <div class="step-box screen">
+        <div class="step-label">Footer</div>
+        <div class="step-desc">
+          "physics &middot; memories &middot; webring"
+        </div>
+      </div>
+      <div class="step-notes"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     FLOW 2: SIGN IN
+     ═══════════════════════════════════ -->
+<div class="flow-section">
+  <h2>Flow 2 &mdash; Sign In (anonymous &rarr; authenticated)</h2>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="step-id">2.1</div>
+      <div class="step-box action">
+        <div class="step-label">Click "sign in" (nav) or "make your own box" (CTA)</div>
+        <div class="step-desc">
+          Both paths lead to authentication.
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">nav "sign in":</span> direct auth popup<br>
+        <span class="note-tag">"make your own box":</span> goes to /editor which gates on auth
+      </div>
+    </div>
+
+    <div class="arrow">&#x25BC;</div>
+
+    <div class="flow-step">
+      <div class="step-id">2.2</div>
+      <div class="step-box screen">
+        <div class="step-label">Google OAuth Popup</div>
+        <div class="step-desc">
+          Firebase Google sign-in popup.<br>
+          One click, no forms.
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">success:</span> &rarr; 2.3<br>
+        <span class="note-tag">cancel/fail:</span> stays on current page
+      </div>
+    </div>
+
+    <div class="arrow">&#x25BC;</div>
+
+    <div class="flow-step">
+      <div class="step-id">2.3</div>
+      <div class="step-box decision">
+        <div class="step-label">Where did user sign in from?</div>
+        <div class="step-desc">
+          A) From nav "sign in" on landing page<br>
+          B) From "make your own box" button<br>
+          C) From /editor page directly
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">path A:</span> nav updates: "sign in" &rarr; "my box" &middot; "sign out"<br>
+        <span class="note-tag">path B &amp; C:</span> redirects to editor
+      </div>
+    </div>
+
+    <div class="arrow">&#x25BC;</div>
+
+    <div class="flow-step">
+      <div class="step-id">2.4</div>
+      <div class="step-box screen">
+        <div class="step-label">Landing Page &mdash; Signed In</div>
+        <div class="step-desc">
+          Same as before but nav shows:<br>
+          gallery &middot; my box &middot; sign out
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">"my box":</span> links to /editor<br>
+        <span class="note-tag">sign out:</span> returns to anonymous state
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     FLOW 3: CREATOR
+     ═══════════════════════════════════ -->
+<div class="flow-section">
+  <h2>Flow 3 &mdash; Creator (authenticated, in editor)</h2>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="step-id">3.1</div>
+      <div class="step-box screen">
+        <div class="step-label">Editor &mdash; Items Tab</div>
+        <div class="step-desc">
+          Upload images &rarr; auto background removal.<br>
+          Edit label, link, story per item.<br>
+          Reorder / delete items.
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">first visit:</span> empty state "no items yet &mdash; upload your first treasure"
+      </div>
+    </div>
+
+    <div class="arrow">&#x25BC;</div>
+
+    <div class="flow-step">
+      <div class="step-id">3.2</div>
+      <div class="step-box screen">
+        <div class="step-label">Editor &mdash; Config Tab</div>
+        <div class="step-desc">
+          Drawer label, background color, sound preset, volume.<br>
+          <strong>Public toggle: [ private ] [ public ]</strong><br>
+          "your box will appear in the public gallery"
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">new:</span> isPublic toggle (opt-in)<br>
+        <span class="note-tag">default:</span> private
+      </div>
+    </div>
+
+    <div class="arrow">&#x25BC;</div>
+
+    <div class="flow-step">
+      <div class="step-id">3.3</div>
+      <div class="step-box screen">
+        <div class="step-label">Editor &mdash; Embed Tab</div>
+        <div class="step-desc">
+          Copy iframe code.<br>
+          Copy inline script code.<br>
+          Share link.
+        </div>
+      </div>
+      <div class="step-notes"></div>
+    </div>
+
+    <div class="arrow">&#x25BC;</div>
+
+    <div class="flow-step">
+      <div class="step-id">3.4</div>
+      <div class="step-box screen">
+        <div class="step-label">Editor &mdash; Preview Tab</div>
+        <div class="step-desc">
+          Live 700x700 preview of your treasure box.<br>
+          Real-time updates as you edit.
+        </div>
+      </div>
+      <div class="step-notes"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     FLOW 4: VIEWING SOMEONE'S BOX
+     ═══════════════════════════════════ -->
+<div class="flow-section">
+  <h2>Flow 4 &mdash; Viewing a Public Box</h2>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="step-id">4.1</div>
+      <div class="step-box action">
+        <div class="step-label">Entry point</div>
+        <div class="step-desc">
+          A) Click gallery card on landing page<br>
+          B) Direct link: /embed?box={userId}<br>
+          C) Embedded iframe on external site
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">gallery click:</span> opens in new tab
+      </div>
+    </div>
+
+    <div class="arrow">&#x25BC;</div>
+
+    <div class="flow-step">
+      <div class="step-id">4.2</div>
+      <div class="step-box screen">
+        <div class="step-label">Embed Page (/embed)</div>
+        <div class="step-desc">
+          Full treasure box experience.<br>
+          Read-only, no auth required.<br>
+          Physics, sounds, stories all work.<br>
+          No editor access, no nav.
+        </div>
+      </div>
+      <div class="step-notes">
+        <span class="note-tag">error states:</span> "box not found", "missing box id"
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     LANDING PAGE STATES
+     ═══════════════════════════════════ -->
+<div class="flow-section">
+  <h2>Landing Page &mdash; State Summary</h2>
+
+  <div class="states-grid">
+    <div class="state-card">
+      <div class="state-name">Idle + Anonymous</div>
+      <div class="state-what">
+        Full-screen box, items inside drawer.<br>
+        "Pull the drawer" pulsing.<br>
+        No scroll indicator.
+      </div>
+      <div class="state-visible">
+        <span>nav (on hover):</span> gallery &middot; sign in
+      </div>
+    </div>
+
+    <div class="state-card">
+      <div class="state-name">Interacted + Anonymous</div>
+      <div class="state-what">
+        Items spilled, physics active.<br>
+        Interaction hints: drag, hold, tilt.<br>
+        "Scroll to explore" visible.
+      </div>
+      <div class="state-visible">
+        <span>nav (always):</span> gallery &middot; sign in
+      </div>
+    </div>
+
+    <div class="state-card">
+      <div class="state-name">Interacted + Signed In</div>
+      <div class="state-what">
+        Same as interacted + anonymous<br>
+        but nav updates.
+      </div>
+      <div class="state-visible">
+        <span>nav (always):</span> gallery &middot; my box &middot; sign out
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     NAV STATES
+     ═══════════════════════════════════ -->
+<div class="flow-section">
+  <h2>Navigation States</h2>
+
+  <div class="states-grid">
+    <div class="state-card">
+      <div class="state-name">Anonymous</div>
+      <div class="state-what">
+        gallery &middot; sign in
+      </div>
+      <div class="state-visible">
+        <span>"sign in":</span> triggers Google OAuth popup
+      </div>
+    </div>
+
+    <div class="state-card">
+      <div class="state-name">Signed In</div>
+      <div class="state-what">
+        gallery &middot; my box &middot; sign out
+      </div>
+      <div class="state-visible">
+        <span>"my box":</span> goes to /editor<br>
+        <span>"sign out":</span> returns to anonymous
+      </div>
+    </div>
+
+    <div class="state-card">
+      <div class="state-name">Visibility</div>
+      <div class="state-what">
+        Hidden on load.<br>
+        Revealed on: hover top-right OR after interaction.<br>
+        Stays visible once revealed.
+      </div>
+      <div class="state-visible">
+        <span>position:</span> fixed top-right corner
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

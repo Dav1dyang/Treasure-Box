@@ -1,0 +1,504 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import { uploadDrawerImage, saveDrawerImages } from '@/lib/firestore';
+import { COLOR_PRESETS, STYLE_PRESETS, DECOR_ITEMS } from '@/lib/boxStyles';
+import type {
+  DrawerStylePreset,
+  DrawerAngle,
+  DrawerStyle,
+  DrawerImages,
+  BoxState,
+} from '@/lib/types';
+
+// ── Material = the old style presets ─────────────────────────────
+const MATERIALS: { id: DrawerStylePreset; label: string }[] = [
+  { id: 'clay', label: 'clay' },
+  { id: 'metal', label: 'metal' },
+  { id: 'wood', label: 'wood' },
+  { id: 'pixel', label: 'pixel' },
+  { id: 'paper', label: 'paper' },
+  { id: 'glass', label: 'glass' },
+];
+
+const ANGLE_OPTIONS: { id: DrawerAngle; label: string; icon: string }[] = [
+  { id: 'front', label: 'Front', icon: '▣' },
+  { id: 'left-45', label: '45° Left', icon: '◧' },
+  { id: 'right-45', label: '45° Right', icon: '◨' },
+];
+
+const ALL_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'SLAMMING'];
+
+// ── Shared styles ────────────────────────────────────────────────
+const sectionLabel: React.CSSProperties = {
+  fontSize: 10,
+  color: 'var(--tb-fg-faint)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  marginBottom: 6,
+  display: 'block',
+};
+
+const pillBtn = (active: boolean, disabled: boolean): React.CSSProperties => ({
+  fontSize: 11,
+  padding: '4px 10px',
+  border: `1px solid ${active ? 'var(--tb-accent)' : 'var(--tb-border-subtle)'}`,
+  borderRadius: 3,
+  color: active ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
+  background: active ? 'var(--tb-bg-muted)' : 'transparent',
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  opacity: disabled ? 0.5 : 1,
+  transition: 'all 0.15s',
+});
+
+const colorSwatch = (hex: string, active: boolean, disabled: boolean): React.CSSProperties => ({
+  width: 22,
+  height: 22,
+  borderRadius: 3,
+  border: `2px solid ${active ? 'var(--tb-accent)' : 'var(--tb-fg-ghost, #333)'}`,
+  background: hex,
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  opacity: disabled ? 0.5 : 1,
+  transform: active ? 'scale(1.15)' : 'scale(1)',
+  transition: 'all 0.15s',
+});
+
+// ── ASCII preview renderer ───────────────────────────────────────
+function renderAsciiPreview(w: number, h: number, angle: DrawerAngle): string {
+  const cw = Math.max(10, Math.round(w * 6));
+  const ch = Math.max(3, Math.round(h * 3));
+  const lines: string[] = [];
+
+  // Build handle centered
+  const handleGap = Math.min(4, Math.floor(cw / 4));
+  const handleBar = Math.max(2, Math.floor((cw - handleGap - 2) / 2));
+  const handleW = handleBar * 2 + handleGap + 2;
+  const hPadL = Math.floor((cw - handleW) / 2);
+  const hPadR = cw - hPadL - handleW;
+  const handleLine = ' '.repeat(hPadL) + '═'.repeat(handleBar) + '╡' + ' '.repeat(handleGap) + '╞' + '═'.repeat(handleBar) + ' '.repeat(hPadR);
+
+  const mid = Math.floor(ch / 2);
+
+  if (angle === 'front') {
+    lines.push('╔' + '═'.repeat(cw) + '╗');
+    for (let r = 0; r < ch; r++) {
+      lines.push('║' + (r === mid ? handleLine : ' '.repeat(cw)) + '║');
+    }
+    lines.push('╚' + '═'.repeat(cw) + '╝');
+  } else {
+    const depth = 3;
+    const isLeft = angle === 'left-45';
+
+    // Top
+    lines.push((isLeft ? ' '.repeat(depth) : '') + '╔' + '═'.repeat(cw) + '╗');
+
+    // Body
+    for (let r = 0; r < ch; r++) {
+      const progress = Math.min(depth, Math.round(((r + 1) / ch) * depth));
+      const content = r === mid ? handleLine : ' '.repeat(cw);
+
+      if (isLeft) {
+        const indent = depth - progress;
+        const side = progress > 0 ? '╱' + ' '.repeat(progress - 1) : ' '.repeat(0);
+        lines.push(' '.repeat(indent) + side + '║' + content + '║');
+      } else {
+        const side = progress > 0 ? ' '.repeat(progress - 1) + '╲' : '';
+        lines.push('║' + content + '║' + side);
+      }
+    }
+
+    // Bottom
+    lines.push((isLeft ? '' : '') + '╚' + '═'.repeat(cw) + '╝');
+  }
+
+  return lines.join('\n');
+}
+
+// ── Component ────────────────────────────────────────────────────
+interface Props {
+  userId: string;
+  currentImages?: DrawerImages;
+  onComplete: (images: DrawerImages) => void;
+  onReset: () => void;
+}
+
+export default function DrawerStylePicker({ userId, currentImages, onComplete, onReset }: Props) {
+  // 1. Material (= old preset)
+  const [preset, setPreset] = useState<DrawerStylePreset>(
+    currentImages?.style.preset || 'clay'
+  );
+  // 2. Colors
+  const [color, setColor] = useState(currentImages?.style.color || '#8B4513');
+  const [accentColor, setAccentColor] = useState(currentImages?.style.accentColor || '#B08D57');
+  // 3. Style (surface pattern)
+  const [stylePattern, setStylePattern] = useState(currentImages?.style.customPrompt?.split('|')[0] || 'plain');
+  // 4. Decor (hardware items)
+  const [selectedDecor, setSelectedDecor] = useState<string[]>(() => {
+    const d = currentImages?.style.decor;
+    return d ? d.split(', ') : [];
+  });
+  const [customDecor, setCustomDecor] = useState('');
+  // 5. Size & angle
+  const [drawerWidth, setDrawerWidth] = useState(currentImages?.style.drawerWidth || 3);
+  const [drawerHeight, setDrawerHeight] = useState(currentImages?.style.drawerHeight || 2);
+  const [angle, setAngle] = useState<DrawerAngle>(currentImages?.style.angle || 'front');
+
+  // Generation state
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<Partial<Record<BoxState, string>>>(
+    currentImages?.urls || {}
+  );
+
+  const asciiPreview = useMemo(
+    () => renderAsciiPreview(drawerWidth, drawerHeight, angle),
+    [drawerWidth, drawerHeight, angle]
+  );
+
+  const toggleDecor = (item: string) => {
+    setSelectedDecor(prev =>
+      prev.includes(item) ? prev.filter(d => d !== item) : [...prev, item]
+    );
+  };
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setError(null);
+    setPreviewUrls({});
+
+    // Build decor string from selected items + custom
+    const allDecor = [...selectedDecor];
+    if (customDecor.trim()) allDecor.push(customDecor.trim());
+    const decorStr = allDecor.join(', ');
+
+    // Build custom prompt from style pattern
+    const styleDesc = STYLE_PRESETS.find(s => s.id === stylePattern);
+    const customPrompt = styleDesc && styleDesc.id !== 'plain' ? styleDesc.label : undefined;
+
+    const style: DrawerStyle = {
+      preset,
+      color,
+      customPrompt,
+      accentColor,
+      decor: decorStr || undefined,
+      drawerWidth,
+      drawerHeight,
+      angle,
+    };
+
+    try {
+      const res = await fetch('/api/generate-box', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ style }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errData.error || 'Generation failed');
+      }
+
+      const { frames } = await res.json();
+
+      const urls: Record<string, string> = {};
+      for (const state of ALL_STATES) {
+        const base64 = frames[state];
+        if (base64) {
+          const url = await uploadDrawerImage(userId, state, base64);
+          urls[state] = url;
+          setPreviewUrls(prev => ({ ...prev, [state]: url }));
+        }
+      }
+
+      const drawerImages: DrawerImages = {
+        urls: urls as Record<BoxState, string>,
+        style,
+        generatedAt: Date.now(),
+      };
+
+      await saveDrawerImages(userId, drawerImages);
+      onComplete(drawerImages);
+    } catch (e: any) {
+      console.error('Generation error:', e);
+      setError(e.message || 'Generation failed');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* ── 1. Material ─────────────────────────────────── */}
+      <div>
+        <label style={sectionLabel}>material</label>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {MATERIALS.map(m => (
+            <button
+              key={m.id}
+              onClick={() => setPreset(m.id)}
+              disabled={generating}
+              style={pillBtn(preset === m.id, generating)}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── 2. Colors (primary + accent) ────────────────── */}
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <label style={sectionLabel}>primary color</label>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+            {COLOR_PRESETS.map(c => (
+              <button
+                key={c.value}
+                onClick={() => setColor(c.value)}
+                disabled={generating}
+                style={colorSwatch(c.value, color === c.value, generating)}
+                title={c.label}
+              />
+            ))}
+            <input
+              value={color}
+              onChange={e => setColor(e.target.value)}
+              disabled={generating}
+              placeholder="#hex"
+              style={{
+                background: 'transparent', fontSize: 11, padding: '3px 6px',
+                width: 68, outline: 'none', borderRadius: 3,
+                border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-muted)',
+                opacity: generating ? 0.5 : 1,
+              }}
+            />
+          </div>
+        </div>
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <label style={sectionLabel}>accent color <span style={{ color: 'var(--tb-fg-ghost)', textTransform: 'none' }}>(hardware / trim)</span></label>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+            {[
+              { label: 'brass', value: '#B08D57' },
+              { label: 'silver', value: '#C0C0C0' },
+              { label: 'black iron', value: '#333333' },
+              { label: 'gold', value: '#FFB300' },
+              { label: 'copper', value: '#B87333' },
+              { label: 'chrome', value: '#DDD' },
+            ].map(c => (
+              <button
+                key={c.value}
+                onClick={() => setAccentColor(c.value)}
+                disabled={generating}
+                style={colorSwatch(c.value, accentColor === c.value, generating)}
+                title={c.label}
+              />
+            ))}
+            <input
+              value={accentColor}
+              onChange={e => setAccentColor(e.target.value)}
+              disabled={generating}
+              placeholder="#hex"
+              style={{
+                background: 'transparent', fontSize: 11, padding: '3px 6px',
+                width: 68, outline: 'none', borderRadius: 3,
+                border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-muted)',
+                opacity: generating ? 0.5 : 1,
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── 3. Style (surface pattern) ──────────────────── */}
+      <div>
+        <label style={sectionLabel}>style</label>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {STYLE_PRESETS.map(s => (
+            <button
+              key={s.id}
+              onClick={() => setStylePattern(s.id)}
+              disabled={generating}
+              style={pillBtn(stylePattern === s.id, generating)}
+            >
+              {s.label.toLowerCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── 4. Decor (hardware items) ───────────────────── */}
+      <div>
+        <label style={sectionLabel}>decor</label>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+          {DECOR_ITEMS.map(d => (
+            <button
+              key={d.id}
+              onClick={() => toggleDecor(d.label)}
+              disabled={generating}
+              style={pillBtn(selectedDecor.includes(d.label), generating)}
+            >
+              {d.label.toLowerCase()}
+            </button>
+          ))}
+        </div>
+        <input
+          value={customDecor}
+          onChange={e => setCustomDecor(e.target.value)}
+          disabled={generating}
+          placeholder="custom — e.g. dragon carvings, gemstones..."
+          style={{
+            width: '100%', background: 'transparent', fontSize: 11,
+            padding: '5px 8px', outline: 'none', borderRadius: 3,
+            border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-muted)',
+            opacity: generating ? 0.5 : 1,
+          }}
+        />
+      </div>
+
+      {/* ── 5. Size & Angle ─────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <label style={sectionLabel}>drawer size</label>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+              <span style={{ fontSize: 10, color: 'var(--tb-fg-faint)' }}>width</span>
+              <span style={{ fontSize: 10, color: 'var(--tb-fg-muted)' }}>{drawerWidth}</span>
+            </div>
+            <input
+              type="range" min={1} max={5} step={1}
+              value={drawerWidth}
+              onChange={e => setDrawerWidth(Number(e.target.value))}
+              disabled={generating}
+              style={{ width: '100%', accentColor: 'var(--tb-accent)' }}
+            />
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+              <span style={{ fontSize: 10, color: 'var(--tb-fg-faint)' }}>height</span>
+              <span style={{ fontSize: 10, color: 'var(--tb-fg-muted)' }}>{drawerHeight}</span>
+            </div>
+            <input
+              type="range" min={1} max={5} step={1}
+              value={drawerHeight}
+              onChange={e => setDrawerHeight(Number(e.target.value))}
+              disabled={generating}
+              style={{ width: '100%', accentColor: 'var(--tb-accent)' }}
+            />
+          </div>
+          <label style={{ ...sectionLabel, marginTop: 8 }}>opening angle</label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {ANGLE_OPTIONS.map(a => (
+              <button
+                key={a.id}
+                onClick={() => setAngle(a.id)}
+                disabled={generating}
+                style={{ ...pillBtn(angle === a.id, generating), display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                <span style={{ fontSize: 13 }}>{a.icon}</span>
+                {a.label.toLowerCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ASCII preview — monospace, left-aligned */}
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <label style={sectionLabel}>preview</label>
+          <pre
+            style={{
+              fontSize: 10, lineHeight: 1.2,
+              color: 'var(--tb-accent)',
+              background: 'var(--tb-bg-muted, #111)',
+              border: '1px solid var(--tb-border-subtle)',
+              borderRadius: 3,
+              padding: '12px 16px',
+              fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
+              whiteSpace: 'pre',
+              overflow: 'auto',
+              margin: 0,
+            }}
+          >
+            {asciiPreview}
+          </pre>
+          <span style={{ fontSize: 9, color: 'var(--tb-fg-ghost)', marginTop: 4, display: 'block' }}>
+            {drawerWidth}:{drawerHeight} ratio · {ANGLE_OPTIONS.find(a => a.id === angle)?.label}
+          </span>
+        </div>
+      </div>
+
+      {/* ── Generate ────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button
+          onClick={handleGenerate}
+          disabled={generating}
+          style={{
+            fontSize: 11, padding: '6px 20px', borderRadius: 3,
+            border: '1px solid var(--tb-border)', color: 'var(--tb-accent)',
+            background: 'transparent',
+            cursor: generating ? 'not-allowed' : 'pointer',
+            opacity: generating ? 0.5 : 1,
+          }}
+        >
+          {generating ? 'generating...' : currentImages ? 'regenerate' : 'generate drawer'}
+        </button>
+        {currentImages && !generating && (
+          <button
+            onClick={onReset}
+            style={{ fontSize: 11, color: 'var(--tb-fg-faint)', background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            reset to ASCII
+          </button>
+        )}
+      </div>
+
+      {generating && (
+        <div style={{ fontSize: 11, color: 'var(--tb-highlight, var(--tb-accent))' }}>
+          generating all 5 states — 30-60 seconds...
+        </div>
+      )}
+
+      {error && (
+        <div style={{
+          fontSize: 11, color: '#f87171',
+          background: 'rgba(248,113,113,0.1)',
+          border: '1px solid rgba(248,113,113,0.2)',
+          padding: 10, borderRadius: 3,
+        }}>
+          {error}
+        </div>
+      )}
+
+      {Object.keys(previewUrls).length > 0 && (
+        <div>
+          <label style={sectionLabel}>generated states</label>
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8 }}>
+            {ALL_STATES.map(state => {
+              const url = previewUrls[state];
+              return (
+                <div key={state} style={{ flexShrink: 0, textAlign: 'center' }}>
+                  <div style={{
+                    width: 72, height: 56, borderRadius: 3, overflow: 'hidden',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '1px solid var(--tb-border-subtle)',
+                    background: url
+                      ? 'repeating-conic-gradient(var(--tb-bg-muted) 0% 25%, var(--tb-bg-subtle) 0% 50%) 50% / 8px 8px'
+                      : 'var(--tb-bg-muted)',
+                  }}>
+                    {url ? (
+                      <img src={url} alt={state} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                    ) : (
+                      <span style={{ fontSize: 9, color: 'var(--tb-fg-faint)' }}>...</span>
+                    )}
+                  </div>
+                  <span style={{ fontSize: 8, color: 'var(--tb-fg-faint)', marginTop: 2, display: 'block' }}>
+                    {state.toLowerCase().replace('_', ' ')}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
