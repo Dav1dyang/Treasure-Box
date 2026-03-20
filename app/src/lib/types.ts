@@ -93,13 +93,38 @@ export interface BoxConfig {
   updatedAt: number;
   drawerImages?: DrawerImages;  // undefined = use ASCII fallback
   boxDimensions?: BoxDimensions; // custom box shape/proportions
+  embedSettings?: EmbedSettings; // embed configuration (mode, size, position)
 }
 
 export type SoundPreset = 'metallic' | 'wooden' | 'glass' | 'paper' | 'silent';
 
-export interface EmbedConfig {
-  boxId: string;
-  width: string;
-  height: string;
-  backgroundColor: string;
+// ===== Embed Settings =====
+
+export type EmbedMode = 'contained' | 'floating' | 'fullpage';
+
+export type AnchorCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+
+export interface EmbedPosition {
+  anchor: AnchorCorner;
+  xPercent: number;  // 0-100, offset percentage from anchor corner
+  yPercent: number;  // 0-100, offset percentage from anchor corner
 }
+
+export interface EmbedSettings {
+  mode: EmbedMode;
+  width: number;           // pixels (contained/floating)
+  height: number;          // pixels (contained/floating)
+  position: EmbedPosition; // floating + fullpage pin position
+  previewUrl?: string;     // user's website URL for full-page preview
+}
+
+export const DEFAULT_EMBED_SETTINGS: EmbedSettings = {
+  mode: 'contained',
+  width: 500,
+  height: 500,
+  position: {
+    anchor: 'bottom-right',
+    xPercent: 5,
+    yPercent: 5,
+  },
+};
