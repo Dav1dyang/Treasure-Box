@@ -640,9 +640,14 @@ function EmbedPreview({
   const previewRef = useRef<HTMLDivElement>(null);
   const es = config.embedSettings || { mode: 'overlay', width: 350, height: 300, position: { anchor: 'bottom-right' as AnchorCorner, offsetX: 32, offsetY: 32 } };
   const isOverlay = es.mode !== 'contained';
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
 
   // Compute drawer position as CSS styles for TreasureBox overlayPreview
   const getDrawerStyle = useCallback((): React.CSSProperties => {
+    // During drag: position directly under cursor
+    if (dragPos) {
+      return { left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)' };
+    }
     if (!previewRef.current) return { bottom: 24, right: 24 };
     const pw = previewRef.current.offsetWidth;
     const ph = previewRef.current.offsetHeight;
@@ -657,7 +662,7 @@ function EmbedPreview({
     else style.left = es.position.offsetX * scaleX;
 
     return style;
-  }, [es.position]);
+  }, [es.position, dragPos]);
 
   // Compute spawn origin as fraction of preview
   const getSpawnOrigin = useCallback(() => {
@@ -677,12 +682,22 @@ function EmbedPreview({
     return { x: Math.max(0.1, Math.min(0.9, x)), y: Math.max(0.1, Math.min(0.9, y)) };
   }, [es.position]);
 
-  // Handle drag from TreasureBox drawer
+  // Handle drag from TreasureBox drawer — follow mouse during move, commit on end
   const handleDrag = useCallback((e: PointerEvent, phase: 'start' | 'move' | 'end') => {
-    if (phase !== 'end' || !previewRef.current) return;
+    if (!previewRef.current) return;
+    if (phase === 'start') return;
+
     const rect = previewRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    if (phase === 'move') {
+      setDragPos({ x, y });
+      return;
+    }
+
+    // phase === 'end' — commit position and clear drag state
+    setDragPos(null);
     const pw = rect.width;
     const ph = rect.height;
     const scaleX = pw / REFERENCE_W;
@@ -738,13 +753,18 @@ function EmbedPreview({
       {/* Background: website iframe or wireframe */}
       <MockWebsitePlaceholder />
       {es.previewUrl && (
-        <iframe
-          src={es.previewUrl}
-          sandbox="allow-scripts"
-          referrerPolicy="no-referrer"
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          style={{ opacity: 0.4, zIndex: 1, border: 'none' }}
-        />
+        <>
+          <iframe
+            src={es.previewUrl}
+            sandbox="allow-scripts"
+            referrerPolicy="no-referrer"
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            style={{ opacity: 0.4, zIndex: 1, border: 'none' }}
+          />
+          <div className="absolute top-2 left-3 z-30 text-[7px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
+            site preview (may be blocked by X-Frame-Options)
+          </div>
+        </>
       )}
 
       {/* TreasureBox fills entire preview — items bounce off edges */}

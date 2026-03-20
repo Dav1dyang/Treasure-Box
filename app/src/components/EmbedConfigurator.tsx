@@ -169,7 +169,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
             )}
           </div>
           <p className="text-[8px] mt-1" style={S.ghost}>
-            some sites may not display in preview — drag the drawer in the live preview to position
+            most sites block iframe embedding via X-Frame-Options headers — the wireframe placeholder shows instead. try sites without strict headers (codepen, jsfiddle, or your own domains).
           </p>
         </div>
       )}

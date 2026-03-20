@@ -246,12 +246,18 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     const wallOpts = { isStatic: true, friction: 0.9, restitution: 0.15 };
 
     if (overlayPreviewRef.current) {
-      // Overlay preview: edge walls — items bounce off the preview frame
+      // ㄩ-shaped walls around the drawer — items stay inside the drawer area
+      const op = overlayPreviewRef.current;
+      const centerX = op.spawnOrigin.x * w;
+      const baseY = op.spawnOrigin.y * h;
+      const boxW = Math.min(420 * cs, w * 0.85);
+      const wallH = 500 * cs;
+      const floorY = baseY + 30 * cs;
+
       Matter.Composite.add(engine.world, [
-        Matter.Bodies.rectangle(w / 2, h + 7, w, 14, wallOpts),   // floor
-        Matter.Bodies.rectangle(w / 2, -7, w, 14, wallOpts),       // ceiling
-        Matter.Bodies.rectangle(-7, h / 2, 14, h, wallOpts),       // left
-        Matter.Bodies.rectangle(w + 7, h / 2, 14, h, wallOpts),    // right
+        Matter.Bodies.rectangle(centerX, floorY, boxW, 14, wallOpts),
+        Matter.Bodies.rectangle(centerX - boxW / 2 - 7, floorY - wallH / 2, 14, wallH, wallOpts),
+        Matter.Bodies.rectangle(centerX + boxW / 2 + 7, floorY - wallH / 2, 14, wallH, wallOpts),
       ]);
     } else {
       // Normal mode: box-shaped walls centered around the drawer
