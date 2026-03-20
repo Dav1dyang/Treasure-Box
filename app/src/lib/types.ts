@@ -127,11 +127,12 @@ export interface EmbedPosition {
 
 export interface EmbedSettings {
   mode: EmbedMode;
-  width: number;              // drawer element width (px)
-  height: number;             // drawer element height (px)
+  width: number;              // drawer element width (px), computed from embedScale
+  height: number;             // drawer element height (px), computed from embedScale
   position: EmbedPosition;    // overlay positioning
   domCollide?: boolean;       // optional: items collide with DOM elements
-  previewUrl?: string;        // optional: user's website URL for configurator preview background
+  previewUrl?: string;        // optional: user's website URL for preview background
+  embedScale?: number;        // 0.5-2.0, proportionally controls widget size (default 1.0)
 }
 
 export const DEFAULT_EMBED_SETTINGS: EmbedSettings = {

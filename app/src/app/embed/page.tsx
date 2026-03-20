@@ -12,6 +12,7 @@ function EmbedContent() {
   const boxId = searchParams.get('box');
   const bgOverride = searchParams.get('bg');
   const embedMode = searchParams.get('mode') || 'contained';
+  const scaleParam = searchParams.get('scale');
 
   const [config, setConfig] = useState<BoxConfig | null>(null);
   const [items, setItems] = useState<TreasureItem[]>([]);
@@ -85,12 +86,16 @@ function EmbedContent() {
   }
 
   const bg = bgOverride ? decodeURIComponent(bgOverride) : config.backgroundColor;
+  const scaleOverride = scaleParam ? parseFloat(scaleParam) : undefined;
+  const effectiveConfig = scaleOverride && scaleOverride !== 1
+    ? { ...config, contentScale: scaleOverride }
+    : config;
 
   return (
     <div className="w-full h-screen overflow-hidden">
       <TreasureBox
         items={items}
-        config={config}
+        config={effectiveConfig}
         backgroundColor={bg}
         fullpageMode={isOverlay}
         onItemsEscaped={isOverlay ? handleItemsEscaped : undefined}

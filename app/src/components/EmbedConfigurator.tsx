@@ -3,13 +3,9 @@
 import { useState, useCallback } from 'react';
 import type { BoxConfig, EmbedSettings, EmbedMode } from '@/lib/types';
 import { DEFAULT_EMBED_SETTINGS } from '@/lib/types';
-import OverlayPositioner from './OverlayPositioner';
 
-const OVERLAY_SIZE_PRESETS = [
-  { label: 'S', width: 250, height: 220 },
-  { label: 'M', width: 350, height: 300 },
-  { label: 'L', width: 450, height: 380 },
-] as const;
+const BASE_W = 350;
+const BASE_H = 300;
 
 const CONTAINED_SIZE_PRESETS = [
   { label: 'S', width: 300, height: 300 },
@@ -43,12 +39,12 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
     ...rawSettings,
     mode: (rawSettings.mode === 'overlay' || rawSettings.mode === 'contained')
       ? rawSettings.mode
-      : 'overlay', // floating/fullpage → overlay
+      : 'overlay',
     position: {
       anchor: rawSettings.position.anchor,
       offsetX: 'offsetX' in rawSettings.position
         ? rawSettings.position.offsetX
-        : ((rawSettings.position as Record<string, number>).xPercent ?? 5) * 14, // rough px conversion
+        : ((rawSettings.position as Record<string, number>).xPercent ?? 5) * 14,
       offsetY: 'offsetY' in rawSettings.position
         ? rawSettings.position.offsetY
         : ((rawSettings.position as Record<string, number>).yPercent ?? 5) * 9,
@@ -56,8 +52,11 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
   };
 
   const [copied, setCopied] = useState<string | null>(null);
+  const [urlInput, setUrlInput] = useState(settings.previewUrl || '');
   const [aspectLocked, setAspectLocked] = useState(false);
   const [aspectRatio, setAspectRatio] = useState(settings.width / settings.height);
+
+  const embedScale = settings.embedScale ?? 1;
 
   const update = useCallback((patch: Partial<EmbedSettings>) => {
     onSettingsChange({ ...settings, ...patch });
@@ -81,21 +80,30 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
     }
   }, [aspectLocked, aspectRatio, update]);
 
+  const handleLoadUrl = useCallback(() => {
+    const trimmed = urlInput.trim();
+    if (!trimmed) {
+      update({ previewUrl: '' });
+      return;
+    }
+    let url = trimmed;
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    update({ previewUrl: url });
+  }, [urlInput, update]);
+
   const getEmbedCode = () => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
     const bg = encodeURIComponent(config.backgroundColor || 'transparent');
 
-    const scale = config.contentScale ?? 1;
-    const scaleParam = scale !== 1 ? `&scale=${scale}` : '';
-    const scaleAttr = scale !== 1 ? `\n  data-scale="${scale}"` : '';
-
     if (settings.mode === 'contained') {
+      const scaleParam = embedScale !== 1 ? `&scale=${embedScale}` : '';
       return `<iframe\n  src="${baseUrl}/embed?box=${userId}&bg=${bg}${scaleParam}"\n  width="${settings.width}" height="${settings.height}"\n  style="border:none;overflow:hidden"\n  loading="lazy"\n  allow="accelerometer"\n></iframe>`;
     }
 
-    // overlay
+    // overlay — use data-scale as the primary sizing attribute
     const domAttr = settings.domCollide ? `\n  data-dom-collide="true"` : '';
-    return `<script src="${baseUrl}/embed/widget.js"\n  data-box-id="${userId}"\n  data-mode="overlay"\n  data-bg="${config.backgroundColor || 'transparent'}"\n  data-width="${settings.width}" data-height="${settings.height}"\n  data-anchor="${settings.position.anchor}"\n  data-offset-x="${settings.position.offsetX}" data-offset-y="${settings.position.offsetY}"${domAttr}>\n</script>`;
+    const scaleAttr = embedScale !== 1 ? `\n  data-scale="${embedScale}"` : '';
+    return `<script src="${baseUrl}/embed/widget.js"\n  data-box-id="${userId}"\n  data-mode="overlay"\n  data-bg="${config.backgroundColor || 'transparent'}"${scaleAttr}\n  data-anchor="${settings.position.anchor}"\n  data-offset-x="${settings.position.offsetX}" data-offset-y="${settings.position.offsetY}"${domAttr}>\n</script>`;
   };
 
   const handleCopy = () => {
@@ -104,8 +112,6 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
     setCopied('embed');
     setTimeout(() => setCopied(null), 2000);
   };
-
-  const sizePresets = settings.mode === 'overlay' ? OVERLAY_SIZE_PRESETS : CONTAINED_SIZE_PRESETS;
 
   return (
     <div className="space-y-5">
@@ -131,107 +137,128 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
         </div>
       </div>
 
-      {/* Overlay Mode: Drag Positioner */}
+      {/* Overlay: Preview Background URL */}
       {settings.mode === 'overlay' && (
         <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-          <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>position on page</label>
-          <OverlayPositioner
-            position={settings.position}
-            boxWidth={settings.width}
-            boxHeight={settings.height}
-            onPositionChange={pos => update({ position: pos })}
-            previewUrl={settings.previewUrl}
-            onPreviewUrlChange={url => update({ previewUrl: url })}
-          />
+          <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>preview background</label>
+          <div className="flex gap-1">
+            <input
+              type="text"
+              value={urlInput}
+              onChange={e => setUrlInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleLoadUrl(); }}
+              placeholder="paste your website URL (optional)"
+              className="flex-1 bg-transparent text-[10px] px-2 py-[5px] outline-none"
+              style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-muted)' }}
+            />
+            <button
+              onClick={handleLoadUrl}
+              className="text-[9px] px-2 py-[5px] cursor-pointer shrink-0"
+              style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)', background: 'transparent' }}
+            >
+              {settings.previewUrl ? 'reload' : 'load'}
+            </button>
+            {settings.previewUrl && (
+              <button
+                onClick={() => { setUrlInput(''); update({ previewUrl: '' }); }}
+                className="text-[9px] px-1 py-[5px] cursor-pointer shrink-0"
+                style={{ color: 'var(--tb-fg-ghost)', background: 'transparent', border: 'none' }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <p className="text-[8px] mt-1" style={S.ghost}>
+            some sites may not display in preview — drag the drawer in the live preview to position
+          </p>
         </div>
       )}
 
-      {/* Size Controls */}
-      <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-        <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>
-          {settings.mode === 'overlay' ? 'drawer size' : 'embed size'}
-        </label>
-
-        {/* Presets */}
-        <div className="flex gap-0 mb-3">
-          {sizePresets.map((p, i) => {
-            const active = settings.width === p.width && settings.height === p.height;
-            return (
-              <button
-                key={p.label}
-                onClick={() => {
-                  update({ width: p.width, height: p.height });
-                  setAspectRatio(p.width / p.height);
-                }}
-                className="text-[10px] px-[14px] py-[6px] border cursor-pointer transition-all"
-                style={{
-                  borderColor: active ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
-                  color: active ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
-                  borderLeftWidth: i === 0 ? 1 : 0,
-                  background: 'transparent',
-                }}
-              >
-                {p.label}
-              </button>
-            );
-          })}
+      {/* Overlay: Widget Size (single proportional slider) */}
+      {settings.mode === 'overlay' && (
+        <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
+          <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>widget size</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="range" min={0.5} max={2.0} step={0.1}
+              value={embedScale}
+              onChange={e => {
+                const s = Number(e.target.value);
+                update({
+                  embedScale: s,
+                  width: Math.round(BASE_W * s),
+                  height: Math.round(BASE_H * s),
+                });
+              }}
+              className="flex-1"
+              style={{ accentColor: 'var(--tb-accent)' }}
+            />
+            <span className="text-[10px] w-10 text-right" style={S.accent}>
+              {Math.round(embedScale * 100)}%
+            </span>
+          </div>
+          <div className="flex items-center justify-between mt-1">
+            <span className="text-[8px]" style={S.ghost}>{settings.width} × {settings.height}px</span>
+          </div>
         </div>
+      )}
 
-        {/* Width Slider */}
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-[9px] w-5 shrink-0" style={S.ghost}>W</span>
-          <input
-            type="range" min={200} max={settings.mode === 'overlay' ? 600 : 1200} step={10}
-            value={settings.width}
-            onChange={e => setWidth(Number(e.target.value))}
-            className="flex-1"
-            style={{ accentColor: 'var(--tb-accent)' }}
-          />
-          <input
-            type="number" min={200} max={settings.mode === 'overlay' ? 600 : 1200} step={10}
-            value={settings.width}
-            onChange={e => setWidth(Number(e.target.value))}
-            className="w-16 bg-transparent text-[10px] p-1 text-right outline-none"
-            style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-accent)' }}
-          />
-          <span className="text-[9px]" style={S.ghost}>px</span>
-        </div>
-
-        {/* Height Slider */}
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-[9px] w-5 shrink-0" style={S.ghost}>H</span>
-          <input
-            type="range" min={200} max={settings.mode === 'overlay' ? 600 : 1200} step={10}
-            value={settings.height}
-            onChange={e => setHeight(Number(e.target.value))}
-            className="flex-1"
-            style={{ accentColor: 'var(--tb-accent)' }}
-          />
-          <input
-            type="number" min={200} max={settings.mode === 'overlay' ? 600 : 1200} step={10}
-            value={settings.height}
-            onChange={e => setHeight(Number(e.target.value))}
-            className="w-16 bg-transparent text-[10px] p-1 text-right outline-none"
-            style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-accent)' }}
-          />
-          <span className="text-[9px]" style={S.ghost}>px</span>
-        </div>
-
-        {/* Aspect Lock (contained only) */}
-        {settings.mode === 'contained' && (
+      {/* Contained: Size Controls (keep existing width/height sliders) */}
+      {settings.mode === 'contained' && (
+        <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
+          <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>embed size</label>
+          <div className="flex gap-0 mb-3">
+            {CONTAINED_SIZE_PRESETS.map((p, i) => {
+              const active = settings.width === p.width && settings.height === p.height;
+              return (
+                <button
+                  key={p.label}
+                  onClick={() => { update({ width: p.width, height: p.height }); setAspectRatio(p.width / p.height); }}
+                  className="text-[10px] px-[14px] py-[6px] border cursor-pointer transition-all"
+                  style={{
+                    borderColor: active ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
+                    color: active ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
+                    borderLeftWidth: i === 0 ? 1 : 0,
+                    background: 'transparent',
+                  }}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[9px] w-5 shrink-0" style={S.ghost}>W</span>
+            <input type="range" min={200} max={1200} step={10} value={settings.width}
+              onChange={e => setWidth(Number(e.target.value))} className="flex-1"
+              style={{ accentColor: 'var(--tb-accent)' }} />
+            <input type="number" min={200} max={1200} step={10} value={settings.width}
+              onChange={e => setWidth(Number(e.target.value))}
+              className="w-16 bg-transparent text-[10px] p-1 text-right outline-none"
+              style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-accent)' }} />
+            <span className="text-[9px]" style={S.ghost}>px</span>
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[9px] w-5 shrink-0" style={S.ghost}>H</span>
+            <input type="range" min={200} max={1200} step={10} value={settings.height}
+              onChange={e => setHeight(Number(e.target.value))} className="flex-1"
+              style={{ accentColor: 'var(--tb-accent)' }} />
+            <input type="number" min={200} max={1200} step={10} value={settings.height}
+              onChange={e => setHeight(Number(e.target.value))}
+              className="w-16 bg-transparent text-[10px] p-1 text-right outline-none"
+              style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-accent)' }} />
+            <span className="text-[9px]" style={S.ghost}>px</span>
+          </div>
           <button
-            onClick={() => {
-              if (!aspectLocked) setAspectRatio(settings.width / settings.height);
-              setAspectLocked(!aspectLocked);
-            }}
+            onClick={() => { if (!aspectLocked) setAspectRatio(settings.width / settings.height); setAspectLocked(!aspectLocked); }}
             className="flex items-center gap-[6px] cursor-pointer text-[9px] mt-1"
             style={aspectLocked ? S.accent : S.ghost}
           >
             <span>{aspectLocked ? '=' : '~'}</span>
             <span>{aspectLocked ? 'aspect locked' : 'lock aspect ratio'}</span>
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* DOM Collision Toggle (overlay only) */}
       {settings.mode === 'overlay' && (
