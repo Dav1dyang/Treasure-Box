@@ -28,16 +28,36 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   const imagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const blobUrlsRef = useRef<string[]>([]);
 
-  // Drawer state machine
+  // Drawer state machine — single source of truth
   const [boxState, setBoxState] = useState<BoxState>('IDLE');
-  const [isOpen, setIsOpen] = useState(false);
   const [activeStory, setActiveStory] = useState<TreasureItem | null>(null);
+
+  // Derived states from boxState — no separate boolean that can drift
+  const isOpen = boxState === 'OPEN' || boxState === 'HOVER_CLOSE' || boxState === 'CLOSING' || boxState === 'SLAMMING';
+  const physicsActive = boxState === 'OPEN' || boxState === 'HOVER_CLOSE';
 
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const spawnIndexRef = useRef(0);
   const animFrameRef = useRef<number>(0);
-  const slamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const openTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const spawnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const itemsHandedOffRef = useRef(false);
+
+  // Managed timeout system — tracks ALL timeouts for clean cancellation
+  const timeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
+  const managedTimeout = useCallback((fn: () => void, ms: number) => {
+    const id = setTimeout(() => {
+      timeoutsRef.current.delete(id);
+      fn();
+    }, ms);
+    timeoutsRef.current.add(id);
+    return id;
+  }, []);
+
+  const clearAllTimeouts = useCallback(() => {
+    timeoutsRef.current.forEach(id => clearTimeout(id));
+    timeoutsRef.current.clear();
+  }, []);
 
   const hasGeneratedImages = !!(config.drawerImages && (config.drawerImages.spriteUrl || config.drawerImages.urls?.IDLE));
   const bg = backgroundColor || config.backgroundColor || '#0e0e0e';
@@ -119,10 +139,11 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       if (runnerRef.current) Matter.Runner.stop(runnerRef.current);
       if (engineRef.current) Matter.Engine.clear(engineRef.current);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      if (slamTimeoutRef.current) clearTimeout(slamTimeoutRef.current);
+      if (spawnIntervalRef.current) clearInterval(spawnIntervalRef.current);
+      timeoutsRef.current.forEach(id => clearTimeout(id));
+      timeoutsRef.current.clear();
       blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
       blobUrlsRef.current = [];
-      openTimeoutsRef.current.forEach(t => clearTimeout(t));
     };
   }, []);
 
@@ -147,14 +168,21 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     const scene = sceneRef.current;
     if (!canvas || !scene) return;
 
+    // Guard: destroy existing engine to prevent leaks on double-init
+    if (engineRef.current) {
+      if (runnerRef.current) Matter.Runner.stop(runnerRef.current);
+      Matter.Engine.clear(engineRef.current);
+    }
+
     const engine = Matter.Engine.create({ gravity: { x: 0, y: 2 } });
     engineRef.current = engine;
 
     const w = scene.offsetWidth;
     const h = scene.offsetHeight;
-    const boxW = Math.min(420, w - 60);
+    // Adaptive walls: scale to container size instead of hardcoded values
+    const boxW = Math.min(420, w * 0.85);
     const boxCenterX = w / 2;
-    const floorY = h - 180;
+    const floorY = h - Math.max(120, h * 0.3);
 
     const wallOpts = { isStatic: true, friction: 0.9, restitution: 0.15 };
     const floor = Matter.Bodies.rectangle(boxCenterX, floorY, boxW, 14, wallOpts);
@@ -219,10 +247,14 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
 
     spawnIndexRef.current = 0;
 
+    // Clear any previous spawn interval
+    if (spawnIntervalRef.current) clearInterval(spawnIntervalRef.current);
+
     const interval = setInterval(() => {
       const idx = spawnIndexRef.current;
       if (idx >= items.length) {
         clearInterval(interval);
+        spawnIntervalRef.current = null;
         return;
       }
 
@@ -273,6 +305,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
 
       spawnIndexRef.current++;
     }, 200);
+    spawnIntervalRef.current = interval;
   }, [items]);
 
   const renderLoop = useCallback(() => {
@@ -283,6 +316,12 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     ctx.clearRect(0, 0, w, h);
+
+    // In fullpage mode, skip rendering items locally once handed off to host page
+    if (itemsHandedOffRef.current) {
+      animFrameRef.current = requestAnimationFrame(renderLoop);
+      return;
+    }
 
     bodiesRef.current.forEach(body => {
       const { x, y } = body.position;
@@ -340,53 +379,61 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
 
   // ===== State machine handlers =====
 
-  const clearOpenTimeouts = useCallback(() => {
-    openTimeoutsRef.current.forEach(t => clearTimeout(t));
-    openTimeoutsRef.current = [];
-  }, []);
-
   const openDrawer = useCallback(() => {
+    // Guard: only open from closed states
     if (isOpen) return;
-    setIsOpen(true);
+
+    // Clean slate: cancel any pending timeouts from previous cycles
+    clearAllTimeouts();
+    if (spawnIntervalRef.current) { clearInterval(spawnIntervalRef.current); spawnIntervalRef.current = null; }
+    clearPhysics();
+    itemsHandedOffRef.current = false;
+
     setBoxState('OPEN');
 
-    clearOpenTimeouts();
+    managedTimeout(() => {
+      initPhysics();
+      managedTimeout(() => {
+        spawnItems();
+        renderLoop();
+      }, 200);
+    }, 600);
 
     // In fullpage mode, notify parent that items have escaped
     if (fullpageMode && onItemsEscaped) {
-      const t = setTimeout(() => {
+      managedTimeout(() => {
         onItemsEscaped(items.map(item => ({
           id: item.id,
           imageUrl: item.imageUrl,
           label: item.label,
         })));
+        itemsHandedOffRef.current = true;
       }, 800);
-      openTimeoutsRef.current.push(t);
     }
-
-    const t1 = setTimeout(() => {
-      initPhysics();
-      const t2 = setTimeout(() => {
-        spawnItems();
-        renderLoop();
-      }, 200);
-      openTimeoutsRef.current.push(t2);
-    }, 600);
-    openTimeoutsRef.current.push(t1);
-  }, [isOpen, initPhysics, spawnItems, renderLoop, fullpageMode, onItemsEscaped, items, clearOpenTimeouts]);
+  }, [isOpen, initPhysics, spawnItems, renderLoop, clearPhysics, clearAllTimeouts, managedTimeout, fullpageMode, onItemsEscaped, items]);
 
   const closeDrawer = useCallback(() => {
+    // Guard: only close from open states
     if (!isOpen) return;
 
-    // Cancel any pending open animation timeouts to prevent zombie physics
-    clearOpenTimeouts();
+    // Cancel all pending open timeouts + spawn interval
+    clearAllTimeouts();
+    if (spawnIntervalRef.current) { clearInterval(spawnIntervalRef.current); spawnIntervalRef.current = null; }
+
+    // Reset fullpage handoff so items render locally during close animation
+    itemsHandedOffRef.current = false;
+
+    // In fullpage mode, notify parent that items are returning
+    if (fullpageMode && onItemsReturned) {
+      onItemsReturned();
+    }
 
     // Pull items toward drawer center (sucking them back in)
     const scene = sceneRef.current;
     const engine = engineRef.current;
     if (scene && engine) {
       const centerX = scene.offsetWidth / 2;
-      const drawerY = scene.offsetHeight - 160;
+      const drawerY = scene.offsetHeight - Math.max(100, scene.offsetHeight * 0.25);
 
       // Reverse gravity to pull items upward into drawer
       engine.gravity.y = -3;
@@ -404,25 +451,24 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       });
     }
 
-    // In fullpage mode, notify parent that items are returning
-    if (fullpageMode && onItemsReturned) {
-      onItemsReturned();
-    }
-
     // Transition: CLOSING (30%) → SLAMMING (0%) → IDLE
     setBoxState('CLOSING');
 
-    slamTimeoutRef.current = setTimeout(() => {
+    managedTimeout(() => {
       setBoxState('SLAMMING');
 
-      // Final clear after slam
-      setTimeout(() => {
+      managedTimeout(() => {
         clearPhysics();
-        setIsOpen(false);
         setBoxState('IDLE');
       }, 350);
     }, 300);
-  }, [isOpen, clearPhysics, clearOpenTimeouts, fullpageMode, onItemsReturned]);
+  }, [isOpen, clearPhysics, clearAllTimeouts, managedTimeout, fullpageMode, onItemsReturned]);
+
+  // Stable refs so handlers don't go stale across re-renders
+  const openDrawerRef = useRef(openDrawer);
+  const closeDrawerRef = useRef(closeDrawer);
+  useEffect(() => { openDrawerRef.current = openDrawer; }, [openDrawer]);
+  useEffect(() => { closeDrawerRef.current = closeDrawer; }, [closeDrawer]);
 
   const handleDrawerMouseEnter = useCallback(() => {
     if (boxState === 'IDLE') {
@@ -442,12 +488,12 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
 
   const handleDrawerClick = useCallback(() => {
     if (boxState === 'IDLE' || boxState === 'HOVER_PEEK') {
-      openDrawer();
+      openDrawerRef.current();
     } else if (boxState === 'OPEN' || boxState === 'HOVER_CLOSE') {
-      closeDrawer();
+      closeDrawerRef.current();
     }
     // CLOSING and SLAMMING: ignore clicks (animation in progress)
-  }, [boxState, openDrawer, closeDrawer]);
+  }, [boxState]);
 
   // Accelerometer for mobile
   useEffect(() => {
@@ -500,7 +546,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       {/* Physics canvas */}
       <canvas
         ref={canvasRef}
-        className={`absolute inset-0 z-10 ${isOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}
+        className={`absolute inset-0 z-10 ${physicsActive ? 'pointer-events-auto' : 'pointer-events-none'}`}
       />
 
       {/* Story overlay */}
