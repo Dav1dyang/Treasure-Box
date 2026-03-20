@@ -677,14 +677,21 @@ function DrawerImage({
 }) {
   const dropShadow = isLight ? 'none' : 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))';
 
+  // Compute frame dimensions from stored drawer style ratios
+  const wRatio = images.style?.drawerWidth || 3;
+  const hRatio = images.style?.drawerHeight || 2;
+  const maxFrameW = 420;
+  const frameW = maxFrameW;
+  const frameH = Math.round(maxFrameW * (hRatio / wRatio));
+
   return (
-    <div className="relative" style={{ width: 420, height: 300 }}>
+    <div className="relative" style={{ width: frameW, height: frameH }}>
       {images.spriteUrl ? (
         // CSS sprite technique: oversized img inside clipping container, translateX to select frame
         <div
           style={{
-            width: 420,
-            height: 300,
+            width: frameW,
+            height: frameH,
             overflow: 'hidden',
             filter: dropShadow,
           }}
@@ -694,10 +701,10 @@ function DrawerImage({
             alt="drawer"
             className="pointer-events-none"
             style={{
-              width: 420 * 5,
-              height: 300,
+              width: frameW * 5,
+              height: frameH,
               maxWidth: 'none', // prevent CSS resets from constraining width
-              transform: `translateX(-${STATE_TO_FRAME[currentState] * 420}px)`,
+              transform: `translateX(-${STATE_TO_FRAME[currentState] * frameW}px)`,
               // No transition — instant frame switching
             }}
             draggable={false}

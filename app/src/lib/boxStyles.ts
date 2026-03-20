@@ -181,6 +181,9 @@ export function buildSpriteSheetPrompt(style: DrawerStyle): string {
   const customDecor = style.customPrompt || 'none';
   const widthRatio = style.drawerWidth || 3;
   const heightRatio = style.drawerHeight || 2;
+  const overallRatio = (5 * widthRatio) / heightRatio; // sprite sheet is 5 frames wide
+  const exampleWidth = Math.round(500 * widthRatio);   // e.g. 3→1500, 5→2500
+  const exampleHeight = Math.round(500 * heightRatio);  // e.g. 2→1000, 1→500
   const openingAngle = resolveAngle(style.angle || 'front');
   const handleType = def.handleStyle;
   const artStyle = mat ? `${def.artStyle}, rendered with ${mat.artHint}` : def.artStyle;
@@ -194,8 +197,9 @@ This must read clearly as a normal SLIDING DRAWER, not a tilt-out bin, not a hin
 OUTPUT FORMAT:
 - Exactly 1 image
 - Exactly 5 frames arranged side by side in a single horizontal row
-- Overall image ratio must be exactly 5:1
-- Example valid sizes: 2500×500 px, 2000×400 px, 1500×300 px
+- Each frame must have an aspect ratio of approximately ${widthRatio}:${heightRatio} (width:height)
+- Overall image ratio must be approximately ${overallRatio.toFixed(1)}:1
+- Target size: ${exampleWidth}×${exampleHeight} px (each frame ${Math.round(exampleWidth / 5)}×${exampleHeight} px)
 - Each frame must be exactly the same size (one-fifth of total width)
 - Zero gaps, zero padding, zero borders, zero separators
 - Frames must tile edge to edge with perfectly clean frame boundaries

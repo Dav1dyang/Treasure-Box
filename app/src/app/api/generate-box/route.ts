@@ -66,12 +66,15 @@ export async function POST(request: NextRequest) {
     let fullHeight = metadata.height || 500;
     let ratioWarning: string | undefined;
 
-    // Validate sprite ratio — must be ~5:1 for 5 frames
+    // Validate sprite ratio — must be ~5*(W/H):1 for 5 frames with W:H per-frame ratio
+    const drawerW = style.drawerWidth || 3;
+    const drawerH = style.drawerHeight || 2;
+    const expectedRatio = (5 * drawerW) / drawerH;
     const ratio = fullWidth / fullHeight;
-    if (ratio < 4) {
-      // Not a valid 5:1 sprite sheet — resize to enforce 5:1
-      const targetWidth = fullHeight * 5;
-      ratioWarning = `Gemini returned ${fullWidth}×${fullHeight} (${ratio.toFixed(1)}:1), resized to ${targetWidth}×${fullHeight}`;
+    // Allow 30% tolerance before forcing a resize
+    if (ratio < expectedRatio * 0.7) {
+      const targetWidth = Math.round(fullHeight * expectedRatio);
+      ratioWarning = `Gemini returned ${fullWidth}×${fullHeight} (${ratio.toFixed(1)}:1), expected ~${expectedRatio.toFixed(1)}:1, resized to ${targetWidth}×${fullHeight}`;
       spriteBuffer = await sharp(spriteBuffer)
         .resize(targetWidth, fullHeight, { fit: 'contain', background: { r: 0, g: 255, b: 0, alpha: 1 } })
         .toBuffer();
