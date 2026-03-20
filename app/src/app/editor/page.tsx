@@ -13,6 +13,7 @@ import {
 import type { TreasureItem, BoxConfig, SoundPreset, DrawerImages } from '@/lib/types';
 import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
+import { extractContourFromImage } from '@/lib/contour';
 
 const DEFAULT_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'> = {
   title: 'My Treasure Box',
@@ -142,10 +143,34 @@ export default function EditorPage() {
         }
       }
     } catch { /* fallback */ } finally { setRemovingBg(null); }
+    // Extract contour from bg-removed image's alpha channel for physics shapes
+    let contourPoints: { x: number; y: number }[] | undefined;
+    if (processedUrl !== originalUrl) {
+      try {
+        const contourRes = await fetch(processedUrl);
+        const contourBlob = await contourRes.blob();
+        const img = new Image();
+        const blobUrl = URL.createObjectURL(contourBlob);
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = reject;
+          img.src = blobUrl;
+        });
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, img.width, img.height);
+        URL.revokeObjectURL(blobUrl);
+        contourPoints = extractContourFromImage(imageData);
+      } catch { /* fallback to rectangle physics */ }
+    }
     const newItem: TreasureItem = {
       id, imageUrl: processedUrl, originalImageUrl: originalUrl,
       label: file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '),
       story: '', link: '', order: items.length, rotation: 0, createdAt: Date.now(),
+      ...(contourPoints && { contourPoints }),
     };
     await saveItem(user.uid, newItem);
     setItems(prev => [...prev, newItem]);
