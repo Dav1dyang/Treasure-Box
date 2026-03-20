@@ -20,7 +20,7 @@ export const DEFAULT_BOX_DIMENSIONS: BoxDimensions = {
     HOVER_PEEK: 25,
     OPEN: 100,
     HOVER_CLOSE: 75,
-    CLOSING: 100,
+    CLOSING: 50,
     SLAMMING: 0,
   },
   handleStyle: 'pull-bar',

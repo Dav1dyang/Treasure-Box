@@ -609,19 +609,20 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       });
     }, 16);
 
-    // Transition: CLOSING (drawer stays open while items fly in) → SLAMMING → IDLE
+    // Transition: CLOSING (brief 50% flash) → SLAMMING → IDLE
     setBoxState('CLOSING');
 
     managedTimeout(() => {
-      closingAnimRef.current = false;
-      clearInterval(pullInterval);
       setBoxState('SLAMMING');
 
+      // Items continue converging; clean up when done
       managedTimeout(() => {
+        closingAnimRef.current = false;
+        clearInterval(pullInterval);
         clearPhysics();
         setBoxState('IDLE');
-      }, 120);
-    }, 300);
+      }, 260);
+    }, 40);
   }, [isOpen, clearPhysics, clearAllTimeouts, managedTimeout, fullpageMode, onItemsReturned]);
 
   // Stable refs so handlers don't go stale across re-renders
@@ -678,6 +679,28 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     });
     if (!clickedBody) {
       closeDrawerRef.current();
+    }
+  }, [boxState]);
+
+  // Detect hover over drawer area when canvas is on top (OPEN state)
+  const handleCanvasMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const drawerEl = drawerElRef.current;
+    if (!drawerEl) return;
+    const rect = drawerEl.getBoundingClientRect();
+    const inside = (
+      e.clientX >= rect.left && e.clientX <= rect.right &&
+      e.clientY >= rect.top && e.clientY <= rect.bottom
+    );
+    if (inside && boxState === 'OPEN') {
+      setBoxState('HOVER_CLOSE');
+    } else if (!inside && boxState === 'HOVER_CLOSE') {
+      setBoxState('OPEN');
+    }
+  }, [boxState]);
+
+  const handleCanvasMouseLeave = useCallback(() => {
+    if (boxState === 'HOVER_CLOSE') {
+      setBoxState('OPEN');
     }
   }, [boxState]);
 
@@ -779,6 +802,8 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       <canvas
         ref={canvasRef}
         onClick={physicsActive ? handleCanvasClick : undefined}
+        onMouseMove={physicsActive ? handleCanvasMouseMove : undefined}
+        onMouseLeave={physicsActive ? handleCanvasMouseLeave : undefined}
         className={`absolute inset-0 ${physicsActive ? 'pointer-events-auto' : 'pointer-events-none'}`}
         style={{ zIndex: isOpen ? 15 : 5 }}
       />
@@ -810,7 +835,7 @@ const STATE_TO_FRAME: Record<BoxState, number> = {
   HOVER_PEEK: 1,   // Frame 1: 25% open
   OPEN: 4,         // Frame 4: 100% open
   HOVER_CLOSE: 3,  // Frame 3: 75% open
-  CLOSING: 4,      // Frame 4: keep fully open while items fly back in
+  CLOSING: 2,      // Frame 2: 50% open, briefly visible during close
   SLAMMING: 0,     // Frame 0: closed
 };
 
