@@ -140,6 +140,8 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
             boxWidth={settings.width}
             boxHeight={settings.height}
             onPositionChange={pos => update({ position: pos })}
+            previewUrl={settings.previewUrl}
+            onPreviewUrlChange={url => update({ previewUrl: url })}
           />
         </div>
       )}

@@ -131,6 +131,7 @@ export interface EmbedSettings {
   height: number;             // drawer element height (px)
   position: EmbedPosition;    // overlay positioning
   domCollide?: boolean;       // optional: items collide with DOM elements
+  previewUrl?: string;        // optional: user's website URL for configurator preview background
 }
 
 export const DEFAULT_EMBED_SETTINGS: EmbedSettings = {

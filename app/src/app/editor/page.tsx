@@ -577,20 +577,42 @@ export default function EditorPage() {
                 <MockWebsitePlaceholder />
 
                 {config.embedSettings?.mode === 'overlay' || !config.embedSettings || config.embedSettings.mode !== 'contained' ? (
-                  // Overlay mode: box positioned by anchor + pixel offsets (scaled to preview)
+                  // Overlay mode: TreasureBox fills preview so items fly freely
                   <>
-                    <div
-                      className="absolute"
-                      style={{
-                        width: Math.min((config.embedSettings?.width ?? 350) * 0.35, 220),
-                        height: Math.min((config.embedSettings?.height ?? 300) * 0.35, 220),
-                        ...(config.embedSettings?.position.anchor.includes('bottom') ? { bottom: Math.min((config.embedSettings?.position.offsetY ?? 32) * 0.1, 40) } : { top: Math.min((config.embedSettings?.position.offsetY ?? 32) * 0.1, 40) }),
-                        ...(config.embedSettings?.position.anchor.includes('right') ? { right: Math.min((config.embedSettings?.position.offsetX ?? 32) * 0.1, 40) } : { left: Math.min((config.embedSettings?.position.offsetX ?? 32) * 0.1, 40) }),
-                      }}
-                    >
+                    <div className="absolute inset-0" style={{ zIndex: 5 }}>
                       <TreasureBox items={items} config={config} />
                     </div>
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[8px] px-2 py-1" style={{ ...S.ghost, background: 'var(--tb-bg)', border: '1px solid var(--tb-border-subtle)' }}>
+                    {/* Anchor position indicator — shows where the widget will actually sit */}
+                    {(() => {
+                      const es = config.embedSettings;
+                      const anchor = es?.position.anchor ?? 'bottom-right';
+                      const offX = es?.position.offsetX ?? 32;
+                      const offY = es?.position.offsetY ?? 32;
+                      // Scale: preview is ~600px wide, reference viewport is 1440
+                      const sw = Math.max(30, (es?.width ?? 350) * 0.25);
+                      const sh = Math.max(24, (es?.height ?? 300) * 0.25);
+                      const soX = offX * 0.25;
+                      const soY = offY * 0.25;
+                      return (
+                        <div
+                          className="absolute border border-dashed pointer-events-none"
+                          style={{
+                            borderColor: 'var(--tb-accent)',
+                            opacity: 0.35,
+                            width: sw,
+                            height: sh,
+                            zIndex: 20,
+                            ...(anchor.includes('bottom') ? { bottom: soY } : { top: soY }),
+                            ...(anchor.includes('right') ? { right: soX } : { left: soX }),
+                          }}
+                        >
+                          <span className="absolute -top-4 left-0 text-[7px] whitespace-nowrap" style={S.ghost}>
+                            widget position
+                          </span>
+                        </div>
+                      );
+                    })()}
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[8px] px-2 py-1" style={{ ...S.ghost, background: 'var(--tb-bg)', border: '1px solid var(--tb-border-subtle)', zIndex: 25 }}>
                       items fly across the host page when opened
                     </div>
                   </>
