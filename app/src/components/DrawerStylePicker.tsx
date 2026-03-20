@@ -159,6 +159,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
     spriteSize?: { width: number; height: number; frameCount: number };
     bgRemoval?: string;
     visionObjects?: number;
+    ratioWarning?: string;
   } | null>(null);
   const [debugOpen, setDebugOpen] = useState(false);
 
@@ -219,6 +220,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
           spriteSize: data.spriteSize,
           bgRemoval: data.bgRemoval,
           visionObjects: data.visionObjects,
+          ratioWarning: data.ratioWarning,
         });
       }
 
@@ -226,10 +228,13 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
       const spriteUrl = await uploadSpriteSheet(userId, data.sprite);
       setSpritePreviewUrl(spriteUrl);
 
+      // Strip undefined values — Firestore rejects them
+      const cleanStyle: DrawerStyle = JSON.parse(JSON.stringify(style));
+
       const drawerImages: DrawerImages = {
         urls: {} as Record<BoxState, string>,
         spriteUrl,
-        style,
+        style: cleanStyle,
         generatedAt: Date.now(),
       };
 
@@ -564,6 +569,19 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
                   <label style={sectionLabel}>sprite sheet</label>
                   <span style={{ fontSize: 10, color: 'var(--tb-fg-muted)' }}>
                     {debugMeta.spriteSize.width} × {debugMeta.spriteSize.height}px — {debugMeta.spriteSize.frameCount} frames
+                  </span>
+                </div>
+              )}
+              {debugMeta?.ratioWarning && (
+                <div>
+                  <label style={sectionLabel}>ratio fix</label>
+                  <span style={{
+                    fontSize: 9, padding: '2px 6px', borderRadius: 3,
+                    background: 'rgba(250,204,21,0.1)',
+                    color: '#facc15',
+                    border: '1px solid rgba(250,204,21,0.2)',
+                  }}>
+                    {debugMeta.ratioWarning}
                   </span>
                 </div>
               )}

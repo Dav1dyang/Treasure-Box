@@ -60,10 +60,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Remove green background from the sprite sheet
-    const spriteBuffer = Buffer.from(imageBase64, 'base64');
+    let spriteBuffer: Buffer = Buffer.from(imageBase64, 'base64');
     const metadata = await sharp(spriteBuffer).metadata();
-    const fullWidth = metadata.width || 2500;
-    const fullHeight = metadata.height || 500;
+    let fullWidth = metadata.width || 2500;
+    let fullHeight = metadata.height || 500;
+    let ratioWarning: string | undefined;
+
+    // Validate sprite ratio — must be ~5:1 for 5 frames
+    const ratio = fullWidth / fullHeight;
+    if (ratio < 4) {
+      // Not a valid 5:1 sprite sheet — resize to enforce 5:1
+      const targetWidth = fullHeight * 5;
+      ratioWarning = `Gemini returned ${fullWidth}×${fullHeight} (${ratio.toFixed(1)}:1), resized to ${targetWidth}×${fullHeight}`;
+      spriteBuffer = await sharp(spriteBuffer)
+        .resize(targetWidth, fullHeight, { fit: 'contain', background: { r: 0, g: 255, b: 0, alpha: 1 } })
+        .toBuffer();
+      fullWidth = targetWidth;
+    }
 
     let bgRemoval: 'vision' | 'chroma-fallback';
     let visionObjects = 0;
@@ -120,6 +133,7 @@ export async function POST(request: NextRequest) {
       spriteSize: { width: fullWidth, height: fullHeight, frameCount: 5 },
       bgRemoval,
       visionObjects,
+      ...(ratioWarning && { ratioWarning }),
     });
   } catch (error: any) {
     console.error('Box generation error:', error);
