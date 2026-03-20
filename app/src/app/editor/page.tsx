@@ -13,6 +13,7 @@ import {
 import type { TreasureItem, BoxConfig, SoundPreset, DrawerImages, EmbedSettings } from '@/lib/types';
 import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
+import { extractContourFromImage } from '@/lib/contour';
 import EmbedConfigurator from '@/components/EmbedConfigurator';
 
 const DEFAULT_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'> = {
@@ -152,26 +153,32 @@ export default function EditorPage() {
     let contourPoints: { x: number; y: number }[] | undefined;
     try {
       setRemovingBg(id);
-      const formData = new FormData();
-      formData.append('image', file);
-      const res = await fetch('/api/remove-bg', { method: 'POST', body: formData });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.error) {
-          setBgError(data.error);
-        }
-        if (data.bgRemoved && data.image) {
-          // Convert base64 PNG to Blob and upload to Firebase Storage
-          const byteString = atob(data.image);
-          const bytes = new Uint8Array(byteString.length);
-          for (let i = 0; i < byteString.length; i++) bytes[i] = byteString.charCodeAt(i);
-          const blob = new Blob([bytes], { type: 'image/png' });
-          processedUrl = await uploadProcessedImage(user.uid, blob, id);
-          if (data.contourPoints) {
-            contourPoints = data.contourPoints;
-          }
-        }
-      }
+      // Client-side background removal via WASM (no server needed)
+      const { removeBackground } = await import('@imgly/background-removal');
+      const resultBlob = await removeBackground(file, {
+        model: 'isnet_quint8',
+        output: { format: 'image/png' },
+      });
+
+      // Extract contour points for physics shapes via offscreen canvas
+      const img = new Image();
+      const blobUrl = URL.createObjectURL(resultBlob);
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = reject;
+        img.src = blobUrl;
+      });
+      URL.revokeObjectURL(blobUrl);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, img.width, img.height);
+      contourPoints = extractContourFromImage(imageData);
+
+      processedUrl = await uploadProcessedImage(user.uid, resultBlob, id);
     } catch { /* fallback to original */ } finally { setRemovingBg(null); }
     const newItem: TreasureItem = {
       id, imageUrl: processedUrl, originalImageUrl: originalUrl,
