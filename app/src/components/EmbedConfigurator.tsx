@@ -301,6 +301,13 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
         </div>
       )}
 
+      {/* TODO: Add active area / crop adjustment controls here.
+         The drawer sprite has an `activeArea` (bounding box of actual pixels)
+         that's auto-detected during generation. Allow users to manually tweak
+         the crop/visible area of the drawer here, overriding the auto-detected
+         bounds. This lets users fine-tune how much padding surrounds the drawer
+         and adjust the effective aspect ratio of the rendered widget. */}
+
       {/* Embed Code Output */}
       <div>
         <label className="text-[10px] block mb-[6px] tracking-[0.12em]" style={S.faint}>
