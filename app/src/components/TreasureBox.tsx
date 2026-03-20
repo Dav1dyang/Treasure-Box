@@ -29,6 +29,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   const bodiesRef = useRef<(Matter.Body & { itemData?: TreasureItem })[]>([]);
   const imagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const blobUrlsRef = useRef<string[]>([]);
+  const appliedScaleRef = useRef<Map<string, number>>(new Map());
 
   // Drawer state machine — single source of truth
   const [boxState, setBoxState] = useState<BoxState>('IDLE');
@@ -95,6 +96,38 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     });
   }, [items, loadImageAsBlobUrl]);
 
+  // Sync physics bodies when items prop changes (scale/rotation sliders)
+  useEffect(() => {
+    if (!engineRef.current) return;
+
+    bodiesRef.current.forEach(body => {
+      const itemData = body.itemData;
+      if (!itemData) return;
+
+      const currentItem = items.find(i => i.id === itemData.id);
+      if (!currentItem) return;
+
+      // Rotation sync — setAngle is absolute
+      const newAngleRad = ((currentItem.rotation ?? 0) * Math.PI) / 180;
+      const oldAngleRad = ((itemData.rotation ?? 0) * Math.PI) / 180;
+      if (Math.abs(newAngleRad - oldAngleRad) > 0.001) {
+        Matter.Body.setAngle(body, newAngleRad);
+      }
+
+      // Scale sync — Body.scale() is relative, compute ratio from tracked absolute
+      const newScale = currentItem.scale ?? 1;
+      const appliedScale = appliedScaleRef.current.get(itemData.id) ?? 1;
+      if (Math.abs(newScale - appliedScale) > 0.001) {
+        const ratio = newScale / appliedScale;
+        Matter.Body.scale(body, ratio, ratio);
+        appliedScaleRef.current.set(itemData.id, newScale);
+      }
+
+      // Update itemData so render loop reads current values
+      body.itemData = currentItem;
+    });
+  }, [items]);
+
   // Preload drawer images (sprite sheet or legacy per-state)
   useEffect(() => {
     if (!config.drawerImages) return;
@@ -159,6 +192,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     }
     runnerRef.current = null;
     bodiesRef.current = [];
+    appliedScaleRef.current.clear();
     // Clear canvas
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx && canvasRef.current) {
@@ -304,6 +338,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       Matter.Body.setAngularVelocity(body, angVel);
 
       bodiesRef.current.push(body);
+      appliedScaleRef.current.set(item.id, itemScale);
       Matter.Composite.add(engine.world, body);
 
       spawnIndexRef.current++;
