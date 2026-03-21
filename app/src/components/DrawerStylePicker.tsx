@@ -167,7 +167,7 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
     visionObjects?: number;
     ratioWarning?: string;
   } | null>(null);
-  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(true);
 
   const asciiPreview = useMemo(
     () => renderAsciiPreview(drawerWidth, drawerHeight, angle),
