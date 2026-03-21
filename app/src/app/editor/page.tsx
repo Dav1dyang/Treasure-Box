@@ -822,6 +822,7 @@ function EmbedPreview({
   const isOverlay = es.mode !== 'contained';
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const [previewMode, setPreviewMode] = useState<'edit' | 'play'>('edit');
+  const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
 
   // Compute drawer position via shared utility
   const getDrawerStyle = useCallback((): React.CSSProperties => {
@@ -847,21 +848,35 @@ function EmbedPreview({
   // Handle drag from TreasureBox drawer — follow mouse during move, commit on end
   const handleDrag = useCallback((e: PointerEvent, phase: 'start' | 'move' | 'end') => {
     if (!previewRef.current) return;
-    if (phase === 'start') return;
 
     const rect = previewRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    if (phase === 'start') {
+      // Record offset between mouse and drawer center so the box doesn't jump
+      const style = computeDrawerPosition(
+        es.position.anchor, es.position.offsetX, es.position.offsetY,
+        rect.width, rect.height,
+      );
+      const cx = typeof style.left === 'number' ? style.left : 0;
+      const cy = typeof style.top === 'number' ? style.top : 0;
+      dragOffsetRef.current = { dx: mouseX - cx, dy: mouseY - cy };
+      return;
+    }
+
+    const posX = mouseX - dragOffsetRef.current.dx;
+    const posY = mouseY - dragOffsetRef.current.dy;
 
     if (phase === 'move') {
-      setDragPos({ x, y });
+      setDragPos({ x: posX, y: posY });
       return;
     }
 
     // phase === 'end' — commit position and clear drag state
     setDragPos(null);
-    onPositionChange(positionFromPointer(x, y, rect.width, rect.height));
-  }, [onPositionChange]);
+    onPositionChange(positionFromPointer(posX, posY, rect.width, rect.height));
+  }, [es.position, onPositionChange]);
 
   if (!isOverlay) {
     // Contained mode — centered box over placeholder site
