@@ -10,7 +10,7 @@ import { DEFAULT_DRAWER_DISPLAY_SIZE, DEFAULT_BOX_DIMENSIONS } from '@/lib/confi
 import StoryCard from './StoryCard';
 
 const ITEM_BASE_SIZE = 52;
-const SPAWN_ANIM_DURATION = 450;
+const SPAWN_ANIM_DURATION = 300;
 
 type PhysicsBody = Matter.Body & { itemData?: TreasureItem; spawnTime?: number; closeT?: number };
 
@@ -628,8 +628,8 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       // Spawn animation: scale + opacity ease-out
       const age = performance.now() - (body.spawnTime ?? 0);
       const spawnT = Math.min(1, age / SPAWN_ANIM_DURATION);
-      const spawnScale = 1 - Math.pow(1 - spawnT, 3);   // ease-out cubic
-      const spawnOpacity = 1 - Math.pow(1 - spawnT, 2);  // ease-out quad
+      const spawnScale = 1 - Math.pow(1 - spawnT, 5);   // ease-out quintic: ~86% at 100ms
+      const spawnOpacity = 1 - Math.pow(1 - spawnT, 4);  // ease-out quartic: near-instant visibility
       size *= spawnScale;
       if (spawnScale < 0.01) return; // not yet visible
 
@@ -711,8 +711,8 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         const baseSize = ITEM_BASE_SIZE * (item?.scale ?? 1);
         const syncAge = performance.now() - ((body as PhysicsBody).spawnTime ?? 0);
         const syncSpawnT = Math.min(1, syncAge / SPAWN_ANIM_DURATION);
-        const syncSpawnScale = 1 - Math.pow(1 - syncSpawnT, 3);
-        const syncSpawnOpacity = 1 - Math.pow(1 - syncSpawnT, 2);
+        const syncSpawnScale = 1 - Math.pow(1 - syncSpawnT, 5);
+        const syncSpawnOpacity = 1 - Math.pow(1 - syncSpawnT, 4);
         const syncCloseT = (body as PhysicsBody).closeT ?? 0;
         const syncCloseScale = closingAnimRef.current ? Math.max(0.05, 1 - syncCloseT * syncCloseT) : 1;
         const syncCloseOpacity = closingAnimRef.current ? Math.max(0, 1 - Math.pow(syncCloseT, 3)) : 1;

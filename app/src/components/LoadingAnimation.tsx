@@ -261,6 +261,7 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
       ctx.rotate(angle);
 
       ctx.strokeStyle = color;
+      ctx.fillStyle = color + '18'; // ~9% opacity tinted fill
       ctx.lineWidth = 2;
       ctx.lineJoin = 'round';
 
@@ -279,6 +280,7 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
       ctx.lineTo(-hw, -hh + r);
       ctx.arcTo(-hw, -hh, -hw + r, -hh, r);
       ctx.closePath();
+      ctx.fill();
       ctx.stroke();
 
       // Rim line near the top edge (drawer front lip)
