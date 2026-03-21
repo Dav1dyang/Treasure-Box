@@ -303,7 +303,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         const sceneRect = scene.getBoundingClientRect();
         const drawerRect = drawerElRef.current.getBoundingClientRect();
         boxCenterX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
-        floorY = drawerRect.top - sceneRect.top + drawerRect.height * 0.4;
+        floorY = drawerRect.top - sceneRect.top + drawerRect.height * 0.25;
         boxW = Math.max(drawerRect.width, 200 * cs);
       }
 
