@@ -2,10 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import type { BoxConfig, EmbedSettings, EmbedMode, EmbedPadding } from '@/lib/types';
-import { DEFAULT_EMBED_SETTINGS, DEFAULT_EMBED_PADDING } from '@/lib/types';
-
-const BASE_W = 350;
-const BASE_H = 300;
+import { DEFAULT_EMBED_SETTINGS, DEFAULT_EMBED_PADDING, EMBED_BASE_W, EMBED_BASE_H, getEmbedDimensions } from '@/lib/types';
 
 const CONTAINED_SIZE_PRESETS = [
   { label: 'S', width: 300, height: 300 },
@@ -30,9 +27,10 @@ interface Props {
   config: BoxConfig;
   userId: string;
   onSettingsChange: (settings: EmbedSettings) => void;
+  onScaleChange?: (scale: number) => void;
 }
 
-export default function EmbedConfigurator({ config, userId, onSettingsChange }: Props) {
+export default function EmbedConfigurator({ config, userId, onSettingsChange, onScaleChange }: Props) {
   // Migrate legacy modes to new types
   const rawSettings = config.embedSettings || DEFAULT_EMBED_SETTINGS;
   const settings: EmbedSettings = {
@@ -57,7 +55,8 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
   const [aspectRatio, setAspectRatio] = useState(settings.width / settings.height);
   const [paddingExpanded, setPaddingExpanded] = useState(false);
 
-  const embedScale = settings.embedScale ?? 1;
+  // Unified scale: prefer contentScale, fall back to legacy embedScale
+  const embedScale = config.contentScale ?? settings.embedScale ?? 1;
   const padding = settings.padding || { top: 0, right: 0, bottom: 0, left: 0 };
 
   const update = useCallback((patch: Partial<EmbedSettings>) => {
@@ -192,11 +191,10 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
               value={embedScale}
               onChange={e => {
                 const s = Number(e.target.value);
-                update({
-                  embedScale: s,
-                  width: Math.round(BASE_W * s),
-                  height: Math.round(BASE_H * s),
-                });
+                // Update contentScale (unified) and derive embed dimensions
+                if (onScaleChange) onScaleChange(s);
+                const dims = getEmbedDimensions(s);
+                update({ width: dims.width, height: dims.height });
               }}
               className="flex-1"
               style={{ accentColor: 'var(--tb-accent)' }}
@@ -206,7 +204,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
             </span>
           </div>
           <div className="flex items-center justify-between mt-1">
-            <span className="text-[8px]" style={S.ghost}>{settings.width} × {settings.height}px</span>
+            <span className="text-[8px]" style={S.ghost}>{getEmbedDimensions(embedScale).width} × {getEmbedDimensions(embedScale).height}px</span>
           </div>
         </div>
       )}

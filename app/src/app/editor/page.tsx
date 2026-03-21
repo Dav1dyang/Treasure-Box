@@ -626,32 +626,6 @@ export default function EditorPage() {
                   </CfgSection>
 
                   <CfgSection>
-                    <CfgLabel>box scale</CfgLabel>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range" min={0.5} max={2} step={0.05}
-                        value={config.contentScale ?? 1}
-                        onChange={e => setConfig({ ...config, contentScale: Number(e.target.value) })}
-                        className="flex-1"
-                        style={{ accentColor: 'var(--tb-accent)' }}
-                      />
-                      <span className="text-[10px] min-w-[32px] text-right font-mono" style={S.accent}>
-                        {(config.contentScale ?? 1).toFixed(2)}&times;
-                      </span>
-                      {(config.contentScale ?? 1) !== 1 && (
-                        <button
-                          onClick={() => setConfig({ ...config, contentScale: 1 })}
-                          className="text-[9px] px-2 py-[2px] cursor-pointer"
-                          style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)' }}
-                        >
-                          reset
-                        </button>
-                      )}
-                    </div>
-                    <CfgHint>scales the drawer and physics area (0.5× – 2.0×)</CfgHint>
-                  </CfgSection>
-
-                  <CfgSection>
                     <CfgLabel>background</CfgLabel>
                     <label className="flex items-center gap-[6px] mb-[10px] cursor-pointer">
                       <div onClick={() => { const n = !isTransparentBg; setIsTransparentBg(n); setConfig({ ...config, backgroundColor: n ? 'transparent' : '#0e0e0e' }); }}
@@ -742,6 +716,7 @@ export default function EditorPage() {
                 config={config}
                 userId={user.uid}
                 onSettingsChange={(settings: EmbedSettings) => setConfig({ ...config, embedSettings: settings })}
+                onScaleChange={(s: number) => setConfig({ ...config, contentScale: s })}
               />
             )}
           </div>
@@ -904,7 +879,7 @@ function EmbedPreview({
   const previewConfig = {
     ...config,
     backgroundColor: 'transparent',
-    contentScale: es.embedScale ?? config.contentScale ?? 1,
+    contentScale: config.contentScale ?? 1,
   };
 
   return (
