@@ -14,11 +14,12 @@ const PASTEL_PALETTE = [
   '#B3FFE6', // seafoam
 ];
 
-const SPAWN_INTERVAL = 250;
-const MAX_BOXES = 80;
-const DRAIN_DURATION = 1500;
-const RESET_PAUSE = 400;
-const BOX_SIZES = [80, 100, 120];
+// --- Tunable animation constants ---
+const SPAWN_INTERVAL = 250;   // ms between each new drawer spawn
+const MAX_BOXES = 80;         // safety cap before forcing a drain cycle
+const DRAIN_DURATION = 1500;  // ms for boxes to fall off-screen during drain
+const RESET_PAUSE = 400;      // ms pause between drain finish and next spawn cycle
+const BOX_SIZES = [120, 150, 180]; // random drawer width in px (height = width × 0.7)
 
 type CycleState = 'SPAWNING' | 'DRAINING' | 'RESETTING' | 'FINISHED';
 
@@ -89,8 +90,8 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
     const w = scene.offsetWidth;
     const size = BOX_SIZES[Math.floor(Math.random() * BOX_SIZES.length)];
     const boxW = size;
-    const boxH = size * 0.7;
-    const x = 40 + Math.random() * (w - 80);
+    const boxH = size * 0.7; // aspect ratio — adjust multiplier to change drawer height
+    const x = 40 + Math.random() * (w - 80); // horizontal spawn range (40px margin each side)
 
     const body = Matter.Bodies.rectangle(x, -60, boxW, boxH, {
       restitution: 0.15,
@@ -260,13 +261,14 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
       ctx.translate(x, y);
       ctx.rotate(angle);
 
-      ctx.strokeStyle = color;
-      ctx.fillStyle = color + '18'; // ~9% opacity tinted fill
-      ctx.lineWidth = 2;
+      // --- Drawer styling (adjust these to change appearance) ---
+      ctx.strokeStyle = color;               // outline color (from PASTEL_PALETTE)
+      ctx.fillStyle = color + '55';          // tinted fill — hex alpha '55' ≈ 33% opacity
+      ctx.lineWidth = 2;                     // outline thickness in px
       ctx.lineJoin = 'round';
 
       // Drawer body — rounded rectangle
-      const r = 4;
+      const r = 6; // corner radius
       const hw = bw / 2;
       const hh = bh / 2;
       ctx.beginPath();
