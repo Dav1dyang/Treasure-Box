@@ -17,7 +17,7 @@ const PASTEL_PALETTE = [
 // --- Tunable animation constants ---
 const SPAWN_INTERVAL = 250;   // ms between each new drawer spawn
 const MAX_BOXES = 80;         // safety cap before forcing a drain cycle
-const DRAIN_DURATION = 1500;  // ms for boxes to fall off-screen during drain
+const DRAIN_DURATION = 2000;  // ms for boxes to fall off-screen during drain
 const RESET_PAUSE = 400;      // ms pause between drain finish and next spawn cycle
 const BOX_SIZES = [120, 150, 180]; // random drawer width in px (height = width × 0.7)
 
@@ -44,6 +44,8 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
   const runnerRef = useRef<Matter.Runner | null>(null);
   const animFrameRef = useRef<number>(0);
   const floorRef = useRef<Matter.Body | null>(null);
+  const leftWallRef = useRef<Matter.Body | null>(null);
+  const rightWallRef = useRef<Matter.Body | null>(null);
   const boxBodiesRef = useRef<BoxBody[]>([]);
   const cycleStateRef = useRef<CycleState>('SPAWNING');
   const spawnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -140,6 +142,27 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
     // Move floor way below so boxes fall out
     Matter.Body.setPosition(floor, { x: floor.position.x, y: h + 500 });
 
+    // Remove side walls so boxes don't jam against them
+    const engine = engineRef.current;
+    if (engine) {
+      if (leftWallRef.current) {
+        Matter.Composite.remove(engine.world, leftWallRef.current);
+        leftWallRef.current = null;
+      }
+      if (rightWallRef.current) {
+        Matter.Composite.remove(engine.world, rightWallRef.current);
+        rightWallRef.current = null;
+      }
+      // Boost gravity to pull boxes out faster
+      engine.gravity.y = 4;
+    }
+
+    // Reduce friction on all boxes so they slide freely
+    boxBodiesRef.current.forEach((b: BoxBody) => {
+      b.friction = 0.05;
+      b.frictionAir = 0.001;
+    });
+
     scheduleTimeout(() => {
       if (isFinalDrain) {
         // Final drain: clean up and signal done
@@ -176,6 +199,17 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
     // Move floor back
     Matter.Body.setPosition(floor, { x: w / 2, y: h + 10 });
 
+    // Restore gravity
+    engine.gravity.y = 1.5;
+
+    // Re-add side walls
+    const wallOpts = { isStatic: true, friction: 0.8, restitution: 0.1 };
+    const leftWall = Matter.Bodies.rectangle(-10, h / 2, 20, h, wallOpts);
+    const rightWall = Matter.Bodies.rectangle(w + 10, h / 2, 20, h, wallOpts);
+    Matter.Composite.add(engine.world, [leftWall, rightWall]);
+    leftWallRef.current = leftWall;
+    rightWallRef.current = rightWall;
+
     scheduleTimeout(() => {
       // If finishing was requested during drain/reset, stop instead of restarting
       if (finishingRef.current) {
@@ -209,13 +243,13 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
     let topmostY = h;
     for (const b of bodies) {
       const speed = Math.sqrt(b.velocity.x ** 2 + b.velocity.y ** 2);
-      if (speed < 1.0 && b.position.y < topmostY) {
+      if (speed < 3.0 && b.position.y < topmostY) {
         topmostY = b.position.y;
       }
     }
 
-    // Drain when settled pile reaches near the top (within ~15% of canvas height)
-    if (bodies.length > 5 && topmostY < h * 0.15) {
+    // Drain when settled pile reaches near the top (within ~5% of canvas height)
+    if (bodies.length > 5 && topmostY < h * 0.05) {
       startDraining(false);
     }
   }, [startDraining]);
@@ -354,6 +388,8 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
     const rightWall = Matter.Bodies.rectangle(w + 10, h / 2, 20, h, wallOpts);
     Matter.Composite.add(engine.world, [floor, leftWall, rightWall]);
     floorRef.current = floor;
+    leftWallRef.current = leftWall;
+    rightWallRef.current = rightWall;
 
     const runner = Matter.Runner.create();
     Matter.Runner.run(runner, engine);
@@ -400,6 +436,8 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
       engineRef.current = null;
       runnerRef.current = null;
       floorRef.current = null;
+      leftWallRef.current = null;
+      rightWallRef.current = null;
       spawnCountRef.current = 0;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
