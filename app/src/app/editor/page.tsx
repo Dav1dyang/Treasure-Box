@@ -418,6 +418,7 @@ export default function EditorPage() {
                     key={config.drawerImages?.generatedAt ?? 'ascii'}
                     userId={user.uid}
                     currentImages={config.drawerImages || undefined}
+                    boxDimensions={config.boxDimensions}
                     onComplete={(images: DrawerImages) => { skipAutoSaveRef.current = true; setConfig({ ...config, drawerImages: images }); }}
                     onReset={async () => { await clearDrawerImages(user.uid); setConfig({ ...config, drawerImages: undefined }); }}
                     onGeneratingChange={setGenerating}

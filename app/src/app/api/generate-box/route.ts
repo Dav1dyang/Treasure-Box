@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import sharp from 'sharp';
 import { buildSpriteSheetPrompt } from '@/lib/boxStyles';
-import type { DrawerStyle } from '@/lib/types';
+import { DEFAULT_BOX_DIMENSIONS } from '@/lib/config';
+import type { BoxDimensions, DrawerStyle } from '@/lib/types';
 
 // Vision API + Sharp chroma key is much faster than ML bg removal
 export const maxDuration = 60;
 
 interface GenerateBoxRequest {
   style: DrawerStyle;
+  dimensions?: BoxDimensions;
 }
 
 export async function POST(request: NextRequest) {
@@ -16,9 +18,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: GenerateBoxRequest = await request.json();
-    const { style } = body;
+    const { style, dimensions } = body;
 
-    builtPrompt = buildSpriteSheetPrompt(style);
+    builtPrompt = buildSpriteSheetPrompt(style, dimensions ?? DEFAULT_BOX_DIMENSIONS);
 
     const apiKey = process.env.GOOGLE_AI_STUDIO_KEY;
     if (!apiKey) {
