@@ -10,6 +10,9 @@ import { DEFAULT_DRAWER_DISPLAY_SIZE, DEFAULT_BOX_DIMENSIONS } from '@/lib/confi
 import StoryCard from './StoryCard';
 
 const ITEM_BASE_SIZE = 52;
+const SPAWN_ANIM_DURATION = 450;
+
+type PhysicsBody = Matter.Body & { itemData?: TreasureItem; spawnTime?: number; closeT?: number };
 
 interface OverlayPreviewConfig {
   /** CSS styles to position the drawer at the anchor point */
@@ -43,7 +46,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
   const runnerRef = useRef<Matter.Runner | null>(null);
-  const bodiesRef = useRef<(Matter.Body & { itemData?: TreasureItem })[]>([]);
+  const bodiesRef = useRef<PhysicsBody[]>([]);
   const imagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const blobUrlsRef = useRef<string[]>([]);
   const appliedScaleRef = useRef<Map<string, number>>(new Map());
@@ -551,7 +554,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       const itemScale = item.scale ?? 1;
       const size = ITEM_BASE_SIZE * itemScale;
 
-      let body: Matter.Body & { itemData?: TreasureItem };
+      let body: PhysicsBody;
 
       if (item.contourPoints && item.contourPoints.length >= 4) {
         try {
@@ -572,6 +575,8 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       }
 
       body.itemData = item;
+      body.spawnTime = performance.now();
+      body.closeT = 0;
 
       // Set initial rotation from item config (degrees to radians), or random
       if (item.rotation !== undefined) {
@@ -620,18 +625,29 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
 
       let size = ITEM_BASE_SIZE * (item.scale ?? 1);
 
-      // During closing, shrink items as they converge on the drawer
+      // Spawn animation: scale + opacity ease-out
+      const age = performance.now() - (body.spawnTime ?? 0);
+      const spawnT = Math.min(1, age / SPAWN_ANIM_DURATION);
+      const spawnScale = 1 - Math.pow(1 - spawnT, 3);   // ease-out cubic
+      const spawnOpacity = 1 - Math.pow(1 - spawnT, 2);  // ease-out quad
+      size *= spawnScale;
+      if (spawnScale < 0.01) return; // not yet visible
+
+      // Close animation: time-based shrink + fade
+      let closeScale = 1;
+      let closeOpacity = 1;
       if (closingAnimRef.current) {
-        const drawerCenterX = w / 2;
-        const drawerY = h - 150;
-        const dist = Math.sqrt((x - drawerCenterX) ** 2 + (y - drawerY) ** 2);
-        const shrink = Math.min(1, dist / 250); // closer = smaller
-        size *= Math.max(0.1, shrink);
-        if (size < 3) return; // skip tiny items
+        const closeT = (body as PhysicsBody).closeT ?? 0;
+        closeScale = Math.max(0.05, 1 - closeT * closeT);       // ease-in quad
+        closeOpacity = Math.max(0, 1 - Math.pow(closeT, 3));     // cubic fade
+        size *= closeScale;
+        if (size < 2) return;
       }
+
       const img = imagesRef.current.get(item.id);
 
       ctx.save();
+      ctx.globalAlpha = spawnOpacity * closeOpacity;
       ctx.translate(x, y);
       ctx.rotate(angle);
 
@@ -692,17 +708,25 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       const oy = hv ? hv.offsetY : 0;
       const syncBodies: FrameSyncBody[] = bodiesRef.current.map(body => {
         const item = body.itemData;
-        const size = ITEM_BASE_SIZE * (item?.scale ?? 1);
+        const baseSize = ITEM_BASE_SIZE * (item?.scale ?? 1);
+        const syncAge = performance.now() - ((body as PhysicsBody).spawnTime ?? 0);
+        const syncSpawnT = Math.min(1, syncAge / SPAWN_ANIM_DURATION);
+        const syncSpawnScale = 1 - Math.pow(1 - syncSpawnT, 3);
+        const syncSpawnOpacity = 1 - Math.pow(1 - syncSpawnT, 2);
+        const syncCloseT = (body as PhysicsBody).closeT ?? 0;
+        const syncCloseScale = closingAnimRef.current ? Math.max(0.05, 1 - syncCloseT * syncCloseT) : 1;
+        const syncCloseOpacity = closingAnimRef.current ? Math.max(0, 1 - Math.pow(syncCloseT, 3)) : 1;
+        const finalSize = baseSize * syncSpawnScale * syncCloseScale;
         return {
           id: item?.id ?? '',
           x: body.position.x + ox,
           y: body.position.y + oy,
           angle: body.angle,
-          width: size,
-          height: size,
+          width: finalSize,
+          height: finalSize,
           imageUrl: item?.imageUrl ?? '',
-          scale: item?.scale ?? 1,
-          opacity: closingAnimRef.current ? Math.max(0.1, 1 - (1 / Math.max(1, Math.sqrt((body.position.x - w / 2) ** 2 + (body.position.y - h + 150) ** 2) / 250))) : 1,
+          scale: (item?.scale ?? 1) * syncSpawnScale * syncCloseScale,
+          opacity: syncSpawnOpacity * syncCloseOpacity,
         };
       }).filter(b => b.id);
       onFrameSyncRef.current(syncBodies, {
@@ -838,6 +862,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
 
         Matter.Body.setPosition(body, { x, y });
         Matter.Body.setVelocity(body, { x: 0, y: 0 });
+        (body as PhysicsBody).closeT = eased;
 
         // Gentle tumbling spin during arc
         if (t < 0.9) {
