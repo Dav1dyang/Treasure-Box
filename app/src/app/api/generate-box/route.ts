@@ -5,7 +5,7 @@ import { buildSpriteSheetPrompt } from '@/lib/boxStyles';
 import { DEFAULT_BOX_DIMENSIONS } from '@/lib/config';
 import type { BoxDimensions, DrawerStyle } from '@/lib/types';
 
-// Vision API + Sharp chroma key is much faster than ML bg removal
+// Green chroma key fallback + raw sprite for client-side ML bg removal
 export const maxDuration = 60;
 
 interface GenerateBoxRequest {
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Remove white background from the sprite sheet
+    // Remove green background from the sprite sheet
     let spriteBuffer: Buffer = Buffer.from(imageBase64, 'base64');
     const metadata = await sharp(spriteBuffer).metadata();
     let fullWidth = metadata.width || 2500;
@@ -79,10 +79,13 @@ export async function POST(request: NextRequest) {
       const targetWidth = Math.min(idealWidth, maxWidth);
       ratioWarning = `Gemini returned ${fullWidth}×${fullHeight} (${ratio.toFixed(1)}:1), resized to ${targetWidth}×${fullHeight}`;
       spriteBuffer = await sharp(spriteBuffer)
-        .resize(targetWidth, fullHeight, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+        .resize(targetWidth, fullHeight, { fit: 'contain', background: { r: 0, g: 255, b: 0, alpha: 1 } })
         .toBuffer();
       fullWidth = targetWidth;
     }
+
+    // Keep raw sprite (green bg) for client-side ML removal
+    const rawBase64 = spriteBuffer.toString('base64');
 
     let bgRemoval: 'vision' | 'chroma-fallback';
     let visionObjects = 0;
@@ -91,7 +94,7 @@ export async function POST(request: NextRequest) {
     const visionApiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
 
     if (visionApiKey) {
-      // Vision API-assisted chroma key removal
+      // Vision API-assisted green chroma key removal
       try {
         const visionRes = await fetch(
           `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`,
@@ -119,16 +122,16 @@ export async function POST(request: NextRequest) {
           }));
         });
 
-        processedBase64 = await removeWhiteWithVision(spriteBuffer, fullWidth, fullHeight, objectRegions);
+        processedBase64 = await removeGreenWithVision(spriteBuffer, fullWidth, fullHeight, objectRegions);
         bgRemoval = 'vision';
       } catch (visionErr) {
         console.warn('Vision API failed, falling back to pure chroma key:', visionErr);
-        processedBase64 = await removeWhiteChromaKey(spriteBuffer);
+        processedBase64 = await removeGreenChromaKey(spriteBuffer);
         bgRemoval = 'chroma-fallback';
       }
     } else {
-      // Pure chroma key removal (no Vision API key)
-      processedBase64 = await removeWhiteChromaKey(spriteBuffer);
+      // Pure green chroma key removal (no Vision API key)
+      processedBase64 = await removeGreenChromaKey(spriteBuffer);
       bgRemoval = 'chroma-fallback';
     }
 
@@ -137,6 +140,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       sprite: processedBase64,
+      rawSprite: rawBase64,
       prompt: builtPrompt,
       mimeType: 'image/png',
       spriteSize: { width: fullWidth, height: fullHeight, frameCount: 5 },
@@ -155,12 +159,13 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Remove white background using Vision API object bounds for edge refinement.
- * - Pixels outside object bounds: aggressive white removal (wide tolerance)
+ * Remove green background using Vision API object bounds for edge refinement.
+ * Green chroma key: detects pixels where the green channel dominates red and blue.
+ * - Pixels outside object bounds: aggressive green removal
  * - Pixels near object edges: feathered alpha for smooth transitions
- * - Pixels inside objects: conservative removal (preserve light-colored details)
+ * - Pixels inside objects: conservative removal (preserve drawer details)
  */
-async function removeWhiteWithVision(
+async function removeGreenWithVision(
   buffer: Buffer,
   width: number,
   height: number,
@@ -184,25 +189,33 @@ async function removeWhiteWithVision(
     const pixelIdx = i / 4;
     const dist = edgeDistance[pixelIdx];
 
-    // White detection — all channels high and near-equal
-    const minC = Math.min(r, g, b);
-    const maxC = Math.max(r, g, b);
-    const spread = maxC - minC;
-    const isWhite = minC > 230 && spread < 20;
-    const isSoftWhite = minC > 200 && spread < 40;
+    // Green detection — green channel dominates red and blue
+    const greenDominance = g - Math.max(r, b);
+    const isGreen = g > 200 && greenDominance > 80;
+    const isSoftGreen = g > 150 && greenDominance > 40;
 
-    if (isWhite) {
-      // Strong white — always remove
+    if (isGreen) {
+      // Strong green — always remove
       pixels[i + 3] = 0;
-    } else if (isSoftWhite && dist > 3) {
-      // Soft white outside object bounds — remove
+    } else if (isSoftGreen && dist > 3) {
+      // Soft green outside object bounds — remove
       pixels[i + 3] = 0;
-    } else if (isSoftWhite && dist > 0) {
-      // Soft white near object edge — feather alpha
-      const alpha = Math.round((1 - dist / 4) * 255);
+    } else if (isSoftGreen && dist > 0) {
+      // Soft green near object edge — feather alpha
+      const greenness = greenDominance / 120;
+      const distFade = 1 - dist / 4;
+      const alpha = Math.round(Math.min(1 - greenness, distFade) * 255);
       pixels[i + 3] = Math.min(pixels[i + 3], Math.max(0, alpha));
     }
-    // Inside object or not white — keep as-is
+    // Inside object or not green — keep as-is
+  }
+
+  // Despill pass: neutralize green fringe on semi-transparent edge pixels
+  for (let i = 0; i < pixels.length; i += 4) {
+    const a = pixels[i + 3];
+    if (a > 0 && a < 255) {
+      pixels[i + 1] = Math.min(pixels[i + 1], Math.max(pixels[i], pixels[i + 2]));
+    }
   }
 
   const result = await sharp(Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length), {
@@ -215,10 +228,10 @@ async function removeWhiteWithVision(
 }
 
 /**
- * Pure white background removal — removes near-white pixels.
- * No Vision API needed. Works well for flat uniform white backgrounds.
+ * Pure green background removal — removes green-dominant pixels.
+ * No Vision API needed. Works well for flat uniform green backgrounds.
  */
-async function removeWhiteChromaKey(
+async function removeGreenChromaKey(
   buffer: Buffer,
 ): Promise<string> {
   const { data, info } = await sharp(buffer)
@@ -233,19 +246,25 @@ async function removeWhiteChromaKey(
     const g = pixels[i + 1];
     const b = pixels[i + 2];
 
-    // White detection — all channels high and near-equal
-    const minC = Math.min(r, g, b);
-    const maxC = Math.max(r, g, b);
-    const spread = maxC - minC;
+    // Green detection — green channel dominates red and blue
+    const greenDominance = g - Math.max(r, b);
 
-    if (minC > 230 && spread < 20) {
-      // Strong white — fully transparent
+    if (g > 200 && greenDominance > 80) {
+      // Strong green — fully transparent
       pixels[i + 3] = 0;
-    } else if (minC > 200 && spread < 40) {
-      // Soft white (edges, anti-aliasing) — feathered transparency
-      const whiteness = minC / 255;
-      const alpha = Math.round((1 - whiteness) * 255 * 2);
-      pixels[i + 3] = Math.min(pixels[i + 3], Math.max(0, Math.min(255, alpha)));
+    } else if (g > 150 && greenDominance > 40) {
+      // Soft green (edges, anti-aliasing) — feathered transparency
+      const greenness = greenDominance / 120;
+      const alpha = Math.round((1 - greenness) * 255);
+      pixels[i + 3] = Math.min(pixels[i + 3], Math.max(0, alpha));
+    }
+  }
+
+  // Despill pass: neutralize green fringe on semi-transparent edge pixels
+  for (let i = 0; i < pixels.length; i += 4) {
+    const a = pixels[i + 3];
+    if (a > 0 && a < 255) {
+      pixels[i + 1] = Math.min(pixels[i + 1], Math.max(pixels[i], pixels[i + 2]));
     }
   }
 

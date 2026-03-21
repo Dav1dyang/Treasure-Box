@@ -5,8 +5,8 @@
  * Edit this file to adjust defaults without touching component logic.
  *
  * ─── Image Processing ──────────────────────────────────────────
- * Drawer generation : server-side Gemini API → white-background
- *                     removal via Sharp + Google Vision API
+ * Drawer generation : server-side Gemini API → green-background
+ *                     removal via client-side ML + Sharp chroma key fallback
  * Item images       : client-side WASM background removal
  *                     (@imgly/background-removal, model isnet_quint8)
  * ────────────────────────────────────────────────────────────────
