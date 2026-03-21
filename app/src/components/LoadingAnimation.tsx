@@ -239,9 +239,10 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
       return;
     }
 
-    // Find the topmost settled body
+    // Find the topmost settled body (only count on-screen boxes, y > 0)
     let topmostY = h;
     for (const b of bodies) {
+      if (b.position.y < 0) continue; // ignore boxes still above the viewport
       const speed = Math.sqrt(b.velocity.x ** 2 + b.velocity.y ** 2);
       if (speed < 3.0 && b.position.y < topmostY) {
         topmostY = b.position.y;
@@ -297,7 +298,7 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
 
       // --- Drawer styling (adjust these to change appearance) ---
       ctx.strokeStyle = color;               // outline color (from PASTEL_PALETTE)
-      ctx.fillStyle = color + '55';          // tinted fill — hex alpha '55' ≈ 33% opacity
+      ctx.fillStyle = color + 'BB';          // tinted fill — hex alpha 'BB' ≈ 73% opacity
       ctx.lineWidth = 2;                     // outline thickness in px
       ctx.lineJoin = 'round';
 
