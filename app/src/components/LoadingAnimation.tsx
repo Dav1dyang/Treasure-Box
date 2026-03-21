@@ -18,7 +18,7 @@ const SPAWN_INTERVAL = 250;
 const MAX_BOXES = 80;
 const DRAIN_DURATION = 1500;
 const RESET_PAUSE = 400;
-const BOX_SIZES = [55, 70, 85];
+const BOX_SIZES = [80, 100, 120];
 
 type CycleState = 'SPAWNING' | 'DRAINING' | 'RESETTING' | 'FINISHED';
 
@@ -76,10 +76,15 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
     if (ctx) ctx.scale(dpr, dpr);
   }, []);
 
+  const spawnCountRef = useRef(0);
+
   const spawnBox = useCallback(() => {
     const engine = engineRef.current;
     const scene = sceneRef.current;
     if (!engine || !scene) return;
+
+    spawnCountRef.current++;
+    console.log('[LoadingAnimation] SPAWN box #' + spawnCountRef.current, 'at', performance.now().toFixed(1) + 'ms');
 
     const w = scene.offsetWidth;
     const size = BOX_SIZES[Math.floor(Math.random() * BOX_SIZES.length)];
@@ -259,11 +264,11 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
       ctx.lineWidth = 2;
       ctx.lineJoin = 'round';
 
-      // Outer box outline with rounded corners
-      ctx.beginPath();
+      // Drawer body — rounded rectangle
       const r = 4;
       const hw = bw / 2;
       const hh = bh / 2;
+      ctx.beginPath();
       ctx.moveTo(-hw + r, -hh);
       ctx.lineTo(hw - r, -hh);
       ctx.arcTo(hw, -hh, hw, -hh + r, r);
@@ -276,11 +281,29 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
       ctx.closePath();
       ctx.stroke();
 
-      // Lid line at 1/4 from top (3/4 of box height)
-      const lidY = -hh + bh * 0.25;
+      // Rim line near the top edge (drawer front lip)
+      const rimY = -hh + bh * 0.18;
       ctx.beginPath();
-      ctx.moveTo(-hw, lidY);
-      ctx.lineTo(hw, lidY);
+      ctx.moveTo(-hw, rimY);
+      ctx.lineTo(hw, rimY);
+      ctx.stroke();
+
+      // Centered handle — small rounded rectangle
+      const handleW = bw * 0.28;
+      const handleH = bh * 0.1;
+      const handleR = handleH / 2;
+      const handleY = (rimY + hh) / 2; // centered between rim and bottom
+      ctx.beginPath();
+      ctx.moveTo(-handleW / 2 + handleR, handleY - handleH / 2);
+      ctx.lineTo(handleW / 2 - handleR, handleY - handleH / 2);
+      ctx.arcTo(handleW / 2, handleY - handleH / 2, handleW / 2, handleY - handleH / 2 + handleR, handleR);
+      ctx.lineTo(handleW / 2, handleY + handleH / 2 - handleR);
+      ctx.arcTo(handleW / 2, handleY + handleH / 2, handleW / 2 - handleR, handleY + handleH / 2, handleR);
+      ctx.lineTo(-handleW / 2 + handleR, handleY + handleH / 2);
+      ctx.arcTo(-handleW / 2, handleY + handleH / 2, -handleW / 2, handleY + handleH / 2 - handleR, handleR);
+      ctx.lineTo(-handleW / 2, handleY - handleH / 2 + handleR);
+      ctx.arcTo(-handleW / 2, handleY - handleH / 2, -handleW / 2 + handleR, handleY - handleH / 2, handleR);
+      ctx.closePath();
       ctx.stroke();
 
       ctx.restore();
@@ -289,14 +312,31 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
     animFrameRef.current = requestAnimationFrame(renderLoop);
   }, []);
 
-  // Initialize engine
+  // Store callbacks in refs so the init effect doesn't depend on them
+  const startSpawningRef = useRef(startSpawning);
+  const checkFullnessRef = useRef(checkFullness);
+  const resizeCanvasRef = useRef(resizeCanvas);
+  const renderLoopRef = useRef(renderLoop);
   useEffect(() => {
+    startSpawningRef.current = startSpawning;
+    checkFullnessRef.current = checkFullness;
+    resizeCanvasRef.current = resizeCanvas;
+    renderLoopRef.current = renderLoop;
+  });
+
+  // Initialize engine — runs once on mount
+  useEffect(() => {
+    const mountTime = performance.now();
+    console.log('[LoadingAnimation] MOUNT at', mountTime.toFixed(1), 'ms');
+    console.log('[LoadingAnimation] boxBodiesRef has', boxBodiesRef.current.length, 'bodies');
+    console.log('[LoadingAnimation] cycleState:', cycleStateRef.current);
+
     const scene = sceneRef.current;
     const canvas = canvasRef.current;
     if (!scene || !canvas) return;
 
     // Canvas setup
-    resizeCanvas();
+    resizeCanvasRef.current();
 
     const engine = Matter.Engine.create({ gravity: { x: 0, y: 1.5 } });
     engineRef.current = engine;
@@ -316,17 +356,20 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
     runnerRef.current = runner;
 
     // Start render loop
-    animFrameRef.current = requestAnimationFrame(renderLoop);
+    animFrameRef.current = requestAnimationFrame(renderLoopRef.current);
 
-    // Start spawning
-    startSpawning();
+    // Delay spawning so the canvas is visibly empty before boxes start dropping
+    const spawnDelay = setTimeout(() => {
+      console.log('[LoadingAnimation] START SPAWNING at', (performance.now() - mountTime).toFixed(1), 'ms after mount');
+      startSpawningRef.current();
+    }, 1000);
 
     // Fullness check interval
-    const fullnessCheck = setInterval(checkFullness, 500);
+    const fullnessCheck = setInterval(() => checkFullnessRef.current(), 500);
 
     // Resize handler
     const handleResize = () => {
-      resizeCanvas();
+      resizeCanvasRef.current();
       const nw = scene.offsetWidth;
       const nh = scene.offsetHeight;
       if (floorRef.current && cycleStateRef.current !== 'DRAINING') {
@@ -336,7 +379,9 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
     window.addEventListener('resize', handleResize);
 
     return () => {
+      console.log('[LoadingAnimation] CLEANUP at', performance.now().toFixed(1), 'ms, bodies:', boxBodiesRef.current.length);
       window.removeEventListener('resize', handleResize);
+      clearTimeout(spawnDelay);
       clearInterval(fullnessCheck);
       if (spawnIntervalRef.current) clearInterval(spawnIntervalRef.current);
       timersRef.current.forEach((id: ReturnType<typeof setTimeout>) => clearTimeout(id));
@@ -344,8 +389,17 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
       if (runnerRef.current) Matter.Runner.stop(runnerRef.current);
       if (engineRef.current) Matter.Engine.clear(engineRef.current);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      // Reset mutable refs so Strict Mode remount starts clean
+      boxBodiesRef.current = [];
+      cycleStateRef.current = 'SPAWNING';
+      finishingRef.current = false;
+      engineRef.current = null;
+      runnerRef.current = null;
+      floorRef.current = null;
+      spawnCountRef.current = 0;
     };
-  }, [resizeCanvas, renderLoop, startSpawning, checkFullness]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div

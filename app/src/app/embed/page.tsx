@@ -157,7 +157,7 @@ function EmbedContent() {
     const overlayConfig = {
       ...effectiveConfig,
       backgroundColor: 'transparent',
-      contentScale: effectiveConfig.embedSettings?.embedScale ?? effectiveConfig.contentScale ?? 1,
+      contentScale: effectiveConfig.contentScale ?? 1,
     };
 
     const containerW = sceneRef.current?.offsetWidth || window.innerWidth;

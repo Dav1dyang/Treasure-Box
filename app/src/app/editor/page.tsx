@@ -11,6 +11,7 @@ import {
   clearDrawerImages, deleteItemWithCleanup, deleteBox,
 } from '@/lib/firestore';
 import type { TreasureItem, BoxConfig, SoundPreset, DrawerImages, EmbedSettings, AnchorCorner } from '@/lib/types';
+import { DEFAULT_EMBED_SETTINGS, getEmbedDimensions } from '@/lib/types';
 import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
 import { extractContourFromImage } from '@/lib/contour';
@@ -626,32 +627,6 @@ export default function EditorPage() {
                   </CfgSection>
 
                   <CfgSection>
-                    <CfgLabel>box scale</CfgLabel>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range" min={0.5} max={2} step={0.05}
-                        value={config.contentScale ?? 1}
-                        onChange={e => setConfig({ ...config, contentScale: Number(e.target.value) })}
-                        className="flex-1"
-                        style={{ accentColor: 'var(--tb-accent)' }}
-                      />
-                      <span className="text-[10px] min-w-[32px] text-right font-mono" style={S.accent}>
-                        {(config.contentScale ?? 1).toFixed(2)}&times;
-                      </span>
-                      {(config.contentScale ?? 1) !== 1 && (
-                        <button
-                          onClick={() => setConfig({ ...config, contentScale: 1 })}
-                          className="text-[9px] px-2 py-[2px] cursor-pointer"
-                          style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)' }}
-                        >
-                          reset
-                        </button>
-                      )}
-                    </div>
-                    <CfgHint>scales the drawer and physics area (0.5× – 2.0×)</CfgHint>
-                  </CfgSection>
-
-                  <CfgSection>
                     <CfgLabel>background</CfgLabel>
                     <label className="flex items-center gap-[6px] mb-[10px] cursor-pointer">
                       <div onClick={() => { const n = !isTransparentBg; setIsTransparentBg(n); setConfig({ ...config, backgroundColor: n ? 'transparent' : '#0e0e0e' }); }}
@@ -742,6 +717,15 @@ export default function EditorPage() {
                 config={config}
                 userId={user.uid}
                 onSettingsChange={(settings: EmbedSettings) => setConfig({ ...config, embedSettings: settings })}
+                onScaleChange={(s: number) => {
+                  const dims = getEmbedDimensions(s);
+                  const es = config.embedSettings || DEFAULT_EMBED_SETTINGS;
+                  setConfig({
+                    ...config,
+                    contentScale: s,
+                    embedSettings: { ...es, width: dims.width, height: dims.height },
+                  });
+                }}
               />
             )}
           </div>
@@ -834,6 +818,7 @@ function UnifiedPreview({
   const isOverlay = es.mode !== 'contained';
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const [previewMode, setPreviewMode] = useState<'edit' | 'play'>('edit');
+  const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
 
   // Compute drawer position: centered for items/config, stored anchor for embed overlay
   const getDrawerStyle = useCallback((): React.CSSProperties => {
@@ -869,21 +854,35 @@ function UnifiedPreview({
   // Handle drag from TreasureBox drawer — follow mouse during move, commit on end
   const handleDrag = useCallback((e: PointerEvent, phase: 'start' | 'move' | 'end') => {
     if (!previewRef.current) return;
-    if (phase === 'start') return;
 
     const rect = previewRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    if (phase === 'start') {
+      // Record offset between mouse and drawer center so the box doesn't jump
+      const style = computeDrawerPosition(
+        es.position.anchor, es.position.offsetX, es.position.offsetY,
+        rect.width, rect.height,
+      );
+      const cx = typeof style.left === 'number' ? style.left : 0;
+      const cy = typeof style.top === 'number' ? style.top : 0;
+      dragOffsetRef.current = { dx: mouseX - cx, dy: mouseY - cy };
+      return;
+    }
+
+    const posX = mouseX - dragOffsetRef.current.dx;
+    const posY = mouseY - dragOffsetRef.current.dy;
 
     if (phase === 'move') {
-      setDragPos({ x, y });
+      setDragPos({ x: posX, y: posY });
       return;
     }
 
     // phase === 'end' — commit position and clear drag state
     setDragPos(null);
-    onPositionChange(positionFromPointer(x, y, rect.width, rect.height));
-  }, [onPositionChange]);
+    onPositionChange(positionFromPointer(posX, posY, rect.width, rect.height));
+  }, [es.position, onPositionChange]);
 
   // Drawer style with CSS transition for smooth tab-switch animation (disabled during drag)
   const drawerStyleWithTransition = useMemo(() => ({
