@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Matter from 'matter-js';
 import { soundEngine } from '@/lib/sounds';
-import { contourToVertices } from '@/lib/contour';
+import { contourToVertices, extractFrameFromSprite, extractDrawerShellVertices } from '@/lib/contour';
 import { computeCenteredDrawerPosition, computeCenteredSpawnOrigin } from '@/lib/embedPosition';
 import type { TreasureItem, BoxConfig, BoxState, DrawerImages, BoxDimensions, FrameSyncBody, HostViewport } from '@/lib/types';
 import { DEFAULT_DRAWER_DISPLAY_SIZE, DEFAULT_BOX_DIMENSIONS } from '@/lib/config';
@@ -84,6 +84,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     drawerBody?: Matter.Body;
   }>({});
   const repositionRafRef = useRef<number>(0);
+  const drawerContourRef = useRef<{ x: number; y: number }[] | null>(null);
 
   // Drag-to-reposition state (overlay preview only)
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
@@ -164,7 +165,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       if (walls.left) Matter.Body.setPosition(walls.left, { x: -7, y: wallH / 2 });
       if (walls.right) Matter.Body.setPosition(walls.right, { x: wallW + 7, y: wallH / 2 });
 
-      // Reposition drawer collision body (scale-aware)
+      // Reposition drawer collision body (scale-aware, contour-based if available)
       if (drawerElRef.current) {
         const sceneRect = scene.getBoundingClientRect();
         const drawerRect = drawerElRef.current.getBoundingClientRect();
@@ -172,13 +173,25 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         const scaledH = drawerRect.height * cs;
         const centerX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
         const bottomY = drawerRect.top - sceneRect.top + drawerRect.height;
-        const bodyH = scaledH * 0.75;
-        const bodyY = bottomY - scaledH * 3 / 8;
+        const drawerOpts = { isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer' };
 
         if (walls.drawerBody) Matter.Composite.remove(engine.world, walls.drawerBody);
-        const newDrawerBody = Matter.Bodies.rectangle(centerX, bodyY, scaledW, bodyH, {
-          isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
-        });
+
+        let newDrawerBody: Matter.Body | null = null;
+        if (drawerContourRef.current && drawerContourRef.current.length >= 6) {
+          try {
+            const bodyY = bottomY - scaledH / 2;
+            const verts = contourToVertices(drawerContourRef.current, scaledW, scaledH);
+            newDrawerBody = Matter.Bodies.fromVertices(centerX, bodyY, [verts], drawerOpts);
+          } catch {
+            newDrawerBody = null;
+          }
+        }
+        if (!newDrawerBody) {
+          const bodyH = scaledH * 0.75;
+          const bodyY = bottomY - scaledH * 3 / 8;
+          newDrawerBody = Matter.Bodies.rectangle(centerX, bodyY, scaledW, bodyH, drawerOpts);
+        }
         Matter.Composite.add(engine.world, newDrawerBody);
         wallsRef.current.drawerBody = newDrawerBody;
       }
@@ -300,11 +313,20 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     });
   }, [items]);
 
-  // Preload drawer images (sprite sheet or legacy per-state)
+  // Preload drawer images (sprite sheet or legacy per-state) and extract contour
   useEffect(() => {
     if (!config.drawerImages) return;
     if (config.drawerImages.spriteUrl) {
-      loadImageAsBlobUrl('drawer_sprite', config.drawerImages.spriteUrl);
+      loadImageAsBlobUrl('drawer_sprite', config.drawerImages.spriteUrl, () => {
+        // Extract contour from OPEN frame (frame 4) once sprite loads
+        const spriteImg = imagesRef.current.get('drawer_sprite');
+        if (spriteImg && spriteImg.naturalWidth > 0) {
+          const frameData = extractFrameFromSprite(spriteImg, 4, 5);
+          if (frameData) {
+            drawerContourRef.current = extractDrawerShellVertices(frameData);
+          }
+        }
+      });
     } else if (config.drawerImages.urls) {
       const urls = config.drawerImages.urls;
       ALL_BOX_STATES.forEach(state => {
@@ -407,7 +429,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     Matter.Composite.add(engine.world, [floor, ceiling, left, right]);
     wallsRef.current = { floor, ceiling, left, right };
 
-    // Drawer collision body — bottom 3/4 is solid, top 1/4 is open.
+    // Drawer collision body — uses contour-based U-shell if available, else rectangle fallback.
     // drawerElRef rect is UNSCALED (CSS transform is on inner child),
     // so multiply by contentScale and account for transform-origin: bottom center.
     if (drawerElRef.current && sceneRef.current) {
@@ -420,11 +442,24 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       const centerX = drawerRect.left - sceneRect.left + dw / 2;
       // transform-origin: bottom center — bottom stays fixed
       const bottomY = drawerRect.top - sceneRect.top + dh;
-      const bodyH = scaledH * 0.75;
-      const bodyY = bottomY - scaledH * 3 / 8;
-      const drawerBody = Matter.Bodies.rectangle(centerX, bodyY, scaledW, bodyH, {
-        isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
-      });
+      const bodyY = bottomY - scaledH / 2;
+      const drawerOpts = { isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer' };
+
+      let drawerBody: Matter.Body | null = null;
+      if (drawerContourRef.current && drawerContourRef.current.length >= 6) {
+        try {
+          const verts = contourToVertices(drawerContourRef.current, scaledW, scaledH);
+          drawerBody = Matter.Bodies.fromVertices(centerX, bodyY, [verts], drawerOpts);
+        } catch {
+          drawerBody = null;
+        }
+      }
+      if (!drawerBody) {
+        // Fallback: rectangle covering bottom 3/4
+        const bodyH = scaledH * 0.75;
+        const rectY = bottomY - scaledH * 3 / 8;
+        drawerBody = Matter.Bodies.rectangle(centerX, rectY, scaledW, bodyH, drawerOpts);
+      }
       Matter.Composite.add(engine.world, drawerBody);
       wallsRef.current.drawerBody = drawerBody;
     }
