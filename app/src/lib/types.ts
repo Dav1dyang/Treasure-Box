@@ -122,6 +122,8 @@ export interface EmbedSettings {
   position: EmbedPosition;    // overlay positioning
   domCollide?: boolean;       // optional: items collide with DOM elements
   previewUrl?: string;        // optional: user's website URL for preview background
+  previewImageUrl?: string;   // optional: Firebase Storage URL for uploaded screenshot
+  previewMode?: 'url' | 'screenshot'; // which preview source is active
   padding?: EmbedPadding;     // contained mode: CSS inset padding around active area
 }
 

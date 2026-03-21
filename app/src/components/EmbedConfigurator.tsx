@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { BoxConfig, EmbedSettings, EmbedMode, EmbedPadding } from '@/lib/types';
 import { DEFAULT_EMBED_SETTINGS, DEFAULT_EMBED_PADDING, EMBED_BASE_W, EMBED_BASE_H, getEmbedDimensions } from '@/lib/config';
+import { uploadProcessedImage } from '@/lib/firestore';
 
 const CONTAINED_SIZE_PRESETS = [
   { label: 'S', width: 300, height: 300 },
@@ -45,6 +46,10 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
   const [aspectLocked, setAspectLocked] = useState(false);
   const [aspectRatio, setAspectRatio] = useState(settings.width / settings.height);
   const [paddingExpanded, setPaddingExpanded] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const previewTab = settings.previewMode || (settings.previewUrl ? 'url' : 'screenshot');
 
   const embedScale = config.contentScale ?? 1;
   const padding = settings.padding || { top: 0, right: 0, bottom: 0, left: 0 };
@@ -74,13 +79,41 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
   const handleLoadUrl = useCallback(() => {
     const trimmed = urlInput.trim();
     if (!trimmed) {
-      update({ previewUrl: '' });
+      update({ previewUrl: '', previewMode: undefined });
       return;
     }
     let url = trimmed;
     if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-    update({ previewUrl: url });
+    update({ previewUrl: url, previewMode: 'url' });
   }, [urlInput, update]);
+
+  const handleScreenshotUpload = useCallback(async (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    setUploading(true);
+    try {
+      // Resize to max 1440px wide to keep Storage usage reasonable
+      const bitmap = await createImageBitmap(file);
+      const maxW = 1440;
+      const scale = bitmap.width > maxW ? maxW / bitmap.width : 1;
+      const w = Math.round(bitmap.width * scale);
+      const h = Math.round(bitmap.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      bitmap.close();
+      const blob = await new Promise<Blob>((resolve) =>
+        canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.7)
+      );
+      const url = await uploadProcessedImage(userId, blob, 'preview-screenshot.jpg');
+      update({ previewImageUrl: url, previewMode: 'screenshot' });
+    } catch (err) {
+      console.error('Screenshot upload failed:', err);
+    } finally {
+      setUploading(false);
+    }
+  }, [userId, update]);
 
   const getEmbedCode = () => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
@@ -134,40 +167,121 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
         </div>
       </div>
 
-      {/* Overlay: Preview Background URL */}
+      {/* Overlay: Preview Background (screenshot upload + live URL tabs) */}
       {settings.mode === 'overlay' && (
         <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
           <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>preview background</label>
-          <div className="flex gap-1">
-            <input
-              type="text"
-              value={urlInput}
-              onChange={e => setUrlInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleLoadUrl(); }}
-              placeholder="paste your website URL (optional)"
-              className="flex-1 bg-transparent text-[10px] px-2 py-[5px] outline-none"
-              style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-muted)' }}
-            />
-            <button
-              onClick={handleLoadUrl}
-              className="text-[9px] px-2 py-[5px] cursor-pointer shrink-0"
-              style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)', background: 'transparent' }}
-            >
-              {settings.previewUrl ? 'reload' : 'load'}
-            </button>
-            {settings.previewUrl && (
-              <button
-                onClick={() => { setUrlInput(''); update({ previewUrl: '' }); }}
-                className="text-[9px] px-1 py-[5px] cursor-pointer shrink-0"
-                style={{ color: 'var(--tb-fg-ghost)', background: 'transparent', border: 'none' }}
-              >
-                ✕
-              </button>
-            )}
+          {/* Tab selector */}
+          <div className="flex gap-0 mb-3">
+            {([
+              { id: 'screenshot' as const, label: 'screenshot' },
+              { id: 'url' as const, label: 'live url' },
+            ]).map((t, i) => {
+              const active = previewTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => update({ previewMode: t.id })}
+                  className="text-[10px] px-[14px] py-[6px] border cursor-pointer transition-all"
+                  style={{
+                    borderColor: active ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
+                    color: active ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
+                    borderLeftWidth: i === 0 ? 1 : 0,
+                    background: 'transparent',
+                  }}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
           </div>
-          <p className="text-[8px] mt-1" style={S.ghost}>
-            most sites block iframe embedding via X-Frame-Options headers — the wireframe placeholder shows instead. try sites without strict headers (codepen, jsfiddle, or your own domains).
-          </p>
+
+          {/* Screenshot tab */}
+          {previewTab === 'screenshot' && (
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) handleScreenshotUpload(f);
+                  e.target.value = '';
+                }}
+              />
+              {settings.previewImageUrl ? (
+                <div className="flex items-center gap-2">
+                  <img
+                    src={settings.previewImageUrl}
+                    alt="Preview screenshot"
+                    className="h-[48px] object-cover border"
+                    style={{ borderColor: 'var(--tb-border-subtle)' }}
+                  />
+                  <span className="text-[9px] flex-1" style={S.muted}>screenshot loaded</span>
+                  <button
+                    onClick={() => update({ previewImageUrl: undefined, previewMode: undefined })}
+                    className="text-[9px] px-1 py-[5px] cursor-pointer shrink-0"
+                    style={{ color: 'var(--tb-fg-ghost)', background: 'transparent', border: 'none' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="w-full text-[10px] px-3 py-2 cursor-pointer transition-all"
+                  style={{
+                    border: '1px dashed var(--tb-border-subtle)',
+                    color: 'var(--tb-fg-faint)',
+                    background: 'transparent',
+                  }}
+                >
+                  {uploading ? 'uploading...' : 'upload screenshot'}
+                </button>
+              )}
+              <p className="text-[8px] mt-1" style={S.ghost}>
+                take a screenshot of your site and upload it here — works with any website
+              </p>
+            </div>
+          )}
+
+          {/* Live URL tab */}
+          {previewTab === 'url' && (
+            <div>
+              <div className="flex gap-1">
+                <input
+                  type="text"
+                  value={urlInput}
+                  onChange={e => setUrlInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleLoadUrl(); }}
+                  placeholder="paste your website URL (optional)"
+                  className="flex-1 bg-transparent text-[10px] px-2 py-[5px] outline-none"
+                  style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-muted)' }}
+                />
+                <button
+                  onClick={handleLoadUrl}
+                  className="text-[9px] px-2 py-[5px] cursor-pointer shrink-0"
+                  style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)', background: 'transparent' }}
+                >
+                  {settings.previewUrl ? 'reload' : 'load'}
+                </button>
+                {settings.previewUrl && (
+                  <button
+                    onClick={() => { setUrlInput(''); update({ previewUrl: '', previewMode: undefined }); }}
+                    className="text-[9px] px-1 py-[5px] cursor-pointer shrink-0"
+                    style={{ color: 'var(--tb-fg-ghost)', background: 'transparent', border: 'none' }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <p className="text-[8px] mt-1" style={S.ghost}>
+                most sites block iframe embedding — if your site doesn&apos;t load, try the screenshot tab instead
+              </p>
+            </div>
+          )}
         </div>
       )}
 
