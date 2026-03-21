@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { uploadSpriteSheet, saveDrawerImages } from '@/lib/firestore';
 import { PRESET_MATERIALS, STYLE_PRESETS, DECOR_ITEMS, ANGLE_OPTIONS, ADDITIONAL_FEATURES_INPUT_MAX_LENGTH, ADDITIONAL_FEATURES_MAX_KEYWORDS, ADDITIONAL_FEATURES_MAX_CHAR_PER_KEYWORD } from '@/lib/config';
 import type {
+  BoxDimensions,
   DrawerStylePreset,
   DrawerAngle,
   DrawerStyle,
@@ -112,12 +113,13 @@ function renderAsciiPreview(w: number, h: number, angle: DrawerAngle): string {
 interface Props {
   userId: string;
   currentImages?: DrawerImages;
+  boxDimensions?: BoxDimensions;
   onComplete: (images: DrawerImages) => void;
   onReset: () => void;
   onGeneratingChange?: (generating: boolean) => void;
 }
 
-export default function DrawerStylePicker({ userId, currentImages, onComplete, onReset, onGeneratingChange }: Props) {
+export default function DrawerStylePicker({ userId, currentImages, boxDimensions, onComplete, onReset, onGeneratingChange }: Props) {
   // 1. Material (= old preset)
   const [preset, setPreset] = useState<DrawerStylePreset>(
     currentImages?.style.preset || 'clay'
@@ -245,7 +247,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
       const res = await fetch('/api/generate-box', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ style }),
+        body: JSON.stringify({ style, dimensions: boxDimensions }),
       });
 
       if (!res.ok) {
