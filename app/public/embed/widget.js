@@ -48,6 +48,8 @@
     iframe.height = h;
     iframe.style.border = 'none';
     iframe.style.overflow = 'hidden';
+    iframe.style.background = 'transparent';
+    iframe.setAttribute('allowtransparency', 'true');
     iframe.loading = 'lazy';
     iframe.setAttribute('allow', 'accelerometer');
     iframe.title = 'Treasure Box';
@@ -203,7 +205,7 @@
     for (var i = 0; i < frameBodies.length; i++) {
       var body = frameBodies[i];
       var img = itemImages[body.id];
-      var size = (body.width || DEFAULTS.ITEM_DEFAULT_SIZE) * (body.scale || 1);
+      var size = body.width || DEFAULTS.ITEM_DEFAULT_SIZE;
 
       ctx.save();
       ctx.translate(body.x, body.y);
@@ -240,10 +242,9 @@
         }
         ctx.filter = 'none';
       } else {
-        ctx.fillStyle = DEFAULTS.PLACEHOLDER_COLOR;
-        ctx.beginPath();
-        ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
-        ctx.fill();
+        // Image not yet loaded — skip rendering (no placeholder circle)
+        ctx.restore();
+        continue;
       }
 
       ctx.restore();

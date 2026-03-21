@@ -104,7 +104,7 @@ function EmbedContent() {
 
   if (error) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-[#0e0e0e]">
+      <div className="w-full h-screen flex items-center justify-center bg-transparent">
         <div className="text-[#3a3a32] font-mono text-xs">{error}</div>
       </div>
     );
@@ -112,7 +112,7 @@ function EmbedContent() {
 
   if (!config) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-[#0e0e0e]">
+      <div className="w-full h-screen flex items-center justify-center bg-transparent">
         <div className="text-[#3a3a32] font-mono text-xs animate-pulse">loading...</div>
       </div>
     );
@@ -176,7 +176,7 @@ export default function EmbedPage() {
   return (
     <Suspense
       fallback={
-        <div className="w-full h-screen flex items-center justify-center bg-[#0e0e0e]">
+        <div className="w-full h-screen flex items-center justify-center bg-transparent">
           <div className="text-[#3a3a32] font-mono text-xs animate-pulse">loading...</div>
         </div>
       }

@@ -737,7 +737,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           width: finalSize,
           height: finalSize,
           imageUrl: item?.imageUrl ?? '',
-          scale: (item?.scale ?? 1) * syncSpawnScale * syncCloseScale,
+          scale: item?.scale ?? 1,
           opacity: syncSpawnOpacity * syncCloseOpacity,
         };
       }).filter(b => b.id);
@@ -1089,14 +1089,16 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         <StoryCard item={activeStory} onClose={() => setActiveStory(null)} isLight={isLightBg} />
       )}
 
-      {/* Subtle scanlines */}
-      <div
-        className="absolute inset-0 pointer-events-none z-[999]"
-        style={{
-          background: `repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.015) 2px, rgba(0,0,0,0.015) 4px)`,
-          mixBlendMode: 'multiply',
-        }}
-      />
+      {/* Subtle scanlines — skip in embed mode for transparency */}
+      {!embedded && (
+        <div
+          className="absolute inset-0 pointer-events-none z-[999]"
+          style={{
+            background: `repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.015) 2px, rgba(0,0,0,0.015) 4px)`,
+            mixBlendMode: 'multiply',
+          }}
+        />
+      )}
     </div>
   );
 }
