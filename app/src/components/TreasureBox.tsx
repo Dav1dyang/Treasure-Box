@@ -348,6 +348,8 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           const frameData = extractFrameFromSprite(spriteImg, 4, 5);
           if (frameData) {
             drawerWallPathRef.current = extractDrawerWallPath(frameData);
+            // Rebuild physics walls now that contour data is available
+            scheduleRepositionBoundaries();
           }
         }
       });
@@ -358,7 +360,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         if (url) loadImageAsBlobUrl(`drawer_${state}`, url);
       });
     }
-  }, [config.drawerImages, loadImageAsBlobUrl]);
+  }, [config.drawerImages, loadImageAsBlobUrl, scheduleRepositionBoundaries]);
 
   // Init sound
   useEffect(() => {
