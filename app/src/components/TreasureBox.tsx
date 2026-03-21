@@ -914,18 +914,34 @@ function DrawerImage({
   displaySize?: { width: number; height: number };
 }) {
   const dropShadow = isLight ? 'none' : 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))';
+  const [naturalRatio, setNaturalRatio] = useState<number | null>(null);
 
-  const frameW = displaySize?.width || DEFAULT_DRAWER_DISPLAY_SIZE.width;
-  const frameH = displaySize?.height || DEFAULT_DRAWER_DISPLAY_SIZE.height;
+  const maxW = displaySize?.width || DEFAULT_DRAWER_DISPLAY_SIZE.width;
+  const maxH = displaySize?.height || DEFAULT_DRAWER_DISPLAY_SIZE.height;
+
+  // Contain-fit: preserve natural frame aspect ratio within the bounding box.
+  // Before the image loads, fall back to the bounding box ratio (no layout shift for square defaults).
+  const ratio = naturalRatio ?? (maxW / maxH);
+  let actualW: number;
+  let actualH: number;
+  if (maxW / maxH > ratio) {
+    // Height-limited
+    actualH = maxH;
+    actualW = Math.round(maxH * ratio);
+  } else {
+    // Width-limited
+    actualW = maxW;
+    actualH = Math.round(maxW / ratio);
+  }
 
   return (
-    <div className="relative" style={{ width: frameW, height: frameH, maxWidth: '95%', imageRendering: 'auto' }}>
+    <div className="relative" style={{ width: actualW, height: actualH, maxWidth: '95%', imageRendering: 'auto' }}>
       {images.spriteUrl ? (
         // CSS sprite technique: oversized img inside clipping container, translateX to select frame
         <div
           style={{
-            width: frameW,
-            height: frameH,
+            width: actualW,
+            height: actualH,
             overflow: 'hidden',
             filter: dropShadow,
           }}
@@ -934,11 +950,17 @@ function DrawerImage({
             src={images.spriteUrl}
             alt="drawer"
             className="pointer-events-none"
+            onLoad={(e) => {
+              const img = e.currentTarget;
+              if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                setNaturalRatio((img.naturalWidth / 5) / img.naturalHeight);
+              }
+            }}
             style={{
-              width: frameW * 5,
-              height: frameH,
+              width: actualW * 5,
+              height: actualH,
               maxWidth: 'none',
-              transform: `translateX(-${STATE_TO_FRAME[currentState] * frameW}px)`,
+              transform: `translateX(-${STATE_TO_FRAME[currentState] * actualW}px)`,
             }}
             draggable={false}
           />

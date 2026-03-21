@@ -113,7 +113,7 @@ export interface BoxConfig {
   itemTint?: string;             // hex color e.g. "#ff0000", undefined = no tint
 }
 
-export const DEFAULT_DRAWER_DISPLAY_SIZE = { width: 420, height: 280 };
+export const DEFAULT_DRAWER_DISPLAY_SIZE = { width: 420, height: 420 };
 
 export type SoundPreset = 'metallic' | 'wooden' | 'glass' | 'paper' | 'silent' | 'ai-generated';
 
