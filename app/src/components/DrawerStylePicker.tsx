@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { uploadSpriteSheet, saveDrawerImages } from '@/lib/firestore';
 import { PRESET_MATERIALS, STYLE_PRESETS, DECOR_ITEMS, ANGLE_OPTIONS, ADDITIONAL_FEATURES_INPUT_MAX_LENGTH, ADDITIONAL_FEATURES_MAX_KEYWORDS, ADDITIONAL_FEATURES_MAX_CHAR_PER_KEYWORD } from '@/lib/config';
 import type {
@@ -10,6 +10,27 @@ import type {
   DrawerImages,
   BoxState,
 } from '@/lib/types';
+
+// ── Validation ──────────────────────────────────────────────────
+const HEX6_RE = /^#[0-9a-fA-F]{6}$/;
+const VALID_PRESETS = new Set(PRESET_MATERIALS.map(m => m.id));
+const VALID_PATTERNS: Set<string> = new Set(STYLE_PRESETS.map(s => s.id));
+const VALID_ANGLES = new Set(ANGLE_OPTIONS.map(a => a.id));
+
+function validateStyle(style: DrawerStyle): string | null {
+  if (!VALID_PRESETS.has(style.preset)) return `Invalid material: ${style.preset}`;
+  if (!HEX6_RE.test(style.color)) return `Invalid primary color: ${style.color}`;
+  if (style.accentColor && !HEX6_RE.test(style.accentColor))
+    return `Invalid accent color: ${style.accentColor}`;
+  if (style.stylePattern && !VALID_PATTERNS.has(style.stylePattern))
+    return `Invalid style pattern: ${style.stylePattern}`;
+  const w = style.drawerWidth ?? 3;
+  const h = style.drawerHeight ?? 2;
+  if (w < 1 || w > 5) return `Drawer width must be 1–5, got ${w}`;
+  if (h < 1 || h > 5) return `Drawer height must be 1–5, got ${h}`;
+  if (style.angle && !VALID_ANGLES.has(style.angle)) return `Invalid angle: ${style.angle}`;
+  return null;
+}
 
 const ALL_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
 
@@ -151,24 +172,10 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
     [drawerWidth, drawerHeight, angle]
   );
 
-  const toggleDecor = (item: string) => {
-    setSelectedDecor(prev =>
-      prev.includes(item) ? prev.filter(d => d !== item) : [...prev, item]
-    );
-  };
-
-  const handleGenerate = async () => {
-    setGenerating(true);
-    onGeneratingChange?.(true);
-    setError(null);
-    setPreviewUrls({});
-    setSpritePreviewUrl(null);
-
-    // Build decor string from selected items + sanitized custom keywords
+  // ── Build current style (single source of truth) ──────────────
+  const buildCurrentStyle = useCallback((): DrawerStyle => {
     const allDecor = [...selectedDecor];
     if (customDecor.trim()) {
-      // Allow only letters, numbers, spaces — strip everything else
-      // Limit to 3 keywords, 20 chars each
       const keywords = customDecor
         .replace(/[^a-zA-Z0-9\s,]/g, '')
         .split(/[,\s]+/)
@@ -178,8 +185,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
       allDecor.push(...keywords);
     }
     const decorStr = allDecor.join(', ');
-
-    const style: DrawerStyle = {
+    return {
       preset,
       color,
       stylePattern: stylePattern !== 'plain' ? stylePattern : undefined,
@@ -190,6 +196,50 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
       drawerHeight,
       angle,
     };
+  }, [preset, color, accentColor, stylePattern, selectedDecor, customDecor, drawerWidth, drawerHeight, angle]);
+
+  const currentStyle = useMemo(() => buildCurrentStyle(), [buildCurrentStyle]);
+
+  // ── Detect which fields changed vs. last generated config ─────
+  const lastStyle = currentImages?.style ?? null;
+
+  const changedFields = useMemo<Set<string>>(() => {
+    if (!lastStyle) return new Set();
+    const fields = new Set<string>();
+    if (currentStyle.preset !== lastStyle.preset) fields.add('preset');
+    if (currentStyle.color !== lastStyle.color) fields.add('color');
+    if ((currentStyle.accentColor ?? '') !== (lastStyle.accentColor ?? '')) fields.add('accentColor');
+    if ((currentStyle.stylePattern ?? 'plain') !== (lastStyle.stylePattern ?? 'plain')) fields.add('stylePattern');
+    if ((currentStyle.decor ?? '') !== (lastStyle.decor ?? '')) fields.add('decor');
+    if ((currentStyle.customDecorText ?? '') !== (lastStyle.customDecorText ?? '')) fields.add('customDecor');
+    if ((currentStyle.drawerWidth ?? 3) !== (lastStyle.drawerWidth ?? 3)) fields.add('drawerWidth');
+    if ((currentStyle.drawerHeight ?? 2) !== (lastStyle.drawerHeight ?? 2)) fields.add('drawerHeight');
+    if ((currentStyle.angle ?? 'front') !== (lastStyle.angle ?? 'front')) fields.add('angle');
+    return fields;
+  }, [currentStyle, lastStyle]);
+
+  const hasChanges = changedFields.size > 0;
+
+  const toggleDecor = (item: string) => {
+    setSelectedDecor(prev =>
+      prev.includes(item) ? prev.filter(d => d !== item) : [...prev, item]
+    );
+  };
+
+  const handleGenerate = async () => {
+    // Validate all config values before generation
+    const style = buildCurrentStyle();
+    const validationError = validateStyle(style);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setGenerating(true);
+    onGeneratingChange?.(true);
+    setError(null);
+    setPreviewUrls({});
+    setSpritePreviewUrl(null);
 
     try {
       const res = await fetch('/api/generate-box', {
@@ -241,12 +291,21 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
     }
   };
 
+  // ── Changed-field indicator dot ────────────────────────────────
+  const changedDot = (field: string): React.ReactNode =>
+    changedFields.has(field) ? (
+      <span style={{
+        display: 'inline-block', width: 5, height: 5, borderRadius: '50%',
+        backgroundColor: 'var(--tb-accent)', marginLeft: 4, verticalAlign: 'middle',
+      }} />
+    ) : null;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {/* ── 1. Material ─────────────────────────────────── */}
       <div>
-        <label style={sectionLabel}>material</label>
+        <label style={sectionLabel}>material{changedDot('preset')}</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {PRESET_MATERIALS.map(m => (
             <button
@@ -264,7 +323,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
       {/* ── 2. Colors (primary + accent) ────────────────── */}
       <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 160 }}>
-          <label style={sectionLabel}>primary color</label>
+          <label style={sectionLabel}>primary color{changedDot('color')}</label>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input
               type="color"
@@ -292,7 +351,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
           </div>
         </div>
         <div style={{ flex: 1, minWidth: 160 }}>
-          <label style={sectionLabel}>accent color <span style={{ color: 'var(--tb-fg-ghost)', textTransform: 'none' }}>(hardware / trim)</span></label>
+          <label style={sectionLabel}>accent color{changedDot('accentColor')} <span style={{ color: 'var(--tb-fg-ghost)', textTransform: 'none' }}>(hardware / trim)</span></label>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input
               type="color"
@@ -323,7 +382,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
 
       {/* ── 3. Style (surface pattern) ──────────────────── */}
       <div>
-        <label style={sectionLabel}>style</label>
+        <label style={sectionLabel}>style{changedDot('stylePattern')}</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {STYLE_PRESETS.map(s => (
             <button
@@ -340,7 +399,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
 
       {/* ── 4. Decor (hardware items) ───────────────────── */}
       <div>
-        <label style={sectionLabel}>additional features or styles</label>
+        <label style={sectionLabel}>additional features or styles{changedDot('decor')}{changedDot('customDecor')}</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
           {DECOR_ITEMS.map(d => (
             <button
@@ -371,7 +430,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
       {/* ── 5. Size & Angle ─────────────────────────────── */}
       <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 160 }}>
-          <label style={sectionLabel}>drawer size</label>
+          <label style={sectionLabel}>drawer size{changedDot('drawerWidth')}{changedDot('drawerHeight')}</label>
           <div style={{ marginBottom: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
               <span style={{ fontSize: 10, color: 'var(--tb-fg-faint)' }}>width</span>
@@ -398,7 +457,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
               style={{ width: '100%', accentColor: 'var(--tb-accent)' }}
             />
           </div>
-          <label style={{ ...sectionLabel, marginTop: 8 }}>opening angle</label>
+          <label style={{ ...sectionLabel, marginTop: 8 }}>opening angle{changedDot('angle')}</label>
           <div style={{ display: 'flex', gap: 6 }}>
             {ANGLE_OPTIONS.map(a => (
               <button
@@ -452,7 +511,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
             opacity: generating ? 0.5 : 1,
           }}
         >
-          {generating ? 'generating...' : currentImages ? 'regenerate' : 'generate drawer'}
+          {generating ? 'generating...' : currentImages ? (hasChanges ? 'regenerate (config changed)' : 'regenerate') : 'generate drawer'}
         </button>
         {currentImages && !generating && (
           <button
