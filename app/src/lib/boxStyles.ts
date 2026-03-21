@@ -1,4 +1,5 @@
 import type { DrawerStyle, DrawerStylePreset } from './types';
+import { STYLE_PRESETS } from './config';
 
 /**
  * Structured style definitions for each preset.
@@ -58,31 +59,6 @@ export const STYLE_BASES: Record<DrawerStylePreset, StyleDefinition> = {
 };
 
 /**
- * Style presets — surface patterns / aesthetics (was "decor presets").
- */
-export const STYLE_PRESETS = [
-  { id: 'plain', label: 'Plain / Smooth' },
-  { id: 'floral', label: 'Floral Carving' },
-  { id: 'geometric', label: 'Geometric Pattern' },
-  { id: 'vintage', label: 'Vintage Ornate' },
-  { id: 'modern', label: 'Modern Minimal' },
-] as const;
-
-/**
- * Decor items — hardware & decorative elements (multi-select).
- */
-export const DECOR_ITEMS = [
-  { id: 'keyhole', label: 'Keyhole' },
-  { id: 'corner-brackets', label: 'Corner Brackets' },
-  { id: 'studs', label: 'Studs' },
-  { id: 'ring-pull', label: 'Ring Pull' },
-  { id: 'hinges', label: 'Hinges' },
-  { id: 'lock-plate', label: 'Lock Plate' },
-  { id: 'inlay', label: 'Inlay' },
-  { id: 'engravings', label: 'Engravings' },
-] as const;
-
-/**
  * Build a single sprite-sheet prompt — all 5 states in one image.
  *
  * Parameter-driven template: every UI selection maps to a [PLACEHOLDER]
@@ -97,7 +73,7 @@ export function buildSpriteSheetPrompt(style: DrawerStyle): string {
   const accentColor = style.accentColor ? `${style.accentColor} ${colorLabel(style.accentColor)}` : 'warm brass';
   const styleTags = resolveStyleTags(style);
   const decorTags = resolveDecorTags(style);
-  const customDecor = style.customDecorText || 'none';
+  const additionalFeatures = style.customDecorText || 'none';
   const widthRatio = style.drawerWidth || 3;
   const heightRatio = style.drawerHeight || 2;
   const openingAngle = resolveAngle(style.angle || 'front');
@@ -173,11 +149,11 @@ PARAMETERS — interpret each one carefully
 → "engravings" = fine line engravings etched into the surface
 → IMPORTANT: small decor items (studs, keyholes) must still be individually visible at final resolution.
 
-[CUSTOM_DECOR]: ${customDecor}
-→ Free-form user request for additional decorative elements.
+[ADDITIONAL_FEATURES]: ${additionalFeatures}
+→ Free-form user request for additional features or styles.
 → If "none" — ignore this field.
 → If text is given — treat these as the user's most important creative request. Render them prominently.
-→ Custom decor should integrate naturally with the material and style, not look pasted on.
+→ Additional features should integrate naturally with the material and style, not look pasted on.
 
 [DRAWER_SHAPE]: ${widthRatio}:${heightRatio} (width:height)
 → This is the proportions of the DRAWER OBJECT itself, NOT the frame size.
@@ -205,7 +181,7 @@ The object consists of two visible parts:
    - Rectangular, approximately ${widthRatio}:${heightRatio} ratio
    - Fine decorative border or beveled molding
    - Centered [HANDLE_TYPE] handle in [ACCENT_COLOR]
-   - All [DECOR_TAGS] and [CUSTOM_DECOR] elements rendered here
+   - All [DECOR_TAGS] and [ADDITIONAL_FEATURES] elements rendered here
    - Must remain PIXEL-IDENTICAL in all 5 frames (same size, position, handle, details, lighting)
 
 2. SLIDING DRAWER TRAY — the drawer body behind the front face, visible only when open.
@@ -240,7 +216,7 @@ QUALITY PRIORITY (if any instruction conflicts):
 5. Drawer reads as true sliding drawer
 6. Clear progression: closed → 25% → 50% → 75% → 100%
 7. No outline or border around furniture silhouette
-8. All [DECOR_TAGS] and [CUSTOM_DECOR] visible
+8. All [DECOR_TAGS] and [ADDITIONAL_FEATURES] visible
 9. Style and decorative detail`;
 }
 
@@ -298,17 +274,3 @@ function resolveAngle(angle: string): string {
 - No camera movement, zoom, perspective shift, rotation, or tilt
 - Do not show top, left, or right exterior surfaces of the outer cabinet`;
 }
-
-/**
- * Color presets for the style picker UI.
- */
-export const COLOR_PRESETS = [
-  { label: 'brown', value: '#8B4513' },
-  { label: 'silver', value: '#C0C0C0' },
-  { label: 'dark wood', value: '#3E2723' },
-  { label: 'red', value: '#B71C1C' },
-  { label: 'blue', value: '#1565C0' },
-  { label: 'gold', value: '#FFB300' },
-  { label: 'black', value: '#212121' },
-  { label: 'white', value: '#F5F5F5' },
-];

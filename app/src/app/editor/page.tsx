@@ -11,24 +11,13 @@ import {
   clearDrawerImages, deleteItemWithCleanup, deleteBox,
 } from '@/lib/firestore';
 import type { TreasureItem, BoxConfig, SoundPreset, DrawerImages, EmbedSettings, AnchorCorner } from '@/lib/types';
-import { DEFAULT_EMBED_SETTINGS, getEmbedDimensions } from '@/lib/types';
+import { DEFAULT_EMBED_SETTINGS, DEFAULT_BOX_CONFIG, getEmbedDimensions } from '@/lib/config';
 import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
 import LoadingAnimation from '@/components/LoadingAnimation';
 import { extractContourFromImage } from '@/lib/contour';
 import EmbedConfigurator from '@/components/EmbedConfigurator';
 import { computeDrawerPosition, computeSpawnOrigin, computeCenteredDrawerPosition, computeCenteredSpawnOrigin, positionFromPointer } from '@/lib/embedPosition';
-
-const DEFAULT_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'> = {
-  title: 'My Treasure Box',
-  backgroundColor: 'transparent',
-  drawerLabel: 'TREASURE BOX',
-  maxItems: 15,
-  soundEnabled: true,
-  soundVolume: 0.3,
-  soundPreset: 'metallic',
-  isPublic: false,
-};
 
 const SOUND_PRESETS: SoundPreset[] = ['metallic', 'wooden', 'glass', 'paper', 'pixel', 'clay', 'silent'];
 function VolumeBar({ volume, onChange }: { volume: number; onChange: (v: number) => void }) {
@@ -120,7 +109,7 @@ export default function EditorPage() {
     (async () => {
       let box = await getBoxConfig(user.uid);
       if (!box) {
-        box = { ...DEFAULT_CONFIG, id: user.uid, ownerId: user.uid, createdAt: Date.now(), updatedAt: Date.now() };
+        box = { ...DEFAULT_BOX_CONFIG, id: user.uid, ownerId: user.uid, createdAt: Date.now(), updatedAt: Date.now() };
         await saveBoxConfig(box);
       }
       setConfig(box);
@@ -706,6 +695,15 @@ export default function EditorPage() {
                     },
                   });
                 }}
+                onScaleChange={(s: number) => {
+                  const dims = getEmbedDimensions(s);
+                  const currentEs = config.embedSettings || DEFAULT_EMBED_SETTINGS;
+                  setConfig({
+                    ...config,
+                    contentScale: s,
+                    embedSettings: { ...currentEs, width: dims.width, height: dims.height },
+                  });
+                }}
               />
             )}
             {showLoadingOverlay && (
@@ -763,18 +761,48 @@ function UnifiedPreview({
   items,
   tab,
   onPositionChange,
+  onScaleChange,
 }: {
   config: BoxConfig;
   items: TreasureItem[];
   tab: 'items' | 'config' | 'embed';
   onPositionChange: (pos: { anchor: AnchorCorner; offsetX: number; offsetY: number }) => void;
+  onScaleChange?: (scale: number) => void;
 }) {
   const previewRef = useRef<HTMLDivElement>(null);
   const es = config.embedSettings || { mode: 'overlay' as const, width: 350, height: 300, position: { anchor: 'bottom-right' as AnchorCorner, offsetX: 32, offsetY: 32 } };
   const isEmbedTab = tab === 'embed';
   const isOverlay = es.mode !== 'contained';
+  const isContained = isEmbedTab && !isOverlay;
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+
+  // Track preview panel dimensions for boundary box scaling
+  const [previewSize, setPreviewSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setPreviewSize({ w: entry.contentRect.width, h: entry.contentRect.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Compute boundary box for contained mode — scales embed dimensions to fit preview
+  const boundaryBox = useMemo(() => {
+    if (!isContained || previewSize.w === 0) return null;
+    const margin = 40;
+    const availW = previewSize.w - margin * 2;
+    const availH = previewSize.h - margin * 2;
+    if (availW <= 0 || availH <= 0) return null;
+    const scale = Math.min(availW / es.width, availH / es.height, 1);
+    return {
+      width: Math.round(es.width * scale),
+      height: Math.round(es.height * scale),
+      scale,
+    };
+  }, [isContained, previewSize, es.width, es.height]);
 
   // Compute drawer position: centered for items/config, stored anchor for embed overlay
   const getDrawerStyle = useCallback((): React.CSSProperties => {
@@ -784,6 +812,10 @@ function UnifiedPreview({
     }
     // Items/Config tabs OR contained mode: centered
     if (!isEmbedTab || !isOverlay) {
+      // In contained mode, use boundary box dimensions for centering
+      if (boundaryBox) {
+        return computeCenteredDrawerPosition(boundaryBox.width, boundaryBox.height);
+      }
       if (!previewRef.current) return { left: '50%', top: '60%', transform: 'translate(-50%, -50%)' };
       const w = previewRef.current.offsetWidth;
       const h = previewRef.current.offsetHeight;
@@ -795,7 +827,7 @@ function UnifiedPreview({
       es.position.anchor, es.position.offsetX, es.position.offsetY,
       previewRef.current.offsetWidth, previewRef.current.offsetHeight,
     );
-  }, [isEmbedTab, isOverlay, es.position, dragPos]);
+  }, [isEmbedTab, isOverlay, es.position, dragPos, boundaryBox]);
 
   // Compute spawn origin
   const getSpawnOrigin = useCallback(() => {
@@ -882,19 +914,57 @@ function UnifiedPreview({
       )}
 
       {/* Single persistent TreasureBox — never unmounted across tab switches */}
-      <div className="absolute inset-0" style={{ zIndex: 5 }}>
-        <TreasureBox
-          items={items}
-          config={previewConfig}
-          overlayPreview={{
-            drawerStyle: drawerStyleWithTransition,
-            spawnOrigin: getSpawnOrigin(),
-            onDrag: (isEmbedTab && isOverlay) ? handleDrag : undefined,
-          }}
-        />
-      </div>
+      {boundaryBox ? (
+        /* Contained mode: boundary box with grey-out overlay */
+        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 5 }}>
+          <div
+            style={{
+              width: boundaryBox.width,
+              height: boundaryBox.height,
+              position: 'relative',
+              border: '2px solid var(--tb-accent)',
+              boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <div className="w-full h-full overflow-hidden relative">
+              <TreasureBox
+                items={items}
+                config={previewConfig}
+                overlayPreview={{
+                  drawerStyle: drawerStyleWithTransition,
+                  spawnOrigin: getSpawnOrigin(),
+                }}
+              />
+            </div>
+          </div>
+          {/* Dimension label below boundary box */}
+          <div className="absolute z-30 text-[9px] pointer-events-none"
+            style={{
+              color: 'var(--tb-fg-ghost)',
+              top: `calc(50% + ${boundaryBox.height / 2 + 8}px)`,
+              left: '50%',
+              transform: 'translateX(-50%)',
+            }}>
+            {es.width} &times; {es.height}px
+            {boundaryBox.scale < 1 && ` (${Math.round(boundaryBox.scale * 100)}%)`}
+          </div>
+        </div>
+      ) : (
+        /* Overlay / non-embed: full-bleed TreasureBox */
+        <div className="absolute inset-0" style={{ zIndex: 5 }}>
+          <TreasureBox
+            items={items}
+            config={previewConfig}
+            overlayPreview={{
+              drawerStyle: drawerStyleWithTransition,
+              spawnOrigin: getSpawnOrigin(),
+              onDrag: (isEmbedTab && isOverlay) ? handleDrag : undefined,
+            }}
+          />
+        </div>
+      )}
 
-      {/* Position readout — only on embed tab */}
+      {/* Position readout — only on embed tab overlay mode */}
       {isEmbedTab && isOverlay && (
         <>
           <div className="absolute bottom-2 left-3 z-30 text-[8px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
@@ -904,6 +974,23 @@ function UnifiedPreview({
             drag drawer to reposition
           </div>
         </>
+      )}
+
+      {/* Content scale slider — contained embed mode */}
+      {/* TODO: Duplicates overlay widget-size slider from EmbedConfigurator — unify later */}
+      {isContained && onScaleChange && (
+        <div className="absolute bottom-3 right-3 z-30 flex items-center gap-2 px-3 py-2"
+          style={{ background: 'var(--tb-bg)', border: '1px solid var(--tb-border-subtle)', borderRadius: 4 }}>
+          <span className="text-[9px]" style={{ color: 'var(--tb-fg-ghost)' }}>size</span>
+          <input type="range" min={0.5} max={2.0} step={0.1}
+            value={config.contentScale ?? 1}
+            onChange={e => onScaleChange(Number(e.target.value))}
+            style={{ width: 80, accentColor: 'var(--tb-accent)' }}
+          />
+          <span className="text-[10px] w-10 text-right" style={{ color: 'var(--tb-accent)' }}>
+            {Math.round((config.contentScale ?? 1) * 100)}%
+          </span>
+        </div>
       )}
 
       {/* Owner name — shown on non-embed tabs */}

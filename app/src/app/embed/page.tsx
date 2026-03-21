@@ -64,7 +64,7 @@ function EmbedContent() {
     })();
   }, [boxId]);
 
-  const isOverlay = embedMode === 'overlay' || embedMode === 'fullpage';
+  const isOverlay = embedMode === 'overlay';
 
   // Listen for viewport-info and dom-rects from parent (widget.js)
   useEffect(() => {
@@ -101,29 +101,6 @@ function EmbedContent() {
       effects,
     }, '*');
   }, []);
-
-  // Legacy handlers for backward compatibility (fullpageMode path)
-  const handleItemsEscaped = useCallback((escapedItems: { id: string; imageUrl: string; label: string }[]) => {
-    if (!isOverlay || typeof window === 'undefined') return;
-    window.parent.postMessage({
-      type: 'treasure-box',
-      action: 'items-escaped',
-      items: escapedItems,
-      itemEffects: {
-        brightness: config?.itemBrightness ?? 1,
-        contrast: config?.itemContrast ?? 1,
-        tint: config?.itemTint,
-      },
-    }, '*');
-  }, [isOverlay, config]);
-
-  const handleItemsReturned = useCallback(() => {
-    if (!isOverlay || typeof window === 'undefined') return;
-    window.parent.postMessage({
-      type: 'treasure-box',
-      action: 'items-returned',
-    }, '*');
-  }, [isOverlay]);
 
   if (error) {
     return (
@@ -188,10 +165,7 @@ function EmbedContent() {
           items={items}
           config={effectiveConfig}
           backgroundColor={bg}
-          fullpageMode={isOverlay}
           embedded={isContained}
-          onItemsEscaped={isOverlay ? handleItemsEscaped : undefined}
-          onItemsReturned={isOverlay ? handleItemsReturned : undefined}
         />
       </div>
     </div>
