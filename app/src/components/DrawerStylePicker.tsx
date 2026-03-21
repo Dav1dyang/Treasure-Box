@@ -267,24 +267,8 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
         });
       }
 
-      // Client-side ML background removal on the raw sprite (green bg)
-      // Falls back to server-side chroma key result if ML fails
-      let finalSpriteBase64 = data.sprite;
-      if (data.rawSprite) {
-        try {
-          const rawBytes = Uint8Array.from(atob(data.rawSprite), c => c.charCodeAt(0));
-          const rawBlob = new Blob([rawBytes], { type: 'image/png' });
-          const { removeBackground } = await import('@imgly/background-removal');
-          const resultBlob = await removeBackground(rawBlob, {
-            model: 'isnet_quint8',
-            output: { format: 'image/png' },
-          });
-          const arrayBuf = await resultBlob.arrayBuffer();
-          finalSpriteBase64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuf)));
-        } catch (mlErr) {
-          console.warn('Client-side ML bg removal failed, using server chroma key:', mlErr);
-        }
-      }
+      // Use server-side chroma key result directly (no client-side ML needed)
+      const finalSpriteBase64 = data.sprite;
 
       // Upload single sprite sheet
       const spriteUrl = await uploadSpriteSheet(userId, finalSpriteBase64);
