@@ -160,11 +160,13 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       const hv = hostViewportRef.current;
       const wallW = hv ? hv.width : scene.offsetWidth;
       const wallH = hv ? hv.height : scene.offsetHeight;
+      const hvOx = hv ? hv.offsetX : 0;
+      const hvOy = hv ? hv.offsetY : 0;
 
-      if (walls.floor) Matter.Body.setPosition(walls.floor, { x: wallW / 2, y: wallH + 7 });
-      if (walls.ceiling) Matter.Body.setPosition(walls.ceiling, { x: wallW / 2, y: -7 });
-      if (walls.left) Matter.Body.setPosition(walls.left, { x: -7, y: wallH / 2 });
-      if (walls.right) Matter.Body.setPosition(walls.right, { x: wallW + 7, y: wallH / 2 });
+      if (walls.floor) Matter.Body.setPosition(walls.floor, { x: wallW / 2 - hvOx, y: wallH - hvOy + 7 });
+      if (walls.ceiling) Matter.Body.setPosition(walls.ceiling, { x: wallW / 2 - hvOx, y: -hvOy - 7 });
+      if (walls.left) Matter.Body.setPosition(walls.left, { x: -hvOx - 7, y: wallH / 2 - hvOy });
+      if (walls.right) Matter.Body.setPosition(walls.right, { x: wallW - hvOx + 7, y: wallH / 2 - hvOy });
 
       // Reposition drawer collision body (scale-aware, contour-based wall segments if available)
       if (drawerElRef.current) {
@@ -447,16 +449,20 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     const cs = contentScaleRef.current;
     const wallOpts = { isStatic: true, friction: 0.9, restitution: 0.15 };
 
-    // Determine wall bounds — use hostViewport if provided (embed overlay), else scene dimensions
+    // Determine wall bounds — use hostViewport if provided (embed overlay), else scene dimensions.
+    // In overlay mode, offset wall positions so that after frame-sync adds (offsetX, offsetY),
+    // walls map exactly to the host viewport edges.
     const hv = hostViewportRef.current;
     const wallW = hv ? hv.width : w;
     const wallH = hv ? hv.height : h;
+    const hvOx = hv ? hv.offsetX : 0;
+    const hvOy = hv ? hv.offsetY : 0;
 
     // Unified: full-scene walls — items bounce off all 4 edges in every mode
-    const floor = Matter.Bodies.rectangle(wallW / 2, wallH + 7, wallW + 14, 14, wallOpts);
-    const ceiling = Matter.Bodies.rectangle(wallW / 2, -7, wallW + 14, 14, wallOpts);
-    const left = Matter.Bodies.rectangle(-7, wallH / 2, 14, wallH + 14, wallOpts);
-    const right = Matter.Bodies.rectangle(wallW + 7, wallH / 2, 14, wallH + 14, wallOpts);
+    const floor = Matter.Bodies.rectangle(wallW / 2 - hvOx, wallH - hvOy + 7, wallW + 14, 14, wallOpts);
+    const ceiling = Matter.Bodies.rectangle(wallW / 2 - hvOx, -hvOy - 7, wallW + 14, 14, wallOpts);
+    const left = Matter.Bodies.rectangle(-hvOx - 7, wallH / 2 - hvOy, 14, wallH + 14, wallOpts);
+    const right = Matter.Bodies.rectangle(wallW - hvOx + 7, wallH / 2 - hvOy, 14, wallH + 14, wallOpts);
     Matter.Composite.add(engine.world, [floor, ceiling, left, right]);
     wallsRef.current = { floor, ceiling, left, right };
 
