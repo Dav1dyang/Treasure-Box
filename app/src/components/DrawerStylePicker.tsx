@@ -167,7 +167,6 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
     visionObjects?: number;
     ratioWarning?: string;
   } | null>(null);
-  const [debugOpen, setDebugOpen] = useState(true);
 
   const asciiPreview = useMemo(
     () => renderAsciiPreview(drawerWidth, drawerHeight, angle),
@@ -592,78 +591,70 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
         </div>
       )}
 
-      {/* ── Debug Panel ───────────────────────────────── */}
-      {debugPrompt && (
-        <div style={{ borderTop: '1px solid var(--tb-border-subtle)', paddingTop: 12 }}>
-          <button
-            onClick={() => setDebugOpen(!debugOpen)}
-            style={{
-              fontSize: 10, color: 'var(--tb-fg-faint)', background: 'none',
-              border: 'none', cursor: 'pointer', letterSpacing: '0.08em',
-              textTransform: 'uppercase' as const,
-            }}
-          >
-            {debugOpen ? '▾' : '▸'} debug
-          </button>
-          {debugOpen && (
-            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div>
-                <label style={sectionLabel}>prompt sent to gemini</label>
-                <pre style={{
-                  fontSize: 9, lineHeight: 1.4, padding: 10, borderRadius: 3,
-                  background: 'var(--tb-bg-muted)', color: 'var(--tb-fg-muted)',
-                  border: '1px solid var(--tb-border-subtle)',
-                  whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                  maxHeight: 200, overflow: 'auto', margin: 0,
+      {/* ── Debug Panel (always visible) ──────────────── */}
+      <div style={{ borderTop: '1px solid var(--tb-border-subtle)', paddingTop: 12 }}>
+        <span style={{
+          fontSize: 10, color: 'var(--tb-fg-faint)', letterSpacing: '0.08em',
+          textTransform: 'uppercase' as const,
+        }}>
+          debug
+        </span>
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div>
+            <label style={sectionLabel}>prompt sent to gemini</label>
+            <pre style={{
+              fontSize: 9, lineHeight: 1.4, padding: 10, borderRadius: 3,
+              background: 'var(--tb-bg-muted)', color: 'var(--tb-fg-muted)',
+              border: '1px solid var(--tb-border-subtle)',
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              maxHeight: 200, overflow: 'auto', margin: 0,
+            }}>
+              {debugPrompt ?? 'waiting for generation\u2026'}
+            </pre>
+          </div>
+          {debugMeta?.spriteSize && (
+            <div>
+              <label style={sectionLabel}>sprite sheet</label>
+              <span style={{ fontSize: 10, color: 'var(--tb-fg-muted)' }}>
+                {debugMeta.spriteSize.width} × {debugMeta.spriteSize.height}px — {debugMeta.spriteSize.frameCount} frames
+              </span>
+            </div>
+          )}
+          {debugMeta?.ratioWarning && (
+            <div>
+              <label style={sectionLabel}>ratio fix</label>
+              <span style={{
+                fontSize: 9, padding: '2px 6px', borderRadius: 3,
+                background: 'rgba(250,204,21,0.1)',
+                color: '#facc15',
+                border: '1px solid rgba(250,204,21,0.2)',
+              }}>
+                {debugMeta.ratioWarning}
+              </span>
+            </div>
+          )}
+          {debugMeta?.bgRemoval && (
+            <div>
+              <label style={sectionLabel}>bg removal</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{
+                  fontSize: 9, padding: '2px 6px', borderRadius: 3,
+                  background: debugMeta.bgRemoval === 'vision' ? 'rgba(34,197,94,0.1)' : 'rgba(250,204,21,0.1)',
+                  color: debugMeta.bgRemoval === 'vision' ? '#22c55e' : '#facc15',
+                  border: `1px solid ${debugMeta.bgRemoval === 'vision' ? 'rgba(34,197,94,0.2)' : 'rgba(250,204,21,0.2)'}`,
                 }}>
-                  {debugPrompt}
-                </pre>
+                  {debugMeta.bgRemoval === 'vision' ? 'vision api + chroma key' : 'chroma key only'}
+                </span>
+                {debugMeta.bgRemoval === 'vision' && debugMeta.visionObjects !== undefined && (
+                  <span style={{ fontSize: 9, color: 'var(--tb-fg-faint)' }}>
+                    {debugMeta.visionObjects} object{debugMeta.visionObjects !== 1 ? 's' : ''} detected
+                  </span>
+                )}
               </div>
-              {debugMeta?.spriteSize && (
-                <div>
-                  <label style={sectionLabel}>sprite sheet</label>
-                  <span style={{ fontSize: 10, color: 'var(--tb-fg-muted)' }}>
-                    {debugMeta.spriteSize.width} × {debugMeta.spriteSize.height}px — {debugMeta.spriteSize.frameCount} frames
-                  </span>
-                </div>
-              )}
-              {debugMeta?.ratioWarning && (
-                <div>
-                  <label style={sectionLabel}>ratio fix</label>
-                  <span style={{
-                    fontSize: 9, padding: '2px 6px', borderRadius: 3,
-                    background: 'rgba(250,204,21,0.1)',
-                    color: '#facc15',
-                    border: '1px solid rgba(250,204,21,0.2)',
-                  }}>
-                    {debugMeta.ratioWarning}
-                  </span>
-                </div>
-              )}
-              {debugMeta?.bgRemoval && (
-                <div>
-                  <label style={sectionLabel}>bg removal</label>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{
-                      fontSize: 9, padding: '2px 6px', borderRadius: 3,
-                      background: debugMeta.bgRemoval === 'vision' ? 'rgba(34,197,94,0.1)' : 'rgba(250,204,21,0.1)',
-                      color: debugMeta.bgRemoval === 'vision' ? '#22c55e' : '#facc15',
-                      border: `1px solid ${debugMeta.bgRemoval === 'vision' ? 'rgba(34,197,94,0.2)' : 'rgba(250,204,21,0.2)'}`,
-                    }}>
-                      {debugMeta.bgRemoval === 'vision' ? 'vision api + chroma key' : 'chroma key only'}
-                    </span>
-                    {debugMeta.bgRemoval === 'vision' && debugMeta.visionObjects !== undefined && (
-                      <span style={{ fontSize: 9, color: 'var(--tb-fg-faint)' }}>
-                        {debugMeta.visionObjects} object{debugMeta.visionObjects !== 1 ? 's' : ''} detected
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
