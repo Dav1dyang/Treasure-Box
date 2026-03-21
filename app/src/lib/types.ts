@@ -1,14 +1,24 @@
 // ===== Box Dimensions =====
 
+export type HandleStyle = 'round-knob' | 'pull-bar' | 'ring-pull' | 'half-moon' | 'slot-pull' | 'none';
+export type CornerStyle = 'rounded' | 'square' | 'beveled' | 'double' | 'reinforced';
+
 export interface BoxDimensions {
   boxWidth: number;         // total width in "units" (20-60)
   boxHeight: number;        // total body height (8-20)
   drawerHeight: number;     // drawer panel height (3-10)
   drawerPullout: Record<BoxState, number>; // 0-100% how far drawer extends
-  handleStyle: 'knob' | 'pull-bar' | 'ring' | 'tab';
-  cornerStyle: 'sharp' | 'rounded' | 'double';
+  handleStyle: HandleStyle;
+  cornerStyle: CornerStyle;
   hasRivets: boolean;
   hasKeyhole: boolean;
+}
+
+/** Geometry tokens for prompt generation — proportions only, not structure. */
+export interface GeometryTokens {
+  BOX_WIDTH: number;
+  BOX_HEIGHT: number;
+  DRAWER_HEIGHT: number;
 }
 
 // ===== Drawer AI Generation =====

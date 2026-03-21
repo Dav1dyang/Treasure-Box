@@ -1,10 +1,10 @@
-import type { BoxDimensions, DrawerStyle, DrawerStylePreset } from './types';
-import { DEFAULT_BOX_DIMENSIONS, STYLE_PRESETS } from './config';
+import type { BoxDimensions, DrawerStyle, DrawerStylePreset, HandleStyle, CornerStyle, DrawerAngle } from './types';
+import { DEFAULT_BOX_DIMENSIONS, DEFAULT_STATES, STYLE_PRESETS } from './config';
 
-/**
- * Structured style definitions for each preset.
- * Only furnitureStyle is used in the current prompt template.
- */
+// ═══════════════════════════════════════════════════════════════
+// STYLE BASES — creative preset → base furniture description
+// ═══════════════════════════════════════════════════════════════
+
 interface StyleDefinition {
   furnitureStyle: string;
   mainColor: string;
@@ -58,202 +58,145 @@ export const STYLE_BASES: Record<DrawerStylePreset, StyleDefinition> = {
   },
 };
 
-/**
- * Build a single sprite-sheet prompt — all 5 states in one image.
- *
- * Config-driven template: every UI selection maps directly to a placeholder.
- */
-export function buildSpriteSheetPrompt(style: DrawerStyle, dims?: BoxDimensions): string {
-  const d = dims ?? DEFAULT_BOX_DIMENSIONS;
-  const def = STYLE_BASES[style.preset];
+// ═══════════════════════════════════════════════════════════════
+// ANGLE MAP
+// ═══════════════════════════════════════════════════════════════
 
-  const material = def.furnitureStyle;
-  const stylePreset = resolveStyleTags(style);
-  const decorItems = resolveDecorTags(style);
-  const additionalFeatures = style.customDecorText || 'none';
-  const resolvedCameraBlock = resolveAngle(style.angle || 'front');
+const ANGLE_MAP: Record<DrawerAngle, {
+  ANGLE_SUBJECT: string;
+  PERSPECTIVE_RULE: string;
+  MOTION_DIRECTION: string;
+}> = {
+  front: {
+    ANGLE_SUBJECT: 'front-facing',
+    PERSPECTIVE_RULE:
+      'orthographic flat front view only, 0% tilt, 0% rotation.',
+    MOTION_DIRECTION: 'forward toward the camera',
+  },
+  'left-45': {
+    ANGLE_SUBJECT: 'left 45 degree',
+    PERSPECTIVE_RULE:
+      'fixed 45 degree left front view only. Keep the same camera angle, same perspective, and no rotation drift across all 5 states.',
+    MOTION_DIRECTION: 'outward along the drawer axis toward the left front camera view',
+  },
+  'right-45': {
+    ANGLE_SUBJECT: 'right 45 degree',
+    PERSPECTIVE_RULE:
+      'fixed 45 degree right front view only. Keep the same camera angle, same perspective, and no rotation drift across all 5 states.',
+    MOTION_DIRECTION: 'outward along the drawer axis toward the right front camera view',
+  },
+} as const;
 
-  return `Create exactly ONE production sprite sheet image for interactive web use.  This is a strict UI asset. It is NOT a poster, concept sheet, storyboard, infographic, labeled diagram, product render, marketing image, or scene illustration.
+// ═══════════════════════════════════════════════════════════════
+// TOKEN MAPPING FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
 
-CONFIG PRECEDENCE: All resolved configuration values below are HARD REQUIREMENTS. They must be followed literally. Do not substitute, reinterpret, stylize away, or approximate them. If any style instruction conflicts with a resolved configuration value, the resolved configuration value wins.
-
-GOAL: Generate one single horizontal 5-frame sprite sheet showing the SAME exact one-drawer cabinet across 5 drawer pullout states.
-
-OUTPUT STRUCTURE:
-- Exactly 5 frames
-- One horizontal row only
-- Overall aspect ratio exactly 5:1
-- Equal frame width and equal frame height
-- No gaps
-- No padding
-- No borders
-- No separators
-- No overlapping between frames
-- No object may spill into adjacent frames
-- Each frame must be fully self-contained
-- Leave enough empty margin inside each frame so the most open drawer fits completely within its own frame
-
-BACKGROUND:
-- Pure flat vivid green background
-- Exact hex #00FF00
-- RGB 0,255,0
-- No transparency
-- No checkerboard
-- No texture
-- No gradient
-- No vignette
-- No lighting variation
-
-IMPORTANT COLOR RESTRICTION:
-- Do NOT use #00FF00 anywhere on the cabinet, drawer, handle, hardware, or decor
-- Do NOT use neon green or bright chroma green on the furniture
-- White, cream, ivory, beige, wood, metal, muted colors are allowed
-- Ensure strong contrast against the green background for clean cutout use
-
-TEXT RESTRICTION:
-- No text
-- No letters
-- No numbers
-- No symbols
-- No logos
-- No labels
-- No watermark
-- No signature
-- Drawer label is metadata only and must never appear visually
-
-OBJECT LOCK:
-Generate exactly one standalone cabinet shell containing exactly one sliding drawer. Nothing else.
-
-ABSOLUTELY DO NOT GENERATE:
-- two drawers
-- multiple compartments
-- cabinet doors
-- safes
-- treasure chests
-- trunks
-- crates
-- hinged lids
-- flap doors
-- tilt-out bins
-- shelves
-- props
-- contents inside drawer
-- animals
-- people
-- room scene
-
-MECHANICAL LOCK:
-- Only the drawer moves
-- Cabinet shell stays fixed
-- Drawer slides straight outward along one axis
-- No rotation
-- No hinge motion
-- No tilt
-- No morphing
-- No transformation into another furniture type
-- Drawer interior must remain completely empty in every frame
-
-CAMERA LOCK:
-${resolvedCameraBlock}
-
-CONSISTENCY LOCK:
-The following must remain identical in all 5 frames:
-- same cabinet
-- same camera angle
-- same scale
-- same centering
-- same lighting
-- same proportions
-- same handle placement
-- same keyhole placement
-- same trim placement
-- same drawer face shape
-- same cabinet shell shape
-- same hardware count
-- same decor placement
-
-No jitter. No zoom drift. No shape drift. No perspective drift. No hardware drift.
-
-GEOMETRY:
-- overall width units: ${d.boxWidth}
-- overall height units: ${d.boxHeight}
-- drawer face height units: ${d.drawerHeight}
-
-HARDWARE:
-- handle style: ${d.handleStyle}
-- corner style: ${d.cornerStyle}
-- has rivets: ${d.hasRivets}
-- has keyhole: ${d.hasKeyhole}
-
-SURFACE STYLE:
-- material: ${material}
-- style preset: ${stylePreset}
-- decor items: ${decorItems}
-- additional feature keywords: ${additionalFeatures}
-
-STYLE INTERPRETATION RULE:
-Apply the style only to surface design, material feel, trim language, and decorative details. Do NOT let style change:
-- camera angle
-- object count
-- cabinet type
-- number of drawers
-- drawer mechanics
-- frame layout
-
-NO SHADOW RULE:
-- No floor shadow
-- No cast shadow
-- No contact shadow
-- No drop shadow
-- No glow
-- No halo
-- No outline stroke
-- No reflected ground shadow
-- Crisp clean edges only
-
-FRAME STATES:
-Frame 1: drawer pullout 0%
-Frame 2: drawer pullout 12%
-Frame 3: drawer pullout 28%
-Frame 4: drawer pullout 55%
-Frame 5: drawer pullout 82%
-
-Important:
-- Pullout must increase monotonically from frame 1 to frame 5
-- The cabinet shell never moves
-- The drawer remains aligned on the same axis in every frame
-
-NEGATIVE CONSTRAINTS:
-Do not generate:
-- angled view different from resolved camera
-- extra drawers
-- merged drawer sections
-- perspective drift
-- text
-- numbers
-- labels
-- frame overlap
-- cross-frame spill
-- shadows on background
-- interior contents
-- inconsistent proportions
-- inconsistent hardware
-- inconsistent object count
-
-QUALITY PRIORITY:
-1. Obey all resolved configuration values literally
-2. Exact camera angle lock
-3. Exact 5 equal self-contained frames
-4. No text at all
-5. Exactly one drawer only
-6. True straight sliding-drawer mechanics
-7. No cross-frame overlap or spill
-8. Consistent geometry and hardware across all 5 frames
-9. No shadows
-10. Empty interior
-11. Clean pure green background
-12. Style fidelity`;
+export function mapHandle(handleStyle: HandleStyle): string {
+  const map: Record<string, string> = {
+    'round-knob': 'a round knob',
+    'pull-bar': 'a pull bar handle',
+    'ring-pull': 'a ring pull handle',
+    'half-moon': 'a half moon pull',
+    'slot-pull': 'a slot pull',
+    'none': 'no visible handle',
+  };
+  return map[handleStyle] ?? `${handleStyle} handle`;
 }
+
+export function mapCorner(cornerStyle: CornerStyle): string {
+  const map: Record<string, string> = {
+    rounded: 'rounded corners',
+    square: 'square corners',
+    beveled: 'beveled corners',
+    double: 'double corner treatment',
+    reinforced: 'reinforced corners',
+  };
+  return map[cornerStyle] ?? `${cornerStyle} corners`;
+}
+
+export function mapRivets(hasRivets: boolean): string {
+  return hasRivets ? 'subtle rivets' : 'no rivets';
+}
+
+export function mapKeyhole(hasKeyhole: boolean): string {
+  return hasKeyhole ? 'a visible keyhole' : 'no keyhole';
+}
+
+export function mapMaterial(material: string): string {
+  const map: Record<string, string> = {
+    wood: 'wood material',
+    'painted-wood': 'painted wood',
+    metal: 'metal material',
+    brass: 'brass material',
+    steel: 'steel material',
+    plastic: 'smooth plastic material',
+    velvet: 'velvet covered surface',
+    leather: 'leather wrapped surface',
+  };
+  return map[material] ?? `${material} material`;
+}
+
+export function mapColors(primaryColor?: string, accentColor?: string): string {
+  if (primaryColor && accentColor) {
+    return `${primaryColor} with ${accentColor} accents`;
+  }
+  if (primaryColor) return primaryColor;
+  if (accentColor) return `neutral base with ${accentColor} accents`;
+  return 'balanced color treatment';
+}
+
+export function mapDecor(
+  decorItems: string[] = [],
+  opts?: { hasKeyhole?: boolean; handleStyle?: string },
+): string {
+  const cleaned = decorItems
+    .filter(Boolean)
+    .map((item) => item.trim().toLowerCase())
+    .filter((item) => {
+      if (!opts?.hasKeyhole && item.includes('keyhole')) return false;
+      if (opts?.handleStyle && item.includes('ring pull') && opts.handleStyle !== 'ring-pull') return false;
+      return true;
+    });
+
+  if (!cleaned.length) return 'none';
+
+  return cleaned.join(', ');
+}
+
+export function mapAdditionalFeatures(features: string[] = []): string {
+  const cleaned = features
+    .filter(Boolean)
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0);
+
+  return cleaned.length ? cleaned.join(', ') : 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BACKWARD COMPATIBILITY — normalize old Firestore values
+// ═══════════════════════════════════════════════════════════════
+
+const HANDLE_COMPAT: Record<string, HandleStyle> = {
+  knob: 'round-knob',
+  ring: 'ring-pull',
+  tab: 'slot-pull',
+};
+
+const CORNER_COMPAT: Record<string, CornerStyle> = {
+  sharp: 'square',
+};
+
+/** Normalize old handle/corner values from Firestore to current types. */
+export function normalizeDimensions(dims: BoxDimensions): BoxDimensions {
+  const handleStyle = HANDLE_COMPAT[dims.handleStyle] ?? dims.handleStyle;
+  const cornerStyle = CORNER_COMPAT[dims.cornerStyle] ?? dims.cornerStyle;
+  if (handleStyle === dims.handleStyle && cornerStyle === dims.cornerStyle) return dims;
+  return { ...dims, handleStyle: handleStyle as HandleStyle, cornerStyle: cornerStyle as CornerStyle };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STYLE RESOLUTION HELPERS
+// ═══════════════════════════════════════════════════════════════
 
 function resolveStyleTags(style: DrawerStyle): string {
   if (style.stylePattern) {
@@ -265,44 +208,48 @@ function resolveStyleTags(style: DrawerStyle): string {
   return 'Modern Minimal';
 }
 
-function resolveDecorTags(style: DrawerStyle): string {
-  if (style.decor && style.decor.trim()) return style.decor;
-  return 'none';
+function resolveDecorTags(style: DrawerStyle): string[] {
+  if (style.decor && style.decor.trim()) return style.decor.split(', ').filter(Boolean);
+  return [];
 }
 
-function resolveAngle(angle: string): string {
-  if (angle === 'left-45') {
-    return `- View = fixed left three-quarter view
-- Cabinet is rotated so the left side is visible and the front remains clearly visible
-- Keep the same exact left 45-degree style view in all 5 frames
-- Do not switch to front view
-- Do not switch to right 45-degree view
-- Do not switch to isometric
-- Do not change perspective between frames
-- Top surface visibility must remain consistent across all frames`;
-  }
-  if (angle === 'right-45') {
-    return `- View = fixed right three-quarter view
-- Cabinet is rotated so the right side is visible and the front remains clearly visible
-- Keep the same exact right 45-degree style view in all 5 frames
-- Do not switch to front view
-- Do not switch to left 45-degree view
-- Do not switch to isometric
-- Do not change perspective between frames
-- Top surface visibility must remain consistent across all frames`;
-  }
-  return `- View = straight front view
-- Drawer front must face directly toward the viewer
-- Drawer front plane is parallel to the image plane
-- No left 45-degree view
-- No right 45-degree view
-- No three-quarter view
-- No isometric view
-- No top-down view
-- No bottom-up view
-- No side panel visible
-- No cabinet depth emphasis from perspective rotation
-- Top surface should not be visible
-- Left and right outer edges appear vertical and front-facing
-- This must read as a flat straight-on elevation view, not an angled product render`;
+// ═══════════════════════════════════════════════════════════════
+// PROMPT BUILDER
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Build a single sprite-sheet prompt — all 5 states in one image.
+ *
+ * Config-driven template: every UI selection maps directly to a named token.
+ */
+export function buildSpriteSheetPrompt(style: DrawerStyle, dims?: BoxDimensions): string {
+  const d = normalizeDimensions(dims ?? DEFAULT_BOX_DIMENSIONS);
+  const def = STYLE_BASES[style.preset];
+
+  // Resolve all tokens
+  const angle = ANGLE_MAP[style.angle || 'front'];
+  const stylePreset = resolveStyleTags(style);
+  const materialDesc = def.furnitureStyle;
+  const colorDesc = mapColors(style.color, style.accentColor);
+  const handleDesc = mapHandle(d.handleStyle);
+  const cornerDesc = mapCorner(d.cornerStyle);
+  const rivetDesc = mapRivets(d.hasRivets);
+  const keyholeDesc = mapKeyhole(d.hasKeyhole);
+  const decorDesc = mapDecor(
+    resolveDecorTags(style),
+    { hasKeyhole: d.hasKeyhole, handleStyle: d.handleStyle },
+  );
+  const additionalDesc = mapAdditionalFeatures(
+    style.customDecorText ? style.customDecorText.split(/[,\s]+/).filter(Boolean) : [],
+  );
+
+  const states = DEFAULT_STATES;
+
+  return `A clean production sprite sheet for a web UI, horizontal strip with exactly 5 equal frames.
+Subject: A single ${angle.ANGLE_SUBJECT} one-drawer cabinet, ${stylePreset} style, ${materialDesc}, ${colorDesc}, with ${handleDesc}, ${cornerDesc}, ${rivetDesc}, and ${keyholeDesc}. Decor details: ${decorDesc}. Extra visual details: ${additionalDesc}.
+Perspective: ${angle.PERSPECTIVE_RULE}
+Geometry: front width proportion ${d.boxWidth}, total height proportion ${d.boxHeight}, drawer face height proportion ${d.drawerHeight}. Keep the object clearly readable as exactly one cabinet shell with exactly one drawer. Do not create stacked drawers, split compartments, cabinet doors, or chest lids.
+Sequence: Frame 1 drawer ${states[0]}% open, Frame 2 drawer ${states[1]}% open, Frame 3 drawer ${states[2]}% open, Frame 4 drawer ${states[3]}% open, Frame 5 drawer ${states[4]}% open.
+The cabinet shell remains static and centered. Only the drawer slides directly ${angle.MOTION_DIRECTION}. The drawer front stays the same in every frame. Only drawer depth changes.
+Requirements: Pure #00FF00 green background, no shadows, no floor, no gradients, no transparency, no checkerboard, no text, no numbers, no labels, no watermark. Do NOT use #00FF00 anywhere on the cabinet, drawer, handle, hardware, or decor. Crisp clean silhouettes, consistent lighting, consistent scale, consistent camera, and consistent hardware placement across all frames. Each frame must be fully self-contained with no overlap, no spill into adjacent frames, and enough internal margin so the most open drawer still fits completely inside its own frame. Drawer interior is completely empty. No props, no camera, no cat, no fabric, no dust, no debris.`;
 }
