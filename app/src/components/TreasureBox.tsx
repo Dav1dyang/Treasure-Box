@@ -6,11 +6,13 @@ import { soundEngine } from '@/lib/sounds';
 import { contourToVertices } from '@/lib/contour';
 import { computeCenteredDrawerPosition, computeCenteredSpawnOrigin } from '@/lib/embedPosition';
 import type { TreasureItem, BoxConfig, BoxState, DrawerImages, BoxDimensions, FrameSyncBody, HostViewport } from '@/lib/types';
-import { DEFAULT_DRAWER_DISPLAY_SIZE } from '@/lib/types';
-import { DEFAULT_BOX_DIMENSIONS } from '@/lib/types';
+import { DEFAULT_DRAWER_DISPLAY_SIZE, DEFAULT_BOX_DIMENSIONS } from '@/lib/config';
 import StoryCard from './StoryCard';
 
 const ITEM_BASE_SIZE = 52;
+const SPAWN_ANIM_DURATION = 450;
+
+type PhysicsBody = Matter.Body & { itemData?: TreasureItem; spawnTime?: number; closeT?: number };
 
 interface OverlayPreviewConfig {
   /** CSS styles to position the drawer at the anchor point */
@@ -25,7 +27,6 @@ interface Props {
   items: TreasureItem[];
   config: BoxConfig;
   backgroundColor?: string;
-  fullpageMode?: boolean;
   onItemsEscaped?: (items: { id: string; imageUrl: string; label: string }[]) => void;
   onItemsReturned?: () => void;
   /** When set, TreasureBox uses full-scene edge walls and positions drawer at anchor */
@@ -40,12 +41,12 @@ interface Props {
 
 const ALL_BOX_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
 
-export default function TreasureBox({ items, config, backgroundColor, fullpageMode, onItemsEscaped, onItemsReturned, overlayPreview, embedded, onFrameSync, hostViewport }: Props) {
+export default function TreasureBox({ items, config, backgroundColor, onItemsEscaped, onItemsReturned, overlayPreview, embedded, onFrameSync, hostViewport }: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
   const runnerRef = useRef<Matter.Runner | null>(null);
-  const bodiesRef = useRef<(Matter.Body & { itemData?: TreasureItem })[]>([]);
+  const bodiesRef = useRef<PhysicsBody[]>([]);
   const imagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const blobUrlsRef = useRef<string[]>([]);
   const appliedScaleRef = useRef<Map<string, number>>(new Map());
@@ -553,7 +554,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       const itemScale = item.scale ?? 1;
       const size = ITEM_BASE_SIZE * itemScale;
 
-      let body: Matter.Body & { itemData?: TreasureItem };
+      let body: PhysicsBody;
 
       if (item.contourPoints && item.contourPoints.length >= 4) {
         try {
@@ -574,6 +575,8 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       }
 
       body.itemData = item;
+      body.spawnTime = performance.now();
+      body.closeT = 0;
 
       // Set initial rotation from item config (degrees to radians), or random
       if (item.rotation !== undefined) {
@@ -622,18 +625,29 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
 
       let size = ITEM_BASE_SIZE * (item.scale ?? 1);
 
-      // During closing, shrink items as they converge on the drawer
+      // Spawn animation: scale + opacity ease-out
+      const age = performance.now() - (body.spawnTime ?? 0);
+      const spawnT = Math.min(1, age / SPAWN_ANIM_DURATION);
+      const spawnScale = 1 - Math.pow(1 - spawnT, 3);   // ease-out cubic
+      const spawnOpacity = 1 - Math.pow(1 - spawnT, 2);  // ease-out quad
+      size *= spawnScale;
+      if (spawnScale < 0.01) return; // not yet visible
+
+      // Close animation: time-based shrink + fade
+      let closeScale = 1;
+      let closeOpacity = 1;
       if (closingAnimRef.current) {
-        const drawerCenterX = w / 2;
-        const drawerY = h - 150;
-        const dist = Math.sqrt((x - drawerCenterX) ** 2 + (y - drawerY) ** 2);
-        const shrink = Math.min(1, dist / 250); // closer = smaller
-        size *= Math.max(0.1, shrink);
-        if (size < 3) return; // skip tiny items
+        const closeT = (body as PhysicsBody).closeT ?? 0;
+        closeScale = Math.max(0.05, 1 - closeT * closeT);       // ease-in quad
+        closeOpacity = Math.max(0, 1 - Math.pow(closeT, 3));     // cubic fade
+        size *= closeScale;
+        if (size < 2) return;
       }
+
       const img = imagesRef.current.get(item.id);
 
       ctx.save();
+      ctx.globalAlpha = spawnOpacity * closeOpacity;
       ctx.translate(x, y);
       ctx.rotate(angle);
 
@@ -694,17 +708,25 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       const oy = hv ? hv.offsetY : 0;
       const syncBodies: FrameSyncBody[] = bodiesRef.current.map(body => {
         const item = body.itemData;
-        const size = ITEM_BASE_SIZE * (item?.scale ?? 1);
+        const baseSize = ITEM_BASE_SIZE * (item?.scale ?? 1);
+        const syncAge = performance.now() - ((body as PhysicsBody).spawnTime ?? 0);
+        const syncSpawnT = Math.min(1, syncAge / SPAWN_ANIM_DURATION);
+        const syncSpawnScale = 1 - Math.pow(1 - syncSpawnT, 3);
+        const syncSpawnOpacity = 1 - Math.pow(1 - syncSpawnT, 2);
+        const syncCloseT = (body as PhysicsBody).closeT ?? 0;
+        const syncCloseScale = closingAnimRef.current ? Math.max(0.05, 1 - syncCloseT * syncCloseT) : 1;
+        const syncCloseOpacity = closingAnimRef.current ? Math.max(0, 1 - Math.pow(syncCloseT, 3)) : 1;
+        const finalSize = baseSize * syncSpawnScale * syncCloseScale;
         return {
           id: item?.id ?? '',
           x: body.position.x + ox,
           y: body.position.y + oy,
           angle: body.angle,
-          width: size,
-          height: size,
+          width: finalSize,
+          height: finalSize,
           imageUrl: item?.imageUrl ?? '',
-          scale: item?.scale ?? 1,
-          opacity: closingAnimRef.current ? Math.max(0.1, 1 - (1 / Math.max(1, Math.sqrt((body.position.x - w / 2) ** 2 + (body.position.y - h + 150) ** 2) / 250))) : 1,
+          scale: (item?.scale ?? 1) * syncSpawnScale * syncCloseScale,
+          opacity: syncSpawnOpacity * syncCloseOpacity,
         };
       }).filter(b => b.id);
       onFrameSyncRef.current(syncBodies, {
@@ -741,8 +763,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       }, 200);
     }, 600);
 
-    // In fullpage mode, notify parent that items have escaped
-    if (fullpageMode && onItemsEscaped) {
+    if (onItemsEscaped) {
       managedTimeout(() => {
         onItemsEscaped(items.map(item => ({
           id: item.id,
@@ -752,7 +773,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         itemsHandedOffRef.current = true;
       }, 800);
     }
-  }, [isOpen, initPhysics, spawnItems, renderLoop, clearPhysics, clearAllTimeouts, managedTimeout, fullpageMode, onItemsEscaped, items]);
+  }, [isOpen, initPhysics, spawnItems, renderLoop, clearPhysics, clearAllTimeouts, managedTimeout, onItemsEscaped, items]);
 
   const closeDrawer = useCallback(() => {
     // Guard: only close from open states
@@ -762,11 +783,10 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     clearAllTimeouts();
     if (spawnIntervalRef.current) { clearInterval(spawnIntervalRef.current); spawnIntervalRef.current = null; }
 
-    // Reset fullpage handoff so items render locally during close animation
+    // Reset handoff so items render locally during close animation
     itemsHandedOffRef.current = false;
 
-    // In fullpage mode, notify parent that items are returning
-    if (fullpageMode && onItemsReturned) {
+    if (onItemsReturned) {
       onItemsReturned();
     }
 
@@ -842,6 +862,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
 
         Matter.Body.setPosition(body, { x, y });
         Matter.Body.setVelocity(body, { x: 0, y: 0 });
+        (body as PhysicsBody).closeT = eased;
 
         // Gentle tumbling spin during arc
         if (t < 0.9) {
@@ -866,7 +887,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         setBoxState('IDLE');
       }, maxStagger + 300);
     }, Math.round(duration * 0.6 + maxStagger));
-  }, [isOpen, clearPhysics, clearAllTimeouts, managedTimeout, fullpageMode, onItemsReturned]);
+  }, [isOpen, clearPhysics, clearAllTimeouts, managedTimeout, onItemsReturned]);
 
   // Stable refs so handlers don't go stale across re-renders
   const openDrawerRef = useRef(openDrawer);

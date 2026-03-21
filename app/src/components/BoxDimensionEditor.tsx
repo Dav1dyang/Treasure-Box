@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import type { BoxDimensions, BoxState } from '@/lib/types';
-import { DEFAULT_BOX_DIMENSIONS } from '@/lib/types';
+import { DEFAULT_BOX_DIMENSIONS } from '@/lib/config';
 
 interface Props {
   dimensions: BoxDimensions;
