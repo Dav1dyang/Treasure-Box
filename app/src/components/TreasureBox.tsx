@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import Matter from 'matter-js';
 import { soundEngine } from '@/lib/sounds';
 import { contourToVertices } from '@/lib/contour';
+import { computeCenteredDrawerPosition, computeCenteredSpawnOrigin } from '@/lib/embedPosition';
 import type { TreasureItem, BoxConfig, BoxState, DrawerImages, BoxDimensions, FrameSyncBody, HostViewport } from '@/lib/types';
 import { DEFAULT_DRAWER_DISPLAY_SIZE } from '@/lib/types';
 import { DEFAULT_BOX_DIMENSIONS } from '@/lib/types';
@@ -87,9 +88,32 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const isDraggingDrawer = useRef(false);
 
+  // Auto-synthesize centered overlay when none is provided
+  const [autoOverlay, setAutoOverlay] = useState<OverlayPreviewConfig | null>(null);
+  useEffect(() => {
+    if (overlayPreview) { setAutoOverlay(null); return; }
+    const scene = sceneRef.current;
+    if (!scene) return;
+    const update = () => {
+      const w = scene.offsetWidth;
+      const h = scene.offsetHeight;
+      if (w === 0 || h === 0) return;
+      setAutoOverlay({
+        drawerStyle: computeCenteredDrawerPosition(w, h),
+        spawnOrigin: computeCenteredSpawnOrigin(),
+      });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(scene);
+    return () => ro.disconnect();
+  }, [overlayPreview]);
+
+  const effectiveOverlay = overlayPreview ?? autoOverlay;
+
   // Keep overlayPreview ref fresh for use inside callbacks
-  const overlayPreviewRef = useRef(overlayPreview);
-  useEffect(() => { overlayPreviewRef.current = overlayPreview; }, [overlayPreview]);
+  const overlayPreviewRef = useRef(effectiveOverlay);
+  useEffect(() => { overlayPreviewRef.current = effectiveOverlay; }, [effectiveOverlay]);
 
   // Keep onFrameSync and hostViewport refs fresh
   const onFrameSyncRef = useRef(onFrameSync);
@@ -188,15 +212,15 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     });
   }, [repositionBoundaries]);
 
-  // Watch overlayPreview style changes and trigger repositioning
+  // Watch effective overlay style changes and trigger repositioning
   const prevDrawerStyleKey = useRef('');
   useEffect(() => {
-    if (!overlayPreview?.drawerStyle) return;
-    const key = JSON.stringify(overlayPreview.drawerStyle);
+    if (!effectiveOverlay?.drawerStyle) return;
+    const key = JSON.stringify(effectiveOverlay.drawerStyle);
     if (key === prevDrawerStyleKey.current) return;
     prevDrawerStyleKey.current = key;
     scheduleRepositionBoundaries();
-  }, [overlayPreview?.drawerStyle, scheduleRepositionBoundaries]);
+  }, [effectiveOverlay?.drawerStyle, scheduleRepositionBoundaries]);
 
   // Watch hostViewport changes and trigger repositioning
   useEffect(() => {
@@ -374,63 +398,34 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     const wallW = hv ? hv.width : w;
     const wallH = hv ? hv.height : h;
 
-    if (overlayPreviewRef.current || hv) {
-      // Full-scene walls — items bounce off all 4 edges
-      const floor = Matter.Bodies.rectangle(wallW / 2, wallH + 7, wallW + 14, 14, wallOpts);
-      const ceiling = Matter.Bodies.rectangle(wallW / 2, -7, wallW + 14, 14, wallOpts);
-      const left = Matter.Bodies.rectangle(-7, wallH / 2, 14, wallH + 14, wallOpts);
-      const right = Matter.Bodies.rectangle(wallW + 7, wallH / 2, 14, wallH + 14, wallOpts);
-      Matter.Composite.add(engine.world, [floor, ceiling, left, right]);
-      wallsRef.current = { floor, ceiling, left, right };
+    // Unified: full-scene walls — items bounce off all 4 edges in every mode
+    const floor = Matter.Bodies.rectangle(wallW / 2, wallH + 7, wallW + 14, 14, wallOpts);
+    const ceiling = Matter.Bodies.rectangle(wallW / 2, -7, wallW + 14, 14, wallOpts);
+    const left = Matter.Bodies.rectangle(-7, wallH / 2, 14, wallH + 14, wallOpts);
+    const right = Matter.Bodies.rectangle(wallW + 7, wallH / 2, 14, wallH + 14, wallOpts);
+    Matter.Composite.add(engine.world, [floor, ceiling, left, right]);
+    wallsRef.current = { floor, ceiling, left, right };
 
-      // Drawer collision body — bottom 3/4 is solid, top 1/4 is open.
-      // drawerElRef rect is UNSCALED (CSS transform is on inner child),
-      // so multiply by contentScale and account for transform-origin: bottom center.
-      if (drawerElRef.current && sceneRef.current) {
-        const sceneRect = sceneRef.current.getBoundingClientRect();
-        const drawerRect = drawerElRef.current.getBoundingClientRect();
-        const dw = drawerRect.width;
-        const dh = drawerRect.height;
-        const scaledW = dw * cs;
-        const scaledH = dh * cs;
-        const centerX = drawerRect.left - sceneRect.left + dw / 2;
-        // transform-origin: bottom center — bottom stays fixed
-        const bottomY = drawerRect.top - sceneRect.top + dh;
-        const bodyH = scaledH * 0.75;
-        const bodyY = bottomY - scaledH * 3 / 8;
-        const drawerBody = Matter.Bodies.rectangle(centerX, bodyY, scaledW, bodyH, {
-          isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
-        });
-        Matter.Composite.add(engine.world, drawerBody);
-        wallsRef.current.drawerBody = drawerBody;
-      }
-    } else {
-      // Normal mode: box-shaped walls centered around the actual drawer element.
-      // drawerElRef rect is UNSCALED — scale-aware calculation needed.
-      let boxCenterX = w / 2;
-      let floorY = h - Math.max(120 * cs, h * 0.3);
-      let boxW = Math.min(420 * cs, w * 0.85);
-
-      if (drawerElRef.current && scene) {
-        const sceneRect = scene.getBoundingClientRect();
-        const drawerRect = drawerElRef.current.getBoundingClientRect();
-        const scaledH = drawerRect.height * cs;
-        const bottomY = drawerRect.top - sceneRect.top + drawerRect.height;
-        boxCenterX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
-        // Floor at top 1/4 of the scaled drawer (items rest on the "rim")
-        floorY = bottomY - scaledH * 0.75;
-        boxW = Math.max(drawerRect.width * cs, 200 * cs);
-      }
-
-      const floor = Matter.Bodies.rectangle(boxCenterX, floorY, boxW, 14, wallOpts);
-      const leftWall = Matter.Bodies.rectangle(
-        boxCenterX - boxW / 2 - 7, floorY - 300, 14, 700 * cs, wallOpts
-      );
-      const rightWall = Matter.Bodies.rectangle(
-        boxCenterX + boxW / 2 + 7, floorY - 300, 14, 700 * cs, wallOpts
-      );
-      Matter.Composite.add(engine.world, [floor, leftWall, rightWall]);
-      wallsRef.current = { floor, left: leftWall, right: rightWall };
+    // Drawer collision body — bottom 3/4 is solid, top 1/4 is open.
+    // drawerElRef rect is UNSCALED (CSS transform is on inner child),
+    // so multiply by contentScale and account for transform-origin: bottom center.
+    if (drawerElRef.current && sceneRef.current) {
+      const sceneRect = sceneRef.current.getBoundingClientRect();
+      const drawerRect = drawerElRef.current.getBoundingClientRect();
+      const dw = drawerRect.width;
+      const dh = drawerRect.height;
+      const scaledW = dw * cs;
+      const scaledH = dh * cs;
+      const centerX = drawerRect.left - sceneRect.left + dw / 2;
+      // transform-origin: bottom center — bottom stays fixed
+      const bottomY = drawerRect.top - sceneRect.top + dh;
+      const bodyH = scaledH * 0.75;
+      const bodyY = bottomY - scaledH * 3 / 8;
+      const drawerBody = Matter.Bodies.rectangle(centerX, bodyY, scaledW, bodyH, {
+        isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
+      });
+      Matter.Composite.add(engine.world, drawerBody);
+      wallsRef.current.drawerBody = drawerBody;
     }
 
     const mouse = Matter.Mouse.create(canvas);
@@ -1005,24 +1000,24 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   return (
     <div
       ref={sceneRef}
-      className={`relative w-full h-full select-none ${(overlayPreview || embedded) ? '' : 'min-h-[400px]'} overflow-hidden`}
+      className={`relative w-full h-full select-none ${embedded ? '' : 'min-h-[400px]'} overflow-hidden`}
       style={{ background: isTransparent ? 'transparent' : bg }}
     >
       {/* Drawer area — below canvas when open so items render on top */}
       <div
         ref={drawerElRef}
-        className={overlayPreview ? 'absolute cursor-pointer touch-none' : 'absolute bottom-6 left-1/2 -translate-x-1/2 cursor-pointer'}
+        className="absolute cursor-pointer touch-none"
         style={{
-          ...(overlayPreview?.drawerStyle || {}),
+          ...(effectiveOverlay?.drawerStyle || {}),
           zIndex: isOpen ? 10 : 20,
-          cursor: overlayPreview?.onDrag ? (isDraggingDrawer.current ? 'grabbing' : 'grab') : 'pointer',
+          cursor: effectiveOverlay?.onDrag ? (isDraggingDrawer.current ? 'grabbing' : 'grab') : 'pointer',
         }}
-        onMouseEnter={overlayPreview?.onDrag ? undefined : handleDrawerMouseEnter}
-        onMouseLeave={overlayPreview?.onDrag ? undefined : handleDrawerMouseLeave}
-        onClick={overlayPreview?.onDrag ? undefined : handleDrawerClick}
-        onPointerDown={overlayPreview?.onDrag ? handleDrawerPointerDown : undefined}
-        onPointerMove={overlayPreview?.onDrag ? handleDrawerPointerMove : undefined}
-        onPointerUp={overlayPreview?.onDrag ? handleDrawerPointerUp : undefined}
+        onMouseEnter={effectiveOverlay?.onDrag ? undefined : handleDrawerMouseEnter}
+        onMouseLeave={effectiveOverlay?.onDrag ? undefined : handleDrawerMouseLeave}
+        onClick={effectiveOverlay?.onDrag ? undefined : handleDrawerClick}
+        onPointerDown={effectiveOverlay?.onDrag ? handleDrawerPointerDown : undefined}
+        onPointerMove={effectiveOverlay?.onDrag ? handleDrawerPointerMove : undefined}
+        onPointerUp={effectiveOverlay?.onDrag ? handleDrawerPointerUp : undefined}
       >
         <div style={{ transform: `scale(${contentScale})`, transformOrigin: 'bottom center' }}>
           {hasGeneratedImages ? (

@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/components/ThemeProvider';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import {
   getBoxConfig, saveBoxConfig,
@@ -16,7 +16,7 @@ import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
 import { extractContourFromImage } from '@/lib/contour';
 import EmbedConfigurator from '@/components/EmbedConfigurator';
-import { computeDrawerPosition, computeSpawnOrigin, positionFromPointer } from '@/lib/embedPosition';
+import { computeDrawerPosition, computeSpawnOrigin, computeCenteredDrawerPosition, computeCenteredSpawnOrigin, positionFromPointer } from '@/lib/embedPosition';
 
 const DEFAULT_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'> = {
   title: 'My Treasure Box',
@@ -743,31 +743,21 @@ export default function EditorPage() {
                 ? 'repeating-conic-gradient(var(--tb-bg-muted) 0% 25%, var(--tb-bg-subtle) 0% 50%) 50% / 16px 16px'
                 : config?.backgroundColor || 'var(--tb-bg)',
             }}>
-            {config && tab === 'embed' ? (
-              // Embed tab: interactive preview with draggable TreasureBox
-              <EmbedPreview
+            {config && (
+              <UnifiedPreview
                 config={config}
                 items={items}
+                tab={tab}
                 onPositionChange={(pos) => {
                   setConfig({
                     ...config,
                     embedSettings: {
-                      ...(config.embedSettings || { mode: 'overlay', width: 350, height: 300, position: { anchor: 'bottom-right', offsetX: 32, offsetY: 32 } }),
+                      ...(config.embedSettings || { mode: 'overlay', width: 350, height: 300, position: { anchor: 'bottom-right' as AnchorCorner, offsetX: 32, offsetY: 32 } }),
                       position: pos,
                     },
                   });
                 }}
               />
-            ) : (
-              // Items / Config tabs: plain preview, no mock site
-              <>
-                {config && (
-                  <div style={{ width: '90%', maxWidth: 500, aspectRatio: '1 / 1' }}>
-                    <TreasureBox items={items} config={config} />
-                  </div>
-                )}
-                {config?.ownerName && <div className="absolute bottom-2 left-3 text-[8px] tracking-wider" style={S.faint}>{config.ownerName}</div>}
-              </>
             )}
           </div>
         </div>
@@ -809,42 +799,57 @@ function CfgToggle({ active, first, children, onClick }: { active: boolean; firs
 }
 
 /** Interactive embed preview — TreasureBox fills the preview, drawer is draggable */
-function EmbedPreview({
+/** Unified preview — single persistent TreasureBox across all tabs.
+ *  Drawer position changes smoothly via CSS transition when switching tabs. */
+function UnifiedPreview({
   config,
   items,
+  tab,
   onPositionChange,
 }: {
   config: BoxConfig;
   items: TreasureItem[];
+  tab: 'items' | 'config' | 'embed';
   onPositionChange: (pos: { anchor: AnchorCorner; offsetX: number; offsetY: number }) => void;
 }) {
   const previewRef = useRef<HTMLDivElement>(null);
-  const es = config.embedSettings || { mode: 'overlay', width: 350, height: 300, position: { anchor: 'bottom-right' as AnchorCorner, offsetX: 32, offsetY: 32 } };
+  const es = config.embedSettings || { mode: 'overlay' as const, width: 350, height: 300, position: { anchor: 'bottom-right' as AnchorCorner, offsetX: 32, offsetY: 32 } };
+  const isEmbedTab = tab === 'embed';
   const isOverlay = es.mode !== 'contained';
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const [previewMode, setPreviewMode] = useState<'edit' | 'play'>('edit');
   const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
 
-  // Compute drawer position via shared utility
+  // Compute drawer position: centered for items/config, stored anchor for embed overlay
   const getDrawerStyle = useCallback((): React.CSSProperties => {
+    // During drag, follow pointer directly
     if (dragPos) {
       return { left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)' };
     }
+    // Items/Config tabs OR contained mode: centered
+    if (!isEmbedTab || !isOverlay) {
+      if (!previewRef.current) return { left: '50%', top: '60%', transform: 'translate(-50%, -50%)' };
+      const w = previewRef.current.offsetWidth;
+      const h = previewRef.current.offsetHeight;
+      return computeCenteredDrawerPosition(w, h);
+    }
+    // Embed tab + overlay mode: use stored position
     if (!previewRef.current) return { bottom: 24, right: 24 };
     return computeDrawerPosition(
       es.position.anchor, es.position.offsetX, es.position.offsetY,
       previewRef.current.offsetWidth, previewRef.current.offsetHeight,
     );
-  }, [es.position, dragPos]);
+  }, [isEmbedTab, isOverlay, es.position, dragPos]);
 
-  // Compute spawn origin via shared utility
+  // Compute spawn origin
   const getSpawnOrigin = useCallback(() => {
+    if (!isEmbedTab || !isOverlay) return computeCenteredSpawnOrigin();
     if (!previewRef.current) return { x: 0.8, y: 0.8 };
     return computeSpawnOrigin(
       es.position.anchor, es.position.offsetX, es.position.offsetY,
       previewRef.current.offsetWidth, previewRef.current.offsetHeight,
     );
-  }, [es.position]);
+  }, [isEmbedTab, isOverlay, es.position]);
 
   // Handle drag from TreasureBox drawer — follow mouse during move, commit on end
   const handleDrag = useCallback((e: PointerEvent, phase: 'start' | 'move' | 'end') => {
@@ -879,89 +884,97 @@ function EmbedPreview({
     onPositionChange(positionFromPointer(posX, posY, rect.width, rect.height));
   }, [es.position, onPositionChange]);
 
-  if (!isOverlay) {
-    // Contained mode — centered box over placeholder site
-    return (
-      <div className="w-full h-full relative" style={{ background: 'var(--tb-bg)' }}>
-        <MockWebsitePlaceholder />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div
-            style={{
-              width: es ? `${Math.min(es.width * 0.6, 450)}px` : '90%',
-              maxWidth: 500,
-              aspectRatio: es ? `${es.width} / ${es.height}` : '1 / 1',
-            }}
-          >
-            <TreasureBox items={items} config={config} />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Drawer style with CSS transition for smooth tab-switch animation (disabled during drag)
+  const drawerStyleWithTransition = useMemo(() => ({
+    ...getDrawerStyle(),
+    ...(dragPos ? {} : { transition: 'left 0.5s ease-out, top 0.5s ease-out' }),
+  }), [getDrawerStyle, dragPos]);
 
-  // Overlay mode — TreasureBox fills preview, drawer at anchor, items fly freely
-  const previewConfig = {
-    ...config,
-    backgroundColor: 'transparent',
-    contentScale: config.contentScale ?? 1,
-  };
+  // Effective config: transparent background on embed tab overlay
+  const previewConfig = useMemo(() => {
+    if (isEmbedTab && isOverlay) {
+      return {
+        ...config,
+        backgroundColor: 'transparent',
+        contentScale: es.embedScale ?? config.contentScale ?? 1,
+      };
+    }
+    return config;
+  }, [config, isEmbedTab, isOverlay, es.embedScale]);
 
   return (
-    <div ref={previewRef} className="w-full h-full relative" style={{ background: 'var(--tb-bg)' }}>
-      {/* Background: website iframe or wireframe */}
-      <MockWebsitePlaceholder />
-      {es.previewUrl && (
-        <>
-          <iframe
-            src={es.previewUrl}
-            sandbox="allow-scripts"
-            referrerPolicy="no-referrer"
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            style={{ opacity: 0.4, zIndex: 1, border: 'none' }}
-          />
-          <div className="absolute top-2 left-3 z-30 text-[7px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
-            site preview (may be blocked by X-Frame-Options)
-          </div>
-        </>
+    <div ref={previewRef} className="w-full h-full relative">
+      {/* Website background — only visible on embed tab */}
+      {isEmbedTab && (
+        <div style={{ opacity: 1, transition: 'opacity 0.3s' }}>
+          <MockWebsitePlaceholder />
+          {es.previewUrl && (
+            <>
+              <iframe
+                src={es.previewUrl}
+                sandbox="allow-scripts"
+                referrerPolicy="no-referrer"
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                style={{ opacity: 0.4, zIndex: 1, border: 'none' }}
+              />
+              <div className="absolute top-2 left-3 z-30 text-[7px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
+                site preview (may be blocked by X-Frame-Options)
+              </div>
+            </>
+          )}
+        </div>
       )}
 
-      {/* Edit / Play mode toggle */}
-      <div className="absolute top-2 right-3 z-30 flex rounded overflow-hidden border" style={{ borderColor: 'var(--tb-border)' }}>
-        {(['edit', 'play'] as const).map((mode) => (
-          <button
-            key={mode}
-            onClick={() => setPreviewMode(mode)}
-            className="px-1.5 py-0.5 text-[9px] transition-colors"
-            style={{
-              background: previewMode === mode ? 'var(--tb-fg)' : 'transparent',
-              color: previewMode === mode ? 'var(--tb-bg)' : 'var(--tb-fg-muted)',
-            }}
-          >
-            {mode === 'edit' ? '✎ edit' : '▶ play'}
-          </button>
-        ))}
-      </div>
+      {/* Edit / Play mode toggle — only on embed tab overlay mode */}
+      {isEmbedTab && isOverlay && (
+        <div className="absolute top-2 right-3 z-30 flex rounded overflow-hidden border" style={{ borderColor: 'var(--tb-border)' }}>
+          {(['edit', 'play'] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setPreviewMode(mode)}
+              className="px-1.5 py-0.5 text-[9px] transition-colors"
+              style={{
+                background: previewMode === mode ? 'var(--tb-fg)' : 'transparent',
+                color: previewMode === mode ? 'var(--tb-bg)' : 'var(--tb-fg-muted)',
+              }}
+            >
+              {mode === 'edit' ? '✎ edit' : '▶ play'}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* TreasureBox fills entire preview — items bounce off edges */}
+      {/* Single persistent TreasureBox — never unmounted across tab switches */}
       <div className="absolute inset-0" style={{ zIndex: 5 }}>
         <TreasureBox
           items={items}
           config={previewConfig}
           overlayPreview={{
-            drawerStyle: getDrawerStyle(),
+            drawerStyle: drawerStyleWithTransition,
             spawnOrigin: getSpawnOrigin(),
-            onDrag: previewMode === 'edit' ? handleDrag : undefined,
+            onDrag: (isEmbedTab && isOverlay && previewMode === 'edit') ? handleDrag : undefined,
           }}
         />
       </div>
 
-      {/* Position readout */}
-      <div className="absolute bottom-2 left-3 z-30 text-[8px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
-        {es.position.anchor} &middot; {es.position.offsetX}px, {es.position.offsetY}px
-      </div>
-      <div className="absolute bottom-2 right-3 z-30 text-[8px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
-        {previewMode === 'edit' ? 'drag drawer to reposition' : 'click drawer to interact'}
-      </div>
+      {/* Position readout — only on embed tab */}
+      {isEmbedTab && isOverlay && (
+        <>
+          <div className="absolute bottom-2 left-3 z-30 text-[8px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
+            {es.position.anchor} &middot; {es.position.offsetX}px, {es.position.offsetY}px
+          </div>
+          <div className="absolute bottom-2 right-3 z-30 text-[8px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
+            {previewMode === 'edit' ? 'drag drawer to reposition' : 'click drawer to interact'}
+          </div>
+        </>
+      )}
+
+      {/* Owner name — shown on non-embed tabs */}
+      {!isEmbedTab && config.ownerName && (
+        <div className="absolute bottom-2 left-3 text-[8px] tracking-wider z-30 pointer-events-none" style={{ color: 'var(--tb-fg-faint)' }}>
+          {config.ownerName}
+        </div>
+      )}
     </div>
   );
 }
