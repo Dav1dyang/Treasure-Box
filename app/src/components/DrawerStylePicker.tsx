@@ -167,10 +167,9 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
   const [debugPrompt, setDebugPrompt] = useState<string | null>(null);
   const [debugMeta, setDebugMeta] = useState<{
     spriteSize?: { width: number; height: number; frameCount: number };
-    bgRemoval?: string;
-    visionObjects?: number;
     ratioWarning?: string;
   } | null>(null);
+  const [removingBg, setRemovingBg] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
 
   const asciiPreview = useMemo(
@@ -233,17 +232,116 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
 
       const data = await res.json();
       if (data.prompt) setDebugPrompt(data.prompt);
-      if (data.spriteSize || data.bgRemoval) {
+      if (data.spriteSize) {
         setDebugMeta({
           spriteSize: data.spriteSize,
-          bgRemoval: data.bgRemoval,
-          visionObjects: data.visionObjects,
           ratioWarning: data.ratioWarning,
         });
       }
 
-      // Upload single sprite sheet
-      const spriteUrl = await uploadSpriteSheet(userId, data.sprite);
+      // Client-side ML background removal (same model used for items)
+      setRemovingBg(true);
+      let finalSpriteBase64 = data.sprite;
+      let activeArea: { x: number; y: number; width: number; height: number } | undefined;
+      try {
+        const { removeBackground } = await import('@imgly/background-removal');
+        const spriteWidth = data.spriteSize?.width || 2500;
+        const spriteHeight = data.spriteSize?.height || 500;
+        const frameCount = data.spriteSize?.frameCount || 5;
+        const frameW = Math.floor(spriteWidth / frameCount);
+
+        // Decode sprite to an Image
+        const spriteImg = new Image();
+        await new Promise<void>((resolve, reject) => {
+          spriteImg.onload = () => resolve();
+          spriteImg.onerror = reject;
+          spriteImg.src = `data:image/png;base64,${data.sprite}`;
+        });
+
+        // Split into individual frames, run ML bg removal on each
+        const processedFrames: Blob[] = [];
+        for (let i = 0; i < frameCount; i++) {
+          const frameCanvas = document.createElement('canvas');
+          frameCanvas.width = frameW;
+          frameCanvas.height = spriteHeight;
+          const fCtx = frameCanvas.getContext('2d')!;
+          fCtx.drawImage(spriteImg, i * frameW, 0, frameW, spriteHeight, 0, 0, frameW, spriteHeight);
+          const frameBlob = await new Promise<Blob>((resolve) =>
+            frameCanvas.toBlob((b) => resolve(b!), 'image/png')
+          );
+          const removedBlob = await removeBackground(frameBlob, {
+            model: 'isnet_quint8',
+            output: { format: 'image/png' },
+          });
+          processedFrames.push(removedBlob);
+        }
+
+        // Reassemble into sprite sheet
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = spriteWidth;
+        finalCanvas.height = spriteHeight;
+        const finalCtx = finalCanvas.getContext('2d')!;
+
+        for (let i = 0; i < frameCount; i++) {
+          const frameImg = new Image();
+          const blobUrl = URL.createObjectURL(processedFrames[i]);
+          await new Promise<void>((resolve, reject) => {
+            frameImg.onload = () => resolve();
+            frameImg.onerror = reject;
+            frameImg.src = blobUrl;
+          });
+          URL.revokeObjectURL(blobUrl);
+          finalCtx.drawImage(frameImg, i * frameW, 0);
+        }
+
+        // Compute active area (tight bounding box of non-transparent pixels per frame)
+        const imgData = finalCtx.getImageData(0, 0, spriteWidth, spriteHeight);
+        const pixels = imgData.data;
+        let minX = frameW, minY = spriteHeight, maxX = 0, maxY = 0;
+        for (let frame = 0; frame < frameCount; frame++) {
+          const offsetX = frame * frameW;
+          for (let y = 0; y < spriteHeight; y++) {
+            for (let x = 0; x < frameW; x++) {
+              const idx = (y * spriteWidth + (offsetX + x)) * 4;
+              if (pixels[idx + 3] > 10) {
+                minX = Math.min(minX, x);
+                maxX = Math.max(maxX, x);
+                minY = Math.min(minY, y);
+                maxY = Math.max(maxY, y);
+              }
+            }
+          }
+        }
+        const padX = Math.round(frameW * 0.02);
+        const padY = Math.round(spriteHeight * 0.02);
+        minX = Math.max(0, minX - padX);
+        minY = Math.max(0, minY - padY);
+        maxX = Math.min(frameW - 1, maxX + padX);
+        maxY = Math.min(spriteHeight - 1, maxY + padY);
+        activeArea = {
+          x: minX / frameW,
+          y: minY / spriteHeight,
+          width: (maxX - minX + 1) / frameW,
+          height: (maxY - minY + 1) / spriteHeight,
+        };
+
+        // Convert final canvas to base64
+        const finalBlob = await new Promise<Blob>((resolve) =>
+          finalCanvas.toBlob((b) => resolve(b!), 'image/png')
+        );
+        const arrayBuf = await finalBlob.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuf);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        finalSpriteBase64 = btoa(binary);
+      } catch (bgErr) {
+        console.warn('Client-side bg removal failed, using raw sprite:', bgErr);
+      } finally {
+        setRemovingBg(false);
+      }
+
+      // Upload processed sprite sheet
+      const spriteUrl = await uploadSpriteSheet(userId, finalSpriteBase64);
       setSpritePreviewUrl(spriteUrl);
 
       // Strip undefined values — Firestore rejects them
@@ -254,7 +352,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
         spriteUrl,
         style: cleanStyle,
         generatedAt: Date.now(),
-        ...(data.activeArea && { activeArea: data.activeArea }),
+        ...(activeArea && { activeArea }),
       };
 
       await saveDrawerImages(userId, drawerImages);
@@ -482,7 +580,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
             opacity: generating ? 0.5 : 1,
           }}
         >
-          {generating ? 'generating...' : currentImages ? 'regenerate' : 'generate drawer'}
+          {generating ? (removingBg ? 'removing background...' : 'generating...') : currentImages ? 'regenerate' : 'generate drawer'}
         </button>
         {currentImages && !generating && (
           <button
@@ -496,7 +594,9 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
 
       {generating && (
         <div style={{ fontSize: 11, color: 'var(--tb-highlight, var(--tb-accent))' }}>
-          generating all 5 states — 30-60 seconds...
+          {removingBg
+            ? 'removing background from each frame — 15-30 seconds...'
+            : 'generating all 5 states — 15-30 seconds...'}
         </div>
       )}
 
@@ -606,26 +706,17 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
                   </span>
                 </div>
               )}
-              {debugMeta?.bgRemoval && (
-                <div>
-                  <label style={sectionLabel}>bg removal</label>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{
-                      fontSize: 9, padding: '2px 6px', borderRadius: 3,
-                      background: debugMeta.bgRemoval === 'vision' ? 'rgba(34,197,94,0.1)' : 'rgba(250,204,21,0.1)',
-                      color: debugMeta.bgRemoval === 'vision' ? '#22c55e' : '#facc15',
-                      border: `1px solid ${debugMeta.bgRemoval === 'vision' ? 'rgba(34,197,94,0.2)' : 'rgba(250,204,21,0.2)'}`,
-                    }}>
-                      {debugMeta.bgRemoval === 'vision' ? 'vision api + chroma key' : 'chroma key only'}
-                    </span>
-                    {debugMeta.bgRemoval === 'vision' && debugMeta.visionObjects !== undefined && (
-                      <span style={{ fontSize: 9, color: 'var(--tb-fg-faint)' }}>
-                        {debugMeta.visionObjects} object{debugMeta.visionObjects !== 1 ? 's' : ''} detected
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
+              <div>
+                <label style={sectionLabel}>bg removal</label>
+                <span style={{
+                  fontSize: 9, padding: '2px 6px', borderRadius: 3,
+                  background: 'rgba(34,197,94,0.1)',
+                  color: '#22c55e',
+                  border: '1px solid rgba(34,197,94,0.2)',
+                }}>
+                  ML (client-side)
+                </span>
+              </div>
             </div>
           )}
         </div>

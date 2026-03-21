@@ -121,15 +121,10 @@ OUTPUT FORMAT:
 - This sheet will be sliced programmatically, so alignment must be exact
 
 BACKGROUND:
-Completely flat chroma key green across the entire image.
-- Exact color: Hex #00FF00 / RGB (0, 255, 0)
-- Absolutely uniform — no gradients, noise, texture, shadows, vignette, lighting changes, or edge discoloration
-- Green must extend to every edge of the image
-
-IMPORTANT COLOR RULE:
-- Do NOT use green on the furniture at all
-- Do NOT use #00FF00 or similar bright greens anywhere on the drawer, tray, hardware, highlights, or ornament
-- Avoid green reflections or green-tinted shading
+Plain solid white background across the entire image.
+- Completely uniform white — no gradients, noise, texture, shadows, or lighting changes
+- White must extend to every edge of the image
+- The furniture should have clean, well-defined edges against the white
 
 OUTLINE:
 - No outline, border, or silhouette line around the furniture shape
@@ -188,7 +183,7 @@ PARAMETERS — interpret each one carefully
 → This is the proportions of the DRAWER OBJECT itself, NOT the frame size.
 → The drawer front face should be drawn with approximately ${widthRatio}:${heightRatio} proportions.
 → ${widthRatio > heightRatio ? 'The drawer is wider than tall — a wide, flat shape.' : widthRatio < heightRatio ? 'The drawer is taller than wide — a tall, narrow shape.' : 'The drawer is roughly square.'}
-→ The frame size stays fixed (square-ish) — the drawer shape sits inside each frame with green background around it.
+→ The frame size stays fixed (square-ish) — the drawer shape sits inside each frame with white background around it.
 
 [OPENING_ANGLE]: ${openingAngle}
 
@@ -239,7 +234,7 @@ CONSISTENCY RULES:
 
 QUALITY PRIORITY (if any instruction conflicts):
 1. Exactly 5 equal frames in one horizontal strip
-2. Exact flat #00FF00 background
+2. Plain solid white background
 3. No text
 4. Front drawer face pixel-identical across all frames
 5. Drawer reads as true sliding drawer

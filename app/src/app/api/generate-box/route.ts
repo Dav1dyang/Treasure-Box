@@ -4,8 +4,8 @@ import sharp from 'sharp';
 import { buildSpriteSheetPrompt } from '@/lib/boxStyles';
 import type { DrawerStyle } from '@/lib/types';
 
-// Vision API + Sharp chroma key is much faster than ML bg removal
-export const maxDuration = 60;
+// Gemini generation only — bg removal happens client-side
+export const maxDuration = 30;
 
 interface GenerateBoxRequest {
   style: DrawerStyle;
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Remove green background from the sprite sheet
+    // Validate and normalize the sprite sheet
     let spriteBuffer: Buffer = Buffer.from(imageBase64, 'base64');
     const metadata = await sharp(spriteBuffer).metadata();
     let fullWidth = metadata.width || 2500;
@@ -77,70 +77,19 @@ export async function POST(request: NextRequest) {
       const targetWidth = Math.min(idealWidth, maxWidth);
       ratioWarning = `Gemini returned ${fullWidth}×${fullHeight} (${ratio.toFixed(1)}:1), resized to ${targetWidth}×${fullHeight}`;
       spriteBuffer = await sharp(spriteBuffer)
-        .resize(targetWidth, fullHeight, { fit: 'contain', background: { r: 0, g: 255, b: 0, alpha: 1 } })
+        .resize(targetWidth, fullHeight, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
         .toBuffer();
       fullWidth = targetWidth;
     }
 
-    let bgRemoval: 'vision' | 'chroma-fallback';
-    let visionObjects = 0;
-    let processedBase64: string;
-
-    const visionApiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
-
-    if (visionApiKey) {
-      // Vision API-assisted chroma key removal
-      try {
-        const visionRes = await fetch(
-          `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              requests: [{
-                image: { content: imageBase64 },
-                features: [{ type: 'OBJECT_LOCALIZATION', maxResults: 10 }],
-              }],
-            }),
-          }
-        );
-        const visionData = await visionRes.json();
-        const objects = visionData.responses?.[0]?.localizedObjectAnnotations ?? [];
-        visionObjects = objects.length;
-
-        // Build object mask regions from Vision API bounding polys
-        const objectRegions = objects.map((obj: any) => {
-          const vertices = obj.boundingPoly?.normalizedVertices ?? [];
-          return vertices.map((v: any) => ({
-            x: Math.round((v.x || 0) * fullWidth),
-            y: Math.round((v.y || 0) * fullHeight),
-          }));
-        });
-
-        processedBase64 = await removeGreenWithVision(spriteBuffer, fullWidth, fullHeight, objectRegions);
-        bgRemoval = 'vision';
-      } catch (visionErr) {
-        console.warn('Vision API failed, falling back to pure chroma key:', visionErr);
-        processedBase64 = await removeGreenChromaKey(spriteBuffer);
-        bgRemoval = 'chroma-fallback';
-      }
-    } else {
-      // Pure chroma key removal (no Vision API key)
-      processedBase64 = await removeGreenChromaKey(spriteBuffer);
-      bgRemoval = 'chroma-fallback';
-    }
-
-    // Compute active area — tight bounding box of non-transparent pixels
-    const activeArea = await computeActiveArea(processedBase64, fullWidth, fullHeight, 5);
+    // Return raw sprite — bg removal happens client-side via ML
+    const processedBase64 = spriteBuffer.toString('base64');
 
     return NextResponse.json({
       sprite: processedBase64,
       prompt: builtPrompt,
       mimeType: 'image/png',
       spriteSize: { width: fullWidth, height: fullHeight, frameCount: 5 },
-      activeArea,
-      bgRemoval,
-      visionObjects,
       ...(ratioWarning && { ratioWarning }),
     });
   } catch (error: any) {
@@ -152,202 +101,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * Remove #00FF00 chroma key green using Vision API object bounds for edge refinement.
- * - Pixels outside object bounds: aggressive green removal (wide tolerance)
- * - Pixels near object edges: feathered alpha for smooth transitions
- * - Pixels inside objects: conservative removal (preserve green-tinted shadows)
- */
-async function removeGreenWithVision(
-  buffer: Buffer,
-  width: number,
-  height: number,
-  objectRegions: { x: number; y: number }[][],
-): Promise<string> {
-  const { data, info } = await sharp(buffer)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const pixels = new Uint8Array(data.buffer, data.byteOffset, data.length);
-
-  // Build a distance map from object edges (simplified: use bounding boxes)
-  const edgeDistance = buildEdgeDistanceMap(width, height, objectRegions);
-
-  for (let i = 0; i < pixels.length; i += 4) {
-    const r = pixels[i];
-    const g = pixels[i + 1];
-    const b = pixels[i + 2];
-
-    const pixelIdx = i / 4;
-    const dist = edgeDistance[pixelIdx];
-
-    // Green detection — wider tolerance for Gemini's varied greens
-    const greenDominance = g - Math.max(r, b);
-    const isGreen = greenDominance > 50 && g > 150;
-    const isSoftGreen = greenDominance > 20 && g > 120;
-
-    if (isGreen) {
-      // Strong green — always remove
-      pixels[i + 3] = 0;
-    } else if (isSoftGreen && dist > 3) {
-      // Soft green outside object bounds — remove
-      pixels[i + 3] = 0;
-    } else if (isSoftGreen && dist > 0) {
-      // Soft green near object edge — feather alpha
-      const alpha = Math.round((1 - dist / 4) * 255);
-      pixels[i + 3] = Math.min(pixels[i + 3], Math.max(0, alpha));
-    }
-    // Inside object or not green — keep as-is
-  }
-
-  const result = await sharp(Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length), {
-    raw: { width: info.width, height: info.height, channels: 4 },
-  })
-    .png()
-    .toBuffer();
-
-  return result.toString('base64');
-}
-
-/**
- * Pure chroma key removal — removes #00FF00 green pixels.
- * No Vision API needed. Works well for flat uniform green backgrounds.
- */
-async function removeGreenChromaKey(
-  buffer: Buffer,
-): Promise<string> {
-  const { data, info } = await sharp(buffer)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const pixels = new Uint8Array(data.buffer, data.byteOffset, data.length);
-
-  for (let i = 0; i < pixels.length; i += 4) {
-    const r = pixels[i];
-    const g = pixels[i + 1];
-    const b = pixels[i + 2];
-
-    // Green detection — Gemini produces varied greens, not just #00FF00
-    const greenDominance = g - Math.max(r, b);
-
-    if (greenDominance > 50 && g > 150) {
-      // Strong green — fully transparent
-      pixels[i + 3] = 0;
-    } else if (greenDominance > 20 && g > 120) {
-      // Soft green (edges, anti-aliasing) — feathered transparency
-      const greenness = greenDominance / g;
-      const alpha = Math.round((1 - greenness) * 255);
-      pixels[i + 3] = Math.min(pixels[i + 3], Math.max(0, alpha));
-    }
-  }
-
-  const result = await sharp(Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length), {
-    raw: { width: info.width, height: info.height, channels: 4 },
-  })
-    .png()
-    .toBuffer();
-
-  return result.toString('base64');
-}
-
-/**
- * Build a simplified distance map from object bounding box edges.
- * Returns distance in pixels from nearest object edge for each pixel.
- * Positive = outside object, 0 = on edge, negative values not used.
- */
-function buildEdgeDistanceMap(
-  width: number,
-  height: number,
-  objectRegions: { x: number; y: number }[][],
-): Float32Array {
-  const map = new Float32Array(width * height).fill(999);
-
-  // Convert polygon regions to bounding boxes for efficiency
-  for (const region of objectRegions) {
-    if (region.length < 2) continue;
-    const xs = region.map(p => p.x);
-    const ys = region.map(p => p.y);
-    const minX = Math.max(0, Math.min(...xs));
-    const maxX = Math.min(width - 1, Math.max(...xs));
-    const minY = Math.max(0, Math.min(...ys));
-    const maxY = Math.min(height - 1, Math.max(...ys));
-
-    // Mark pixels inside bounding box with distance from edge
-    for (let y = Math.max(0, minY - 5); y <= Math.min(height - 1, maxY + 5); y++) {
-      for (let x = Math.max(0, minX - 5); x <= Math.min(width - 1, maxX + 5); x++) {
-        const distToEdge = Math.min(
-          Math.abs(x - minX),
-          Math.abs(x - maxX),
-          Math.abs(y - minY),
-          Math.abs(y - maxY),
-        );
-
-        const inside = x >= minX && x <= maxX && y >= minY && y <= maxY;
-        const dist = inside ? -distToEdge : distToEdge;
-        const idx = y * width + x;
-        map[idx] = Math.min(map[idx], dist);
-      }
-    }
-  }
-
-  return map;
-}
-
-/**
- * Scan the bg-removed sprite for non-transparent pixels across all frames.
- * Returns a normalized (0-1) bounding box representing the union of active
- * content across all 5 frames — relative to each frame's own dimensions.
- */
-async function computeActiveArea(
-  base64: string,
-  spriteWidth: number,
-  spriteHeight: number,
-  frameCount: number,
-): Promise<{ x: number; y: number; width: number; height: number }> {
-  const { data } = await sharp(Buffer.from(base64, 'base64'))
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const pixels = new Uint8Array(data.buffer, data.byteOffset, data.length);
-  const frameW = Math.floor(spriteWidth / frameCount);
-
-  // Find the tightest bounding box of non-transparent pixels across all frames
-  // Coordinates are relative to each frame (not the full sprite)
-  let minX = frameW;
-  let minY = spriteHeight;
-  let maxX = 0;
-  let maxY = 0;
-
-  for (let frame = 0; frame < frameCount; frame++) {
-    const offsetX = frame * frameW;
-    for (let y = 0; y < spriteHeight; y++) {
-      for (let x = 0; x < frameW; x++) {
-        const pixelIdx = (y * spriteWidth + (offsetX + x)) * 4;
-        if (pixels[pixelIdx + 3] > 10) {
-          minX = Math.min(minX, x);
-          maxX = Math.max(maxX, x);
-          minY = Math.min(minY, y);
-          maxY = Math.max(maxY, y);
-        }
-      }
-    }
-  }
-
-  // Add a small padding (2% of frame dimensions)
-  const padX = Math.round(frameW * 0.02);
-  const padY = Math.round(spriteHeight * 0.02);
-  minX = Math.max(0, minX - padX);
-  minY = Math.max(0, minY - padY);
-  maxX = Math.min(frameW - 1, maxX + padX);
-  maxY = Math.min(spriteHeight - 1, maxY + padY);
-
-  return {
-    x: minX / frameW,
-    y: minY / spriteHeight,
-    width: (maxX - minX + 1) / frameW,
-    height: (maxY - minY + 1) / spriteHeight,
-  };
-}
