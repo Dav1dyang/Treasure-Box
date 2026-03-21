@@ -3,19 +3,8 @@ import { getAuth, GoogleAuthProvider, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
-const requiredEnvVars = [
-  'NEXT_PUBLIC_FIREBASE_API_KEY',
-  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-  'NEXT_PUBLIC_FIREBASE_APP_ID',
-] as const;
-
-function hasValidConfig(): boolean {
-  return requiredEnvVars.every((key) => {
-    const val = process.env[key];
-    return val && val !== 'placeholder' && val !== '0' && val !== '0:0:web:0';
-  });
-}
-
+// Must use literal process.env.NEXT_PUBLIC_* references — Next.js inlines these
+// at build time and does NOT support dynamic process.env[key] lookups.
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || '',
@@ -24,6 +13,15 @@ const firebaseConfig = {
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '',
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '',
 };
+
+function hasValidConfig(): boolean {
+  return Boolean(
+    firebaseConfig.apiKey &&
+    firebaseConfig.projectId &&
+    firebaseConfig.appId &&
+    firebaseConfig.apiKey !== 'placeholder'
+  );
+}
 
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
