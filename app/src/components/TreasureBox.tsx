@@ -7,6 +7,7 @@ import { contourToVertices, extractFrameFromSprite, extractDrawerWallPath } from
 import { computeCenteredDrawerPosition, computeCenteredSpawnOrigin } from '@/lib/embedPosition';
 import type { TreasureItem, BoxConfig, BoxState, DrawerImages, BoxDimensions, FrameSyncBody, HostViewport } from '@/lib/types';
 import { DEFAULT_DRAWER_DISPLAY_SIZE, DEFAULT_BOX_DIMENSIONS } from '@/lib/config';
+import { normalizeDimensions } from '@/lib/boxStyles';
 import StoryCard from './StoryCard';
 
 const ITEM_BASE_SIZE = 52;
@@ -1243,7 +1244,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           ) : (
             // === ASCII Art Fallback (dimension-aware) ===
             <DynamicASCIIBox
-              dimensions={config.boxDimensions || DEFAULT_BOX_DIMENSIONS}
+              dimensions={normalizeDimensions(config.boxDimensions || DEFAULT_BOX_DIMENSIONS)}
               label={config.drawerLabel || 'TREASURE BOX'}
               state={boxState}
               isOpen={isOpen}
@@ -1420,7 +1421,7 @@ function DynamicASCIIBox({
   const renderHandle = () => {
     const available = innerW - 2;
     switch (handleStyle) {
-      case 'knob': {
+      case 'round-knob': {
         const pad = Math.floor((available - 3) / 2);
         return { before: ' '.repeat(pad), handle: '(O)', after: ' '.repeat(available - pad - 3) };
       }
@@ -1430,13 +1431,20 @@ function DynamicASCIIBox({
         const bar = `[ ${'═'.repeat(Math.max(0, barW - 4))} ]`;
         return { before: ' '.repeat(pad), handle: bar, after: ' '.repeat(Math.max(0, available - pad - barW)) };
       }
-      case 'ring': {
+      case 'ring-pull': {
         const pad = Math.floor((available - 5) / 2);
         return { before: ' '.repeat(pad), handle: '(( ))', after: ' '.repeat(available - pad - 5) };
       }
-      case 'tab': {
+      case 'half-moon': {
+        const pad = Math.floor((available - 5) / 2);
+        return { before: ' '.repeat(pad), handle: '(   )', after: ' '.repeat(available - pad - 5) };
+      }
+      case 'slot-pull': {
         const pad = Math.floor((available - 7) / 2);
         return { before: ' '.repeat(pad), handle: '[_____]', after: ' '.repeat(available - pad - 7) };
+      }
+      case 'none': {
+        return { before: ' '.repeat(available), handle: '', after: '' };
       }
     }
   };

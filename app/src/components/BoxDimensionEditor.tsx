@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { BoxDimensions, BoxState } from '@/lib/types';
-import { DEFAULT_BOX_DIMENSIONS } from '@/lib/config';
+import type { BoxDimensions, BoxState, HandleStyle, CornerStyle } from '@/lib/types';
+import { DEFAULT_BOX_DIMENSIONS, HANDLE_STYLES, CORNER_STYLES } from '@/lib/config';
+import { normalizeDimensions } from '@/lib/boxStyles';
 
 interface Props {
   dimensions: BoxDimensions;
@@ -141,17 +142,17 @@ export default function BoxDimensionEditor({ dimensions, onChange }: Props) {
         <div>
           <label className="text-xs block mb-2" style={{ color: 'var(--tb-fg-faint)' }}>handle style</label>
           <div className="flex gap-1 flex-wrap">
-            {(['knob', 'pull-bar', 'ring', 'tab'] as const).map(style => (
+            {HANDLE_STYLES.map(h => (
               <button
-                key={style}
-                onClick={() => update({ handleStyle: style })}
+                key={h.id}
+                onClick={() => update({ handleStyle: h.id })}
                 className="text-[10px] px-2 py-1 border rounded-sm cursor-pointer"
                 style={{
-                  borderColor: dimensions.handleStyle === style ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
-                  color: dimensions.handleStyle === style ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
+                  borderColor: dimensions.handleStyle === h.id ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
+                  color: dimensions.handleStyle === h.id ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
                 }}
               >
-                {style}
+                {h.label}
               </button>
             ))}
           </div>
@@ -159,17 +160,17 @@ export default function BoxDimensionEditor({ dimensions, onChange }: Props) {
         <div>
           <label className="text-xs block mb-2" style={{ color: 'var(--tb-fg-faint)' }}>corner style</label>
           <div className="flex gap-1 flex-wrap">
-            {(['sharp', 'rounded', 'double'] as const).map(style => (
+            {CORNER_STYLES.map(c => (
               <button
-                key={style}
-                onClick={() => update({ cornerStyle: style })}
+                key={c.id}
+                onClick={() => update({ cornerStyle: c.id })}
                 className="text-[10px] px-2 py-1 border rounded-sm cursor-pointer"
                 style={{
-                  borderColor: dimensions.cornerStyle === style ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
-                  color: dimensions.cornerStyle === style ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
+                  borderColor: dimensions.cornerStyle === c.id ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
+                  color: dimensions.cornerStyle === c.id ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
                 }}
               >
-                {style}
+                {c.label}
               </button>
             ))}
           </div>
@@ -369,23 +370,27 @@ function renderASCIIBox(dims: BoxDimensions, state: BoxState, compact: boolean):
   return lines.join('\n');
 }
 
-function getCornerChars(style: 'sharp' | 'rounded' | 'double') {
+function getCornerChars(style: CornerStyle) {
   switch (style) {
-    case 'sharp':
+    case 'square':
       return { tl: '┌', tr: '┐', bl: '└', br: '┘' };
     case 'rounded':
       return { tl: '╭', tr: '╮', bl: '╰', br: '╯' };
     case 'double':
       return { tl: '╔', tr: '╗', bl: '╚', br: '╝' };
+    case 'beveled':
+      return { tl: '╒', tr: '╕', bl: '╘', br: '╛' };
+    case 'reinforced':
+      return { tl: '╔', tr: '╗', bl: '╚', br: '╝' };
   }
 }
 
-function renderHandle(style: 'knob' | 'pull-bar' | 'ring' | 'tab', innerW: number): string {
+function renderHandle(style: HandleStyle, innerW: number): string {
   const available = innerW - 2; // minus rivet space
   const accent = (s: string) => `<span style="color:var(--tb-accent)">${s}</span>`;
 
   switch (style) {
-    case 'knob': {
+    case 'round-knob': {
       const pad = Math.floor((available - 3) / 2);
       return ' '.repeat(pad) + accent('(O)') + ' '.repeat(available - pad - 3);
     }
@@ -395,13 +400,20 @@ function renderHandle(style: 'knob' | 'pull-bar' | 'ring' | 'tab', innerW: numbe
       const bar = accent(`[ ${'═'.repeat(barW - 4)} ]`);
       return ' '.repeat(pad) + bar + ' '.repeat(available - pad - barW);
     }
-    case 'ring': {
+    case 'ring-pull': {
       const pad = Math.floor((available - 5) / 2);
       return ' '.repeat(pad) + accent('(( ))') + ' '.repeat(available - pad - 5);
     }
-    case 'tab': {
+    case 'half-moon': {
+      const pad = Math.floor((available - 5) / 2);
+      return ' '.repeat(pad) + accent('(   )') + ' '.repeat(available - pad - 5);
+    }
+    case 'slot-pull': {
       const pad = Math.floor((available - 7) / 2);
       return ' '.repeat(pad) + accent('[_____]') + ' '.repeat(available - pad - 7);
+    }
+    case 'none': {
+      return ' '.repeat(available);
     }
   }
 }
