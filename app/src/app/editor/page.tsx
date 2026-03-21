@@ -913,54 +913,47 @@ function UnifiedPreview({
         </div>
       )}
 
-      {/* Single persistent TreasureBox — never unmounted across tab switches */}
-      {boundaryBox ? (
-        /* Contained mode: boundary box with grey-out overlay */
-        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 5 }}>
-          <div
-            style={{
-              width: boundaryBox.width,
-              height: boundaryBox.height,
-              position: 'relative',
-              border: '2px solid var(--tb-accent)',
-              boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.25)',
-            }}
-          >
-            <div className="w-full h-full overflow-hidden relative">
-              <TreasureBox
-                items={items}
-                config={previewConfig}
-                overlayPreview={{
-                  drawerStyle: drawerStyleWithTransition,
-                  spawnOrigin: getSpawnOrigin(),
-                }}
-              />
-            </div>
-          </div>
-          {/* Dimension label below boundary box */}
-          <div className="absolute z-30 text-[9px] pointer-events-none"
-            style={{
-              color: 'var(--tb-fg-ghost)',
-              top: `calc(50% + ${boundaryBox.height / 2 + 8}px)`,
-              left: '50%',
-              transform: 'translateX(-50%)',
-            }}>
-            {es.width} &times; {es.height}px
-            {boundaryBox.scale < 1 && ` (${Math.round(boundaryBox.scale * 100)}%)`}
-          </div>
-        </div>
-      ) : (
-        /* Overlay / non-embed: full-bleed TreasureBox */
-        <div className="absolute inset-0" style={{ zIndex: 5 }}>
-          <TreasureBox
-            items={items}
-            config={previewConfig}
-            overlayPreview={{
-              drawerStyle: drawerStyleWithTransition,
-              spawnOrigin: getSpawnOrigin(),
-              onDrag: (isEmbedTab && isOverlay) ? handleDrag : undefined,
-            }}
-          />
+      {/* Single persistent TreasureBox — never unmounted across tab switches.
+          Uses a single wrapper div that changes dimensions (not conditional branches)
+          so React preserves the TreasureBox instance across mode switches. */}
+      {boundaryBox && (
+        <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 4, background: 'rgba(0,0,0,0.25)' }} />
+      )}
+      <div
+        className={boundaryBox ? 'absolute' : 'absolute inset-0'}
+        style={boundaryBox ? {
+          zIndex: 5,
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: boundaryBox.width,
+          height: boundaryBox.height,
+          border: '2px solid var(--tb-accent)',
+          overflow: 'hidden',
+        } : { zIndex: 5 }}
+      >
+        <TreasureBox
+          items={items}
+          config={previewConfig}
+          embedded={!!boundaryBox}
+          overlayPreview={{
+            drawerStyle: drawerStyleWithTransition,
+            spawnOrigin: getSpawnOrigin(),
+            onDrag: (isEmbedTab && isOverlay) ? handleDrag : undefined,
+          }}
+        />
+      </div>
+      {/* Dimension label below boundary box */}
+      {boundaryBox && (
+        <div className="absolute z-30 text-[9px] pointer-events-none"
+          style={{
+            color: 'var(--tb-fg-ghost)',
+            top: `calc(50% + ${boundaryBox.height / 2 + 8}px)`,
+            left: '50%',
+            transform: 'translateX(-50%)',
+          }}>
+          {es.width} &times; {es.height}px
+          {boundaryBox.scale < 1 && ` (${Math.round(boundaryBox.scale * 100)}%)`}
         </div>
       )}
 
