@@ -139,6 +139,9 @@ export interface FrameSyncBody {
   imageUrl: string;
   scale: number;
   opacity: number;
+  link?: string;
+  label?: string;
+  story?: string;
 }
 
 export interface HostViewport {

@@ -598,6 +598,13 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     // In overlay embed: receive forwarded mouse events from host page when drag extends outside iframe
     const handleHostMouseForward = (event: MessageEvent) => {
       if (!event.data || event.data.type !== 'treasure-box-host') return;
+      if (event.data.action === 'mouse-down') {
+        mouse.position.x = event.data.x;
+        mouse.position.y = event.data.y;
+        mouse.absolute.x = event.data.x;
+        mouse.absolute.y = event.data.y;
+        mouse.button = 0;
+      }
       if (event.data.action === 'mouse-move') {
         mouse.position.x = event.data.x;
         mouse.position.y = event.data.y;
@@ -613,6 +620,9 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
             clientY: event.data.y,
           }));
         }
+      }
+      if (event.data.action === 'dismiss-story') {
+        setActiveStory(null);
       }
     };
     if (window.parent !== window) {
@@ -862,6 +872,9 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           imageUrl: item?.imageUrl ?? '',
           scale: item?.scale ?? 1,
           opacity: syncSpawnOpacity * syncCloseOpacity,
+          link: item?.link,
+          label: item?.label,
+          story: item?.story,
         };
       }).filter(b => b.id);
       onFrameSyncRef.current(syncBodies, {
@@ -1113,6 +1126,20 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     }, '*');
   }, [boxState]);
 
+  // --- postMessage: delegate story overlay to parent for full-screen display (overlay embed) ---
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.parent === window) return;
+    if (activeStory) {
+      window.parent.postMessage({
+        type: 'treasure-box',
+        action: 'show-story',
+        item: { label: activeStory.label, story: activeStory.story, imageUrl: activeStory.imageUrl, link: activeStory.link },
+      }, '*');
+    } else {
+      window.parent.postMessage({ type: 'treasure-box', action: 'dismiss-story' }, '*');
+    }
+  }, [activeStory]);
+
   // --- postMessage: send drawer bounding rect to parent (overlay embed) ---
   useEffect(() => {
     if (typeof window === 'undefined' || window.parent === window) return;
@@ -1237,7 +1264,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       />
 
       {/* Story overlay */}
-      {activeStory && (
+      {activeStory && (typeof window === 'undefined' || window.parent === window) && (
         <StoryCard item={activeStory} onClose={() => setActiveStory(null)} isLight={isLightBg} />
       )}
 

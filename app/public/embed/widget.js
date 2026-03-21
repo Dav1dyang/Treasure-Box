@@ -171,8 +171,82 @@
   // into the iframe so the drag continues even when the cursor leaves the iframe boundary.
   var isDraggingItem = false;
 
+  // ═══════════════════════════════════════════════════════════════
+  // Canvas interaction state machine
+  // ═══════════════════════════════════════════════════════════════
+  var canvasDragBody = null;       // body being interacted with
+  var canvasDragStartPos = null;   // { x, y } of mousedown
+  var canvasDidDrag = false;       // moved > 5px?
+  var canvasLongPressFired = false;
+  var canvasLongPressTimer = null;
+  var canvasLastClickBody = null;  // body ID of last click (for double-click)
+  var canvasLastClickTime = 0;     // timestamp of last click
+
+  // Hit test: bounding circle against frameBodies (back-to-front for correct z-order)
+  function hitTestBodies(clientX, clientY) {
+    for (var i = frameBodies.length - 1; i >= 0; i--) {
+      var body = frameBodies[i];
+      var dx = clientX - body.x;
+      var dy = clientY - body.y;
+      var radius = (body.width || DEFAULTS.ITEM_DEFAULT_SIZE) / 2;
+      if (dx * dx + dy * dy <= radius * radius) return body;
+    }
+    return null;
+  }
+
+  // Helper: send mouse-down to iframe physics to grab a body
+  function startHostCanvasDrag(clientX, clientY) {
+    isDraggingItem = true;
+    var iframeRect = boxIframe.getBoundingClientRect();
+    boxIframe.contentWindow.postMessage({
+      type: 'treasure-box-host',
+      action: 'mouse-down',
+      x: clientX - iframeRect.left,
+      y: clientY - iframeRect.top,
+    }, '*');
+    document.addEventListener('mousemove', onHostMouseMove, true);
+    document.addEventListener('mouseup', onHostMouseUp, true);
+    document.addEventListener('touchmove', onHostTouchMove, { capture: true, passive: false });
+    document.addEventListener('touchend', onHostTouchEnd, true);
+  }
+
+  // Helper: send mouse-up to iframe physics
+  function sendMouseUpToIframe(clientX, clientY) {
+    var iframeRect = boxIframe.getBoundingClientRect();
+    boxIframe.contentWindow.postMessage({
+      type: 'treasure-box-host',
+      action: 'mouse-up',
+      x: clientX - iframeRect.left,
+      y: clientY - iframeRect.top,
+    }, '*');
+  }
+
+  // Helper: pass event through to host page element under canvas
+  function passThroughEvent(e, eventType) {
+    canvas.style.pointerEvents = 'none';
+    var target = document.elementFromPoint(e.clientX, e.clientY);
+    canvas.style.pointerEvents = frameBodies.length > 0 ? 'auto' : 'none';
+    if (target) {
+      target.dispatchEvent(new MouseEvent(eventType || e.type, {
+        bubbles: true, cancelable: true,
+        clientX: e.clientX, clientY: e.clientY,
+        button: e.button, buttons: e.buttons,
+      }));
+    }
+  }
+
   function onHostMouseMove(e) {
     if (!isDraggingItem) return;
+    // Drag threshold detection for canvas interactions
+    if (canvasDragStartPos && !canvasDidDrag) {
+      var dx = e.clientX - canvasDragStartPos.x;
+      var dy = e.clientY - canvasDragStartPos.y;
+      if (dx * dx + dy * dy > 25) {
+        canvasDidDrag = true;
+        if (canvasLongPressTimer) { clearTimeout(canvasLongPressTimer); canvasLongPressTimer = null; }
+      }
+    }
+    // Forward to iframe
     var iframeRect = boxIframe.getBoundingClientRect();
     boxIframe.contentWindow.postMessage({
       type: 'treasure-box-host',
@@ -184,13 +258,32 @@
 
   function onHostMouseUp(e) {
     if (!isDraggingItem) return;
-    var iframeRect = boxIframe.getBoundingClientRect();
-    boxIframe.contentWindow.postMessage({
-      type: 'treasure-box-host',
-      action: 'mouse-up',
-      x: e.clientX - iframeRect.left,
-      y: e.clientY - iframeRect.top,
-    }, '*');
+    // Cancel long-press timer
+    if (canvasLongPressTimer) { clearTimeout(canvasLongPressTimer); canvasLongPressTimer = null; }
+
+    // Send mouse-up to iframe
+    sendMouseUpToIframe(e.clientX, e.clientY);
+
+    // Interaction resolution (only for canvas-initiated, not iframe-initiated)
+    if (canvasDragBody && !canvasDidDrag && !canvasLongPressFired) {
+      var bodyId = canvasDragBody.id;
+      var now = Date.now();
+      if (canvasLastClickBody === bodyId && now - canvasLastClickTime < 400) {
+        // Double-click: open link (within user gesture = popup blocker safe)
+        if (canvasDragBody.link) {
+          window.open(canvasDragBody.link, '_blank', 'noopener,noreferrer');
+        }
+        canvasLastClickBody = null;
+        canvasLastClickTime = 0;
+      } else {
+        canvasLastClickBody = bodyId;
+        canvasLastClickTime = now;
+      }
+    }
+
+    // Reset state
+    canvasDragBody = null;
+    canvasDragStartPos = null;
     isDraggingItem = false;
     document.removeEventListener('mousemove', onHostMouseMove, true);
     document.removeEventListener('mouseup', onHostMouseUp, true);
@@ -201,6 +294,15 @@
   function onHostTouchMove(e) {
     if (!isDraggingItem || !e.touches[0]) return;
     e.preventDefault();
+    // Drag threshold detection for canvas interactions
+    if (canvasDragStartPos && !canvasDidDrag) {
+      var dx = e.touches[0].clientX - canvasDragStartPos.x;
+      var dy = e.touches[0].clientY - canvasDragStartPos.y;
+      if (dx * dx + dy * dy > 25) {
+        canvasDidDrag = true;
+        if (canvasLongPressTimer) { clearTimeout(canvasLongPressTimer); canvasLongPressTimer = null; }
+      }
+    }
     var iframeRect = boxIframe.getBoundingClientRect();
     boxIframe.contentWindow.postMessage({
       type: 'treasure-box-host',
@@ -210,19 +312,193 @@
     }, '*');
   }
 
-  function onHostTouchEnd() {
+  function onHostTouchEnd(e) {
     if (!isDraggingItem) return;
-    boxIframe.contentWindow.postMessage({
-      type: 'treasure-box-host',
-      action: 'mouse-up',
-      x: 0, y: 0,
-    }, '*');
+    // Cancel long-press timer
+    if (canvasLongPressTimer) { clearTimeout(canvasLongPressTimer); canvasLongPressTimer = null; }
+
+    // Determine position from changedTouches for interaction resolution
+    var clientX = 0, clientY = 0;
+    if (e.changedTouches && e.changedTouches[0]) {
+      clientX = e.changedTouches[0].clientX;
+      clientY = e.changedTouches[0].clientY;
+    }
+
+    sendMouseUpToIframe(clientX, clientY);
+
+    // Interaction resolution (only for canvas-initiated touch)
+    if (canvasDragBody && !canvasDidDrag && !canvasLongPressFired) {
+      var bodyId = canvasDragBody.id;
+      var now = Date.now();
+      if (canvasLastClickBody === bodyId && now - canvasLastClickTime < 400) {
+        if (canvasDragBody.link) {
+          window.open(canvasDragBody.link, '_blank', 'noopener,noreferrer');
+        }
+        canvasLastClickBody = null;
+        canvasLastClickTime = 0;
+      } else {
+        canvasLastClickBody = bodyId;
+        canvasLastClickTime = now;
+      }
+    }
+
+    // Reset state
+    canvasDragBody = null;
+    canvasDragStartPos = null;
     isDraggingItem = false;
     document.removeEventListener('mousemove', onHostMouseMove, true);
     document.removeEventListener('mouseup', onHostMouseUp, true);
     document.removeEventListener('touchmove', onHostTouchMove, true);
     document.removeEventListener('touchend', onHostTouchEnd, true);
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // Story overlay (full-screen DOM overlay on host page)
+  // ═══════════════════════════════════════════════════════════════
+  var storyOverlay = null;
+
+  function showStoryOverlay(body) {
+    if (storyOverlay) dismissStoryOverlay();
+    storyOverlay = document.createElement('div');
+    storyOverlay.style.cssText = 'position:fixed;inset:0;z-index:10000000;display:flex;' +
+      'align-items:center;justify-content:center;background:rgba(0,0,0,0.88);cursor:pointer;font-family:monospace;';
+
+    var card = document.createElement('div');
+    card.style.cssText = 'background:#0e0e0e;border:1px solid #3a3a32;padding:28px 32px;' +
+      'border-radius:2px;max-width:400px;width:calc(100% - 32px);';
+    card.addEventListener('click', function(e) { e.stopPropagation(); });
+
+    if (body.imageUrl) {
+      var imgWrap = document.createElement('div');
+      imgWrap.style.cssText = 'text-align:center;margin-bottom:16px';
+      var img = document.createElement('img');
+      img.src = body.imageUrl;
+      img.style.cssText = 'max-width:120px;max-height:120px;object-fit:contain;filter:drop-shadow(2px 4px 8px rgba(0,0,0,0.3))';
+      imgWrap.appendChild(img);
+      card.appendChild(imgWrap);
+    }
+    if (body.label) {
+      var labelEl = document.createElement('div');
+      labelEl.style.cssText = 'text-align:center;font-size:14px;font-weight:500;margin-bottom:8px;color:#b0a080';
+      labelEl.textContent = body.label;
+      card.appendChild(labelEl);
+    }
+    if (body.story) {
+      var storyEl = document.createElement('div');
+      storyEl.style.cssText = 'text-align:center;font-size:12px;line-height:1.7;margin-bottom:16px;color:#8a8a7a';
+      storyEl.textContent = '\u201c' + body.story + '\u201d';
+      card.appendChild(storyEl);
+    }
+    if (body.link) {
+      var linkWrap = document.createElement('div');
+      linkWrap.style.cssText = 'text-align:center;padding-top:12px;border-top:1px solid #3a3a32';
+      var linkEl = document.createElement('a');
+      linkEl.href = body.link;
+      linkEl.target = '_blank';
+      linkEl.rel = 'noopener noreferrer';
+      linkEl.style.cssText = 'color:#8a6a4a;font-size:11px;text-decoration:none';
+      linkEl.textContent = '\u2192 visit link';
+      linkWrap.appendChild(linkEl);
+      card.appendChild(linkWrap);
+    }
+    var hint = document.createElement('div');
+    hint.style.cssText = 'text-align:center;margin-top:16px;font-size:9px;opacity:0.3;color:#8a8a7a';
+    hint.textContent = 'click anywhere to close';
+    card.appendChild(hint);
+
+    storyOverlay.appendChild(card);
+    storyOverlay.addEventListener('click', dismissStoryOverlay);
+    document.body.appendChild(storyOverlay);
+  }
+
+  function dismissStoryOverlay() {
+    if (storyOverlay) {
+      storyOverlay.remove();
+      storyOverlay = null;
+      // Tell iframe to clear activeStory
+      if (boxIframe.contentWindow) {
+        boxIframe.contentWindow.postMessage({ type: 'treasure-box-host', action: 'dismiss-story' }, '*');
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // Canvas mouse/touch interaction handlers
+  // ═══════════════════════════════════════════════════════════════
+
+  // Mousedown on canvas: start interaction with hit item, or pass through
+  canvas.addEventListener('mousedown', function(e) {
+    var hit = hitTestBodies(e.clientX, e.clientY);
+    if (hit) {
+      e.preventDefault();
+      e.stopPropagation();
+      canvasDragBody = hit;
+      canvasDragStartPos = { x: e.clientX, y: e.clientY };
+      canvasDidDrag = false;
+      canvasLongPressFired = false;
+
+      // Start long-press timer (800ms)
+      canvasLongPressTimer = setTimeout(function() {
+        canvasLongPressFired = true;
+        // Release physics body
+        sendMouseUpToIframe(e.clientX, e.clientY);
+        // Show story overlay
+        if (canvasDragBody && canvasDragBody.story) {
+          showStoryOverlay(canvasDragBody);
+        }
+      }, 800);
+
+      // Tell iframe physics to grab the body
+      startHostCanvasDrag(e.clientX, e.clientY);
+    } else {
+      // Pass-through to host page elements
+      passThroughEvent(e);
+    }
+  });
+
+  // Click pass-through for host page links/buttons in empty canvas areas
+  canvas.addEventListener('click', function(e) {
+    if (!hitTestBodies(e.clientX, e.clientY)) {
+      passThroughEvent(e);
+    }
+  });
+
+  // Cursor feedback on hover
+  canvas.addEventListener('mousemove', function(e) {
+    if (isDraggingItem) { canvas.style.cursor = 'grabbing'; return; }
+    canvas.style.cursor = hitTestBodies(e.clientX, e.clientY) ? 'grab' : 'default';
+  });
+
+  // Touch support: same state machine as mouse
+  canvas.addEventListener('touchstart', function(e) {
+    if (!e.touches[0]) return;
+    var touch = e.touches[0];
+    var hit = hitTestBodies(touch.clientX, touch.clientY);
+    if (hit) {
+      e.preventDefault();
+      canvasDragBody = hit;
+      canvasDragStartPos = { x: touch.clientX, y: touch.clientY };
+      canvasDidDrag = false;
+      canvasLongPressFired = false;
+      canvasLongPressTimer = setTimeout(function() {
+        canvasLongPressFired = true;
+        sendMouseUpToIframe(touch.clientX, touch.clientY);
+        if (canvasDragBody && canvasDragBody.story) showStoryOverlay(canvasDragBody);
+      }, 800);
+      startHostCanvasDrag(touch.clientX, touch.clientY);
+    } else {
+      // Pass-through to host page elements
+      canvas.style.pointerEvents = 'none';
+      var target = document.elementFromPoint(touch.clientX, touch.clientY);
+      canvas.style.pointerEvents = frameBodies.length > 0 ? 'auto' : 'none';
+      if (target) {
+        target.dispatchEvent(new MouseEvent('mousedown', {
+          bubbles: true, cancelable: true,
+          clientX: touch.clientX, clientY: touch.clientY,
+        }));
+      }
+    }
+  }, { passive: false });
 
   // 4. Send viewport info to iframe so it can create correct walls
   function sendViewportInfo() {
@@ -267,6 +543,8 @@
       // Receive body positions from iframe physics engine
       frameBodies = event.data.bodies || [];
       frameEffects = event.data.effects || frameEffects;
+      // Toggle canvas pointer-events based on whether items exist
+      canvas.style.pointerEvents = frameBodies.length > 0 ? 'auto' : 'none';
 
       // Preload images for new items
       for (var i = 0; i < frameBodies.length; i++) {
@@ -283,6 +561,7 @@
     if (event.data.action === 'items-cleared' || event.data.action === 'items-returned') {
       frameBodies = [];
       itemImages = {};
+      canvas.style.pointerEvents = 'none';
     }
 
     if (event.data.action === 'request-viewport-info') {
@@ -322,6 +601,14 @@
     if (event.data.action === 'drawer-state' && event.data.state === 'IDLE') {
       boxIframe.style.pointerEvents = 'none';
       hitZone.style.display = 'block';
+    }
+
+    // Story overlay delegation from iframe (long-press initiated inside iframe)
+    if (event.data.action === 'show-story' && event.data.item) {
+      showStoryOverlay(event.data.item);
+    }
+    if (event.data.action === 'dismiss-story') {
+      dismissStoryOverlay();
     }
   });
 
