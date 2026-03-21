@@ -143,13 +143,21 @@ export interface EmbedPosition {
 
 export interface EmbedSettings {
   mode: EmbedMode;
-  width: number;              // drawer element width (px), computed from embedScale
-  height: number;             // drawer element height (px), computed from embedScale
+  width: number;              // drawer element width (px), derived from contentScale
+  height: number;             // drawer element height (px), derived from contentScale
   position: EmbedPosition;    // overlay positioning
   domCollide?: boolean;       // optional: items collide with DOM elements
   previewUrl?: string;        // optional: user's website URL for preview background
-  embedScale?: number;        // 0.5-2.0, proportionally controls widget size (default 1.0)
+  /** @deprecated Use BoxConfig.contentScale instead. Kept for backward compat with old Firestore docs. */
+  embedScale?: number;
   padding?: EmbedPadding;     // contained mode: CSS inset padding around active area
+}
+
+/** Derive embed widget dimensions from a single scale factor. */
+export const EMBED_BASE_W = 350;
+export const EMBED_BASE_H = 300;
+export function getEmbedDimensions(scale: number) {
+  return { width: Math.round(EMBED_BASE_W * scale), height: Math.round(EMBED_BASE_H * scale) };
 }
 
 // ===== Frame Sync (postMessage position streaming) =====

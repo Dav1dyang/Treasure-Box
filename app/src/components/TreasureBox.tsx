@@ -115,44 +115,65 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   // Keep contentScale ref in sync for use inside initPhysics closure
   useEffect(() => { contentScaleRef.current = config.contentScale ?? 1; }, [config.contentScale]);
 
-  // Reposition overlay walls and drawer body when position/scale changes (smooth — items keep momentum)
+  // Reposition walls and drawer body when position/scale changes (smooth — items keep momentum).
+  // Works for both overlay (4 viewport walls + drawer body) and normal (3-wall box) modes.
   const repositionBoundaries = useCallback(() => {
     const engine = engineRef.current;
     const walls = wallsRef.current;
     const scene = sceneRef.current;
     if (!engine || !scene) return;
-    if (!overlayPreviewRef.current && !hostViewportRef.current) return;
 
-    const hv = hostViewportRef.current;
-    const wallW = hv ? hv.width : scene.offsetWidth;
-    const wallH = hv ? hv.height : scene.offsetHeight;
+    const cs = contentScaleRef.current;
+    const wallOpts = { isStatic: true, friction: 0.9, restitution: 0.15 };
 
-    // Reposition viewport walls
-    if (walls.floor) Matter.Body.setPosition(walls.floor, { x: wallW / 2, y: wallH + 7 });
-    if (walls.ceiling) Matter.Body.setPosition(walls.ceiling, { x: wallW / 2, y: -7 });
-    if (walls.left) Matter.Body.setPosition(walls.left, { x: -7, y: wallH / 2 });
-    if (walls.right) Matter.Body.setPosition(walls.right, { x: wallW + 7, y: wallH / 2 });
+    if (overlayPreviewRef.current || hostViewportRef.current) {
+      // Overlay mode: reposition 4 viewport walls + drawer body
+      const hv = hostViewportRef.current;
+      const wallW = hv ? hv.width : scene.offsetWidth;
+      const wallH = hv ? hv.height : scene.offsetHeight;
 
-    // Reposition drawer collision body
-    if (drawerElRef.current && scene) {
+      if (walls.floor) Matter.Body.setPosition(walls.floor, { x: wallW / 2, y: wallH + 7 });
+      if (walls.ceiling) Matter.Body.setPosition(walls.ceiling, { x: wallW / 2, y: -7 });
+      if (walls.left) Matter.Body.setPosition(walls.left, { x: -7, y: wallH / 2 });
+      if (walls.right) Matter.Body.setPosition(walls.right, { x: wallW + 7, y: wallH / 2 });
+
+      // Reposition drawer collision body (scale-aware)
+      if (drawerElRef.current) {
+        const sceneRect = scene.getBoundingClientRect();
+        const drawerRect = drawerElRef.current.getBoundingClientRect();
+        const scaledW = drawerRect.width * cs;
+        const scaledH = drawerRect.height * cs;
+        const centerX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
+        const bottomY = drawerRect.top - sceneRect.top + drawerRect.height;
+        const bodyH = scaledH * 0.75;
+        const bodyY = bottomY - scaledH * 3 / 8;
+
+        if (walls.drawerBody) Matter.Composite.remove(engine.world, walls.drawerBody);
+        const newDrawerBody = Matter.Bodies.rectangle(centerX, bodyY, scaledW, bodyH, {
+          isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
+        });
+        Matter.Composite.add(engine.world, newDrawerBody);
+        wallsRef.current.drawerBody = newDrawerBody;
+      }
+    } else if (drawerElRef.current) {
+      // Normal mode: reposition 3-wall box around the scaled drawer
       const sceneRect = scene.getBoundingClientRect();
       const drawerRect = drawerElRef.current.getBoundingClientRect();
-      const dw = drawerRect.width;
-      const dh = drawerRect.height;
-      const centerX = drawerRect.left - sceneRect.left + dw / 2;
-      const centerY = drawerRect.top - sceneRect.top + dh / 2;
-      const bodyH = dh * 0.75;
-      const bodyY = centerY + dh / 8;
+      const scaledH = drawerRect.height * cs;
+      const bottomY = drawerRect.top - sceneRect.top + drawerRect.height;
+      const boxCenterX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
+      const floorY = bottomY - scaledH * 0.75;
+      const boxW = Math.max(drawerRect.width * cs, 200 * cs);
 
-      if (walls.drawerBody) {
-        // Remove old, create new at updated position/size (swap avoids setVertices complexity)
-        Matter.Composite.remove(engine.world, walls.drawerBody);
-      }
-      const newDrawerBody = Matter.Bodies.rectangle(centerX, bodyY, dw, bodyH, {
-        isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
-      });
-      Matter.Composite.add(engine.world, newDrawerBody);
-      wallsRef.current.drawerBody = newDrawerBody;
+      // Remove old walls, create new ones at updated positions/sizes
+      if (walls.floor) Matter.Composite.remove(engine.world, walls.floor);
+      if (walls.left) Matter.Composite.remove(engine.world, walls.left);
+      if (walls.right) Matter.Composite.remove(engine.world, walls.right);
+
+      walls.floor = Matter.Bodies.rectangle(boxCenterX, floorY, boxW, 14, wallOpts);
+      walls.left = Matter.Bodies.rectangle(boxCenterX - boxW / 2 - 7, floorY - 300, 14, 700 * cs, wallOpts);
+      walls.right = Matter.Bodies.rectangle(boxCenterX + boxW / 2 + 7, floorY - 300, 14, 700 * cs, wallOpts);
+      Matter.Composite.add(engine.world, [walls.floor, walls.left, walls.right]);
     }
   }, []);
 
@@ -181,9 +202,8 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     scheduleRepositionBoundaries();
   }, [hostViewport, scheduleRepositionBoundaries]);
 
-  // Watch contentScale changes and trigger repositioning
+  // Watch contentScale changes and trigger repositioning (all modes)
   useEffect(() => {
-    if (!overlayPreviewRef.current && !hostViewportRef.current) return;
     scheduleRepositionBoundaries();
   }, [config.contentScale, scheduleRepositionBoundaries]);
 
@@ -362,23 +382,29 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       wallsRef.current = { floor, ceiling, left, right };
 
       // Drawer collision body — bottom 3/4 is solid, top 1/4 is open.
+      // drawerElRef rect is UNSCALED (CSS transform is on inner child),
+      // so multiply by contentScale and account for transform-origin: bottom center.
       if (drawerElRef.current && sceneRef.current) {
         const sceneRect = sceneRef.current.getBoundingClientRect();
         const drawerRect = drawerElRef.current.getBoundingClientRect();
         const dw = drawerRect.width;
         const dh = drawerRect.height;
+        const scaledW = dw * cs;
+        const scaledH = dh * cs;
         const centerX = drawerRect.left - sceneRect.left + dw / 2;
-        const centerY = drawerRect.top - sceneRect.top + dh / 2;
-        const bodyH = dh * 0.75;
-        const bodyY = centerY + dh / 8;
-        const drawerBody = Matter.Bodies.rectangle(centerX, bodyY, dw, bodyH, {
+        // transform-origin: bottom center — bottom stays fixed
+        const bottomY = drawerRect.top - sceneRect.top + dh;
+        const bodyH = scaledH * 0.75;
+        const bodyY = bottomY - scaledH * 3 / 8;
+        const drawerBody = Matter.Bodies.rectangle(centerX, bodyY, scaledW, bodyH, {
           isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
         });
         Matter.Composite.add(engine.world, drawerBody);
         wallsRef.current.drawerBody = drawerBody;
       }
     } else {
-      // Normal mode: box-shaped walls centered around the actual drawer element
+      // Normal mode: box-shaped walls centered around the actual drawer element.
+      // drawerElRef rect is UNSCALED — scale-aware calculation needed.
       let boxCenterX = w / 2;
       let floorY = h - Math.max(120 * cs, h * 0.3);
       let boxW = Math.min(420 * cs, w * 0.85);
@@ -386,9 +412,12 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       if (drawerElRef.current && scene) {
         const sceneRect = scene.getBoundingClientRect();
         const drawerRect = drawerElRef.current.getBoundingClientRect();
+        const scaledH = drawerRect.height * cs;
+        const bottomY = drawerRect.top - sceneRect.top + drawerRect.height;
         boxCenterX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
-        floorY = drawerRect.top - sceneRect.top + drawerRect.height * 0.25;
-        boxW = Math.max(drawerRect.width, 200 * cs);
+        // Floor at top 1/4 of the scaled drawer (items rest on the "rim")
+        floorY = bottomY - scaledH * 0.75;
+        boxW = Math.max(drawerRect.width * cs, 200 * cs);
       }
 
       const floor = Matter.Bodies.rectangle(boxCenterX, floorY, boxW, 14, wallOpts);
@@ -490,7 +519,11 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       const sceneRect = scene.getBoundingClientRect();
       const drawerRect = drawerElRef.current.getBoundingClientRect();
       centerX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
-      spawnY = drawerRect.top - sceneRect.top - 20 * cs;
+      // drawerRect is unscaled — compute visual top accounting for transform-origin: bottom center
+      const bottomY = drawerRect.top - sceneRect.top + drawerRect.height;
+      const scaledH = drawerRect.height * cs;
+      const visualTop = bottomY - scaledH;
+      spawnY = visualTop - 20 * cs;
     } else {
       spawnY = h - 200 * cs;
       centerX = w / 2;
