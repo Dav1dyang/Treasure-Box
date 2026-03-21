@@ -338,9 +338,21 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
 
   useEffect(() => {
     resizeCanvas();
+    const scene = sceneRef.current;
+    let ro: ResizeObserver | undefined;
+    if (scene) {
+      ro = new ResizeObserver(() => {
+        resizeCanvas();
+        scheduleRepositionBoundaries();
+      });
+      ro.observe(scene);
+    }
     window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
-  }, [resizeCanvas]);
+    return () => {
+      window.removeEventListener('resize', resizeCanvas);
+      ro?.disconnect();
+    };
+  }, [resizeCanvas, scheduleRepositionBoundaries]);
 
   // Cleanup
   useEffect(() => {
