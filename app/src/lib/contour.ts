@@ -107,20 +107,22 @@ export function extractFrameFromSprite(
 }
 
 /**
- * Extract a U-shaped shell contour from a drawer frame image.
+ * Extract a U-shaped wall path from a drawer frame image.
  * The top portion (topOpenFraction, default 2/5) is left open so items fall in.
- * Returns normalized 0-1 vertices forming a closed U-shell polygon,
- * or null if contour extraction fails.
+ * Returns an ordered array of normalized 0-1 points tracing the drawer's
+ * left wall → bottom → right wall path (a "U" shape, open at top).
+ * Returns null if contour extraction fails.
+ *
+ * These points are used to create a chain of thin rectangular static bodies
+ * in Matter.js (since poly-decomp is not available for concave fromVertices).
  *
  * @param imageData - ImageData of a single drawer frame (bg-removed)
  * @param topOpenFraction - fraction of the top to leave open (0-1), default 0.4
- * @param wallThickness - wall thickness as fraction of width, default 0.08
  * @param numPoints - number of contour sample points, default 24
  */
-export function extractDrawerShellVertices(
+export function extractDrawerWallPath(
   imageData: ImageData,
   topOpenFraction: number = 0.4,
-  wallThickness: number = 0.08,
   numPoints: number = 24,
 ): { x: number; y: number }[] | null {
   // Extract the full outer contour of the drawer image
@@ -138,38 +140,41 @@ export function extractDrawerShellVertices(
   const bottomPoints = sorted.filter(p => p.y >= topOpenFraction);
   if (bottomPoints.length < 3) return null;
 
-  // Add "lip" points at the top opening where the contour meets the cutoff line.
-  // Interpolate left and right edges at the cutoff y-value.
+  // Find the leftmost and rightmost bottom points to define the top opening
   const leftMost = bottomPoints.reduce((a, b) => a.x < b.x ? a : b);
   const rightMost = bottomPoints.reduce((a, b) => a.x > b.x ? a : b);
+
+  // Add lip points at the cutoff line (top of the U opening)
   const topLeft = { x: leftMost.x, y: topOpenFraction };
   const topRight = { x: rightMost.x, y: topOpenFraction };
 
-  // Build outer path: topLeft → along bottom contour (sorted left-to-right by angle) → topRight
-  // Sort bottom points to trace the U shape: start from top-left going clockwise
-  const outerPath = [topLeft, ...bottomPoints, topRight];
-
-  // Sort outer path clockwise around center for clean polygon
-  const ocx = outerPath.reduce((s, p) => s + p.x, 0) / outerPath.length;
-  const ocy = outerPath.reduce((s, p) => s + p.y, 0) / outerPath.length;
-  outerPath.sort(
-    (a, b) => Math.atan2(a.y - ocy, a.x - ocx) - Math.atan2(b.y - ocy, b.x - ocx)
+  // Build the U path: topLeft → left wall → bottom → right wall → topRight
+  // Sort bottom points clockwise around the center of the bottom region
+  const bcx = bottomPoints.reduce((s, p) => s + p.x, 0) / bottomPoints.length;
+  const bcy = bottomPoints.reduce((s, p) => s + p.y, 0) / bottomPoints.length;
+  bottomPoints.sort(
+    (a, b) => Math.atan2(a.y - bcy, a.x - bcx) - Math.atan2(b.y - bcy, b.x - bcx)
   );
 
-  // Create inner path by offsetting each outer point inward toward the center
-  const innerPath = outerPath.map(p => {
-    const dx = p.x - ocx;
-    const dy = p.y - ocy;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < 0.001) return { ...p };
-    const shrink = Math.min(wallThickness, dist * 0.8);
-    return {
-      x: p.x - (dx / dist) * shrink,
-      y: p.y - (dy / dist) * shrink,
-    };
-  });
+  // Find the index of the topmost-left point to start the path correctly
+  // We want the path to go: top-left lip → down left side → across bottom → up right side → top-right lip
+  let startIdx = 0;
+  let minAngleFromTopLeft = Infinity;
+  for (let i = 0; i < bottomPoints.length; i++) {
+    const angle = Math.atan2(bottomPoints[i].y - bcy, bottomPoints[i].x - bcx);
+    const targetAngle = Math.atan2(topLeft.y - bcy, topLeft.x - bcx);
+    const diff = Math.abs(angle - targetAngle);
+    if (diff < minAngleFromTopLeft) {
+      minAngleFromTopLeft = diff;
+      startIdx = i;
+    }
+  }
 
-  // Connect outer (clockwise) and inner (counter-clockwise) to form closed shell
-  const shell = [...outerPath, ...innerPath.reverse()];
-  return shell;
+  // Reorder so path starts near top-left and goes clockwise (down-left, across bottom, up-right)
+  const reordered = [
+    ...bottomPoints.slice(startIdx),
+    ...bottomPoints.slice(0, startIdx),
+  ];
+
+  return [topLeft, ...reordered, topRight];
 }
