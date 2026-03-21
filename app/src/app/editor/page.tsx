@@ -56,92 +56,33 @@ function VolumeBar({ volume, onChange }: { volume: number; onChange: (v: number)
   );
 }
 
-function Dial({ value, min, max, step, label, format, onChange, snap }: {
+function Slider({ value, min, max, step, label, format, onChange, snap }: {
   value: number; min: number; max: number; step: number;
   label: string; format: (v: number) => string;
   onChange: (v: number) => void;
   snap?: (v: number) => number;
 }) {
-  const dialRef = useRef<SVGSVGElement>(null);
-  const draggingRef = useRef(false);
-
-  const range = max - min;
-  const normalized = (value - min) / range; // 0-1
-  // Arc spans 270° (from 135° to 405°, i.e. gap at bottom-left)
-  const startAngle = 135;
-  const sweep = 270;
-  const angle = startAngle + normalized * sweep;
-
-  const r = 18; const cx = 22; const cy = 22;
-  const toXY = (deg: number) => ({
-    x: cx + r * Math.cos((deg * Math.PI) / 180),
-    y: cy + r * Math.sin((deg * Math.PI) / 180),
-  });
-
-  const trackStart = toXY(startAngle);
-  const trackEnd = toXY(startAngle + sweep);
-  const valPos = toXY(angle);
-
-  const arcPath = (from: { x: number; y: number }, to: { x: number; y: number }, degrees: number) => {
-    const large = degrees > 180 ? 1 : 0;
-    return `M ${from.x} ${from.y} A ${r} ${r} 0 ${large} 1 ${to.x} ${to.y}`;
-  };
-
-  const updateFromPointer = useCallback((clientX: number, clientY: number) => {
-    const svg = dialRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const dx = clientX - (rect.left + rect.width / 2);
-    const dy = clientY - (rect.top + rect.height / 2);
-    let deg = (Math.atan2(dy, dx) * 180) / Math.PI; // -180 to 180
-    // Convert to our arc space (135° start)
-    let rel = deg - startAngle;
-    if (rel < -180) rel += 360;
-    if (rel < 0) rel = 0;
-    if (rel > sweep) rel = sweep;
-    let raw = min + (rel / sweep) * range;
-    raw = Math.round(raw / step) * step;
-    raw = Math.max(min, Math.min(max, raw));
-    onChange(snap ? snap(raw) : raw);
-  }, [min, max, step, range, sweep, startAngle, onChange, snap]);
-
-  const onPointerDown = useCallback((e: React.PointerEvent) => {
-    draggingRef.current = true;
-    (e.target as Element).setPointerCapture(e.pointerId);
-    updateFromPointer(e.clientX, e.clientY);
-  }, [updateFromPointer]);
-
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    if (!draggingRef.current) return;
-    updateFromPointer(e.clientX, e.clientY);
-  }, [updateFromPointer]);
-
-  const onPointerUp = useCallback(() => {
-    draggingRef.current = false;
-  }, []);
+  const pct = ((value - min) / (max - min)) * 100;
 
   return (
-    <div className="flex flex-col items-center gap-0">
-      <svg ref={dialRef} width={44} height={44} className="cursor-pointer"
-        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-        style={{ touchAction: 'none' }}>
-        {/* Track */}
-        <path d={arcPath(trackStart, trackEnd, sweep)} fill="none"
-          stroke="var(--tb-border-subtle)" strokeWidth={4} strokeLinecap="round" />
-        {/* Value arc */}
-        {normalized > 0.005 && (
-          <path d={arcPath(trackStart, valPos, normalized * sweep)} fill="none"
-            stroke="var(--tb-accent)" strokeWidth={4} strokeLinecap="round" />
-        )}
-        {/* Knob dot */}
-        <circle cx={valPos.x} cy={valPos.y} r={3.5} fill="var(--tb-accent)" />
-        {/* Center label */}
-        <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle"
-          fill="var(--tb-fg-faint)" fontSize={8} fontFamily="'IBM Plex Mono', monospace">
-          {format(value)}
-        </text>
-      </svg>
-      <span className="text-[8px] mt-[-2px]" style={{ color: 'var(--tb-fg-ghost)' }}>{label}</span>
+    <div className="flex items-center gap-2 w-full">
+      <span className="text-[9px] w-[28px] shrink-0" style={{ color: 'var(--tb-fg-faint)' }}>{label}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={e => {
+          let v = parseFloat(e.target.value);
+          onChange(snap ? snap(v) : v);
+        }}
+        className="tb-slider flex-1"
+        style={{
+          '--slider-pct': `${pct}%`,
+        } as React.CSSProperties}
+      />
+      <span className="text-[9px] w-[32px] shrink-0 text-right tabular-nums" style={{ color: 'var(--tb-fg-muted)' }}>{format(value)}</span>
     </div>
   );
 }
@@ -436,24 +377,24 @@ export default function EditorPage() {
                                 className="w-full bg-transparent text-[10px] pb-[2px] outline-none resize-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
                             </div>
                           </div>
-                          {/* Dials + delete */}
-                          <div className="flex items-center justify-between pt-1" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
-                            <div className="flex items-center gap-1">
-                              <Dial value={item.rotation ?? 0} min={0} max={360} step={1}
-                                label="rot" format={v => `${v}°`}
-                                snap={v => { const n = Math.round(v / 90) * 90; return Math.abs(v - n) < 8 ? n % 360 : v; }}
-                                onChange={v => handleUpdateItem(item.id, { rotation: v })} />
-                              <Dial value={item.scale ?? 1} min={0.5} max={3} step={0.1}
-                                label="size" format={v => `${v.toFixed(1)}×`}
-                                onChange={v => handleUpdateItem(item.id, { scale: v })} />
+                          {/* Sliders + delete */}
+                          <div className="flex flex-col gap-[6px] pt-1" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
+                            <Slider value={item.rotation ?? 0} min={0} max={360} step={1}
+                              label="rot" format={v => `${v}°`}
+                              snap={v => { const n = Math.round(v / 90) * 90; return Math.abs(v - n) < 8 ? n % 360 : v; }}
+                              onChange={v => handleUpdateItem(item.id, { rotation: v })} />
+                            <Slider value={item.scale ?? 1} min={0.3} max={5} step={0.1}
+                              label="size" format={v => `${v.toFixed(1)}×`}
+                              onChange={v => handleUpdateItem(item.id, { scale: v })} />
+                            <div className="flex justify-end pt-[2px]">
+                              <button
+                                onClick={() => { handleDeleteItem(item.id); setSelectedItemId(null); }}
+                                className="text-[10px] px-[10px] py-[4px] cursor-pointer tracking-[0.08em] transition-colors"
+                                style={{ border: '1px solid #c44', color: '#c44', background: 'transparent' }}
+                              >
+                                delete
+                              </button>
                             </div>
-                            <button
-                              onClick={() => { handleDeleteItem(item.id); setSelectedItemId(null); }}
-                              className="text-[10px] px-[10px] py-[4px] cursor-pointer tracking-[0.08em] transition-colors"
-                              style={{ border: '1px solid #c44', color: '#c44', background: 'transparent' }}
-                            >
-                              delete
-                            </button>
                           </div>
                         </div>
                       );
