@@ -837,11 +837,11 @@ function UnifiedPreview({
       return {
         ...config,
         backgroundColor: 'transparent',
-        contentScale: es.embedScale ?? config.contentScale ?? 1,
+        contentScale: config.contentScale ?? 1,
       };
     }
     return config;
-  }, [config, isEmbedTab, isOverlay, es.embedScale]);
+  }, [config, isEmbedTab, isOverlay]);
 
   return (
     <div ref={previewRef} className="w-full h-full relative">
