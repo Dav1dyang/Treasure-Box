@@ -23,7 +23,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(getAuthInstance(), (u) => {
+    const auth = getAuthInstance();
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+    const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
     });
@@ -31,11 +36,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async () => {
-    await signInWithPopup(getAuthInstance(), googleProvider);
+    const auth = getAuthInstance();
+    if (!auth) return;
+    await signInWithPopup(auth, googleProvider);
   };
 
   const logOut = async () => {
-    await signOut(getAuthInstance());
+    const auth = getAuthInstance();
+    if (!auth) return;
+    await signOut(auth);
   };
 
   return (

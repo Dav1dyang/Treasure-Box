@@ -9,8 +9,23 @@ class SoundEngine {
   private minInterval = 50; // ms between sounds to avoid spam
 
   init() {
-    if (typeof window === 'undefined') return;
-    this.audioCtx = new AudioContext();
+    // No-op: context is created lazily on first user interaction via ensureContext()
+  }
+
+  private ensureContext(): AudioContext | null {
+    if (typeof window === 'undefined') return null;
+    if (this.audioCtx && this.audioCtx.state !== 'closed') {
+      if (this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume().catch(() => {});
+      }
+      return this.audioCtx;
+    }
+    try {
+      this.audioCtx = new AudioContext();
+      return this.audioCtx;
+    } catch {
+      return null;
+    }
   }
 
   setEnabled(enabled: boolean) { this.enabled = enabled; }
@@ -18,7 +33,7 @@ class SoundEngine {
   setPreset(preset: SoundPreset) { this.preset = preset; }
 
   playCollision(velocity: number) {
-    if (!this.enabled || this.preset === 'silent' || !this.audioCtx) return;
+    if (!this.enabled || this.preset === 'silent') return;
 
     const now = performance.now();
     if (now - this.lastPlayTime < this.minInterval) return;
@@ -27,8 +42,10 @@ class SoundEngine {
     const speed = Math.min(velocity, 10);
     if (speed < 0.5) return;
 
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+
     const vol = this.volume * (speed / 10) * 0.4;
-    const ctx = this.audioCtx;
 
     switch (this.preset) {
       case 'metallic': this.playMetallicCollision(ctx, vol); break;
@@ -41,8 +58,9 @@ class SoundEngine {
   }
 
   playDrawerOpen() {
-    if (!this.enabled || this.preset === 'silent' || !this.audioCtx) return;
-    const ctx = this.audioCtx;
+    if (!this.enabled || this.preset === 'silent') return;
+    const ctx = this.ensureContext();
+    if (!ctx) return;
     const vol = this.volume * 0.5;
 
     switch (this.preset) {
@@ -56,8 +74,9 @@ class SoundEngine {
   }
 
   playDrawerClose() {
-    if (!this.enabled || this.preset === 'silent' || !this.audioCtx) return;
-    const ctx = this.audioCtx;
+    if (!this.enabled || this.preset === 'silent') return;
+    const ctx = this.ensureContext();
+    if (!ctx) return;
     const vol = this.volume * 0.6;
 
     switch (this.preset) {
