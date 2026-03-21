@@ -108,9 +108,15 @@
   }
 
   // 2. Create iframe inside box container — pass anchor/offset params for overlay positioning
+  // Overlay mode: iframe sized to tightly fit the drawer + open-state headroom,
+  // avoiding a large invisible area that blocks pointer events on the host page.
+  var overlayW = Math.max(width, 420);
+  var overlayH = Math.max(height, 350);
+  boxContainer.style.width = overlayW + 'px';
+  boxContainer.style.height = overlayH + 'px';
   var overlayParams = 'mode=overlay&anchor=' + encodeURIComponent(anchor) +
     '&ox=' + offsetX + '&oy=' + offsetY;
-  var boxIframe = createIframe(width, height, overlayParams);
+  var boxIframe = createIframe(overlayW, overlayH, overlayParams);
   boxContainer.appendChild(boxIframe);
   document.body.appendChild(boxContainer);
 

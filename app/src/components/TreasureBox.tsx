@@ -695,12 +695,12 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     const h = canvas.clientHeight;
     ctx.clearRect(0, 0, w, h);
 
-    // In fullpage mode, skip rendering items locally once handed off to host page
-    if (itemsHandedOffRef.current) {
-      animFrameRef.current = requestAnimationFrame(renderLoop);
-      return;
-    }
+    // Skip local item rendering when:
+    // - items have been handed off to host page (fullpage mode)
+    // - onFrameSync is active (overlay mode — host canvas draws items)
+    const skipLocalItems = itemsHandedOffRef.current || !!onFrameSyncRef.current;
 
+    if (!skipLocalItems) {
     bodiesRef.current.forEach(body => {
       const { x, y } = body.position;
       const angle = body.angle;
@@ -784,6 +784,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       ctx.restore();
 
     });
+    } // end skipLocalItems guard
 
     // Stream body positions to parent via onFrameSync (for postMessage position sync)
     if (onFrameSyncRef.current && bodiesRef.current.length > 0) {
