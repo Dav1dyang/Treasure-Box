@@ -476,6 +476,7 @@ export default function EditorPage() {
                 {/* ── 1. DRAWER APPEARANCE ── */}
                 <CfgGroup title="drawer appearance" hint="generate AI artwork for your drawer — choose a style and hit generate" first>
                   <DrawerStylePicker
+                    key={config.drawerImages?.generatedAt ?? 'ascii'}
                     userId={user.uid}
                     currentImages={config.drawerImages || undefined}
                     onComplete={(images: DrawerImages) => { skipAutoSaveRef.current = true; setConfig({ ...config, drawerImages: images }); }}
