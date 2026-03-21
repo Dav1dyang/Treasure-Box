@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@google/genai": "^1.0.0",
+    "@google/generative-ai": "^0.24.1",
     "@imgly/background-removal": "^1.7.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/matter-js": "^0.20.2",
