@@ -1,4 +1,4 @@
-import type { BoxDimensions, BoxState, DrawerStyle, DrawerStylePreset } from './types';
+import type { BoxDimensions, DrawerStyle, DrawerStylePreset } from './types';
 import { DEFAULT_BOX_DIMENSIONS, STYLE_PRESETS } from './config';
 
 /**
@@ -58,15 +58,6 @@ export const STYLE_BASES: Record<DrawerStylePreset, StyleDefinition> = {
   },
 };
 
-/** The 5 sprite frames in order, mapped to BoxState keys and their pullout percentages. */
-const FRAME_STATES: { state: BoxState; label: string }[] = [
-  { state: 'IDLE', label: 'IDLE' },
-  { state: 'HOVER_PEEK', label: 'HOVER_PEEK' },
-  { state: 'CLOSING', label: 'CLOSING' },
-  { state: 'HOVER_CLOSE', label: 'HOVER_CLOSE' },
-  { state: 'OPEN', label: 'OPEN' },
-];
-
 /**
  * Build a single sprite-sheet prompt — all 5 states in one image.
  *
@@ -80,34 +71,32 @@ export function buildSpriteSheetPrompt(style: DrawerStyle, dims?: BoxDimensions)
   const stylePreset = resolveStyleTags(style);
   const decorItems = resolveDecorTags(style);
   const additionalFeatures = style.customDecorText || 'none';
-  const angle = resolveAngle(style.angle || 'front');
+  const resolvedCameraBlock = resolveAngle(style.angle || 'front');
 
-  // Build frame state lines
-  const frameLines = FRAME_STATES.map((f, i) => {
-    const pct = d.drawerPullout[f.state] ?? 0;
-    return `Frame ${i + 1} = ${f.label}, pullout ${pct}%`;
-  }).join('\n');
+  return `Create exactly ONE production sprite sheet image for interactive web use.  This is a strict UI asset. It is NOT a poster, concept sheet, storyboard, infographic, labeled diagram, product render, marketing image, or scene illustration.
 
-  return `Create exactly ONE production sprite sheet image.  This is a clean UI asset for interactive web use. It is NOT a poster, concept sheet, storyboard, infographic, labeled diagram, or marketing image.
+CONFIG PRECEDENCE: All resolved configuration values below are HARD REQUIREMENTS. They must be followed literally. Do not substitute, reinterpret, stylize away, or approximate them. If any style instruction conflicts with a resolved configuration value, the resolved configuration value wins.
 
-GOAL:
-Generate a single horizontal 5-frame sprite sheet showing the SAME exact one-drawer cabinet across 5 drawer pullout states.
+GOAL: Generate one single horizontal 5-frame sprite sheet showing the SAME exact one-drawer cabinet across 5 drawer pullout states.
 
-SPRITE SHEET LAYOUT:
-- Exactly 5 frames in one horizontal row
-- Overall ratio exactly 5:1
-- Equal frame widths and heights
+OUTPUT STRUCTURE:
+- Exactly 5 frames
+- One horizontal row only
+- Overall aspect ratio exactly 5:1
+- Equal frame width and equal frame height
 - No gaps
 - No padding
 - No borders
 - No separators
+- No overlapping between frames
+- No object may spill into adjacent frames
 - Each frame must be fully self-contained
-- No pixels may spill into adjacent frames
-- Leave enough internal empty margin so even the most open drawer fits entirely inside its own frame
+- Leave enough empty margin inside each frame so the most open drawer fits completely within its own frame
 
 BACKGROUND:
 - Pure flat vivid green background
-- Exact #00FF00 / RGB (0, 255, 0)
+- Exact hex #00FF00
+- RGB 0,255,0
 - No transparency
 - No checkerboard
 - No texture
@@ -115,25 +104,27 @@ BACKGROUND:
 - No vignette
 - No lighting variation
 
-IMPORTANT COLOR RULE:
-- Do NOT use vivid green (#00FF00) anywhere on the furniture body, hardware, or decorations
-- Do NOT use any bright or neon green tones on the furniture
-- Light colors (white, cream, ivory) are perfectly fine on the furniture
-- Ensure enough contrast between the furniture and the green background for clean separation
+IMPORTANT COLOR RESTRICTION:
+- Do NOT use #00FF00 anywhere on the cabinet, drawer, handle, hardware, or decor
+- Do NOT use neon green or bright chroma green on the furniture
+- White, cream, ivory, beige, wood, metal, muted colors are allowed
+- Ensure strong contrast against the green background for clean cutout use
 
-TEXT RULE:
+TEXT RESTRICTION:
 - No text
+- No letters
 - No numbers
+- No symbols
+- No logos
 - No labels
 - No watermark
-- No logo
 - No signature
-- Never render any drawer label as visible text
-- Treat drawer label as metadata only, not an image element
+- Drawer label is metadata only and must never appear visually
 
-OBJECT RULE:
-Generate exactly one standalone cabinet shell containing exactly one sliding drawer.
-Do not generate:
+OBJECT LOCK:
+Generate exactly one standalone cabinet shell containing exactly one sliding drawer. Nothing else.
+
+ABSOLUTELY DO NOT GENERATE:
 - two drawers
 - multiple compartments
 - cabinet doors
@@ -144,41 +135,49 @@ Do not generate:
 - hinged lids
 - flap doors
 - tilt-out bins
+- shelves
+- props
+- contents inside drawer
+- animals
+- people
+- room scene
 
-MECHANICS:
+MECHANICAL LOCK:
 - Only the drawer moves
-- The cabinet shell stays fixed
-- The drawer slides straight outward on one axis
-- No hinge motion
+- Cabinet shell stays fixed
+- Drawer slides straight outward along one axis
 - No rotation
+- No hinge motion
 - No tilt
-- No morphing between furniture types
+- No morphing
+- No transformation into another furniture type
+- Drawer interior must remain completely empty in every frame
 
-CONSISTENCY:
-- Same exact cabinet in all 5 frames
-- Same exact camera angle in all 5 frames
-- Same exact scale in all 5 frames
-- Same exact centering in all 5 frames
-- Same exact lighting in all 5 frames
-- Same exact handle placement in all 5 frames
-- Same exact keyhole placement in all 5 frames if present
-- Same exact trim and decorative placement in all 5 frames
-- No jitter
-- No zoom drift
-- No shape drift
-- No hardware drift
+CAMERA LOCK:
+${resolvedCameraBlock}
 
-CAMERA:
-Use this fixed camera for all 5 frames:
-${angle}
+CONSISTENCY LOCK:
+The following must remain identical in all 5 frames:
+- same cabinet
+- same camera angle
+- same scale
+- same centering
+- same lighting
+- same proportions
+- same handle placement
+- same keyhole placement
+- same trim placement
+- same drawer face shape
+- same cabinet shell shape
+- same hardware count
+- same decor placement
+
+No jitter. No zoom drift. No shape drift. No perspective drift. No hardware drift.
 
 GEOMETRY:
-Use these proportions as guidance for the cabinet front and drawer face:
 - overall width units: ${d.boxWidth}
 - overall height units: ${d.boxHeight}
 - drawer face height units: ${d.drawerHeight}
-
-The cabinet must still clearly read as a single-drawer cabinet. Do not let proportions cause multiple drawers or stacked compartments.
 
 HARDWARE:
 - handle style: ${d.handleStyle}
@@ -186,33 +185,20 @@ HARDWARE:
 - has rivets: ${d.hasRivets}
 - has keyhole: ${d.hasKeyhole}
 
-If has keyhole is false, do not show a keyhole unless explicitly required by decor.
-If has rivets is true, keep rivets subtle, evenly placed, and fully inside the object silhouette.
-
 SURFACE STYLE:
 - material: ${material}
 - style preset: ${stylePreset}
 - decor items: ${decorItems}
 - additional feature keywords: ${additionalFeatures}
 
-Style rules:
-- Style preset affects ornament language only
-- Material affects surface appearance only
-- Decor must not add extra compartments, extra drawers, props, or interior objects
-- Decorative details must stay fully attached to the cabinet and drawer front
-- Do not place any decorative element outside frame bounds
-
-INTERIOR:
-- Drawer interior must be completely empty
-- No props
-- No camera
-- No cat
-- No fabric
-- No dust
-- No debris
-- No scratches
-- No magical effects
-- No extra objects of any kind
+STYLE INTERPRETATION RULE:
+Apply the style only to surface design, material feel, trim language, and decorative details. Do NOT let style change:
+- camera angle
+- object count
+- cabinet type
+- number of drawers
+- drawer mechanics
+- frame layout
 
 NO SHADOW RULE:
 - No floor shadow
@@ -221,47 +207,52 @@ NO SHADOW RULE:
 - No drop shadow
 - No glow
 - No halo
-- No object outline stroke
-- Use crisp clean edges only
+- No outline stroke
+- No reflected ground shadow
+- Crisp clean edges only
 
-FRAME STATE SEQUENCE:
-${frameLines}
+FRAME STATES:
+Frame 1: drawer pullout 0%
+Frame 2: drawer pullout 12%
+Frame 3: drawer pullout 28%
+Frame 4: drawer pullout 55%
+Frame 5: drawer pullout 82%
 
-Interpret pullout as the linear outward travel of the same drawer. A larger percentage means the same drawer is pulled farther outward. Do not change furniture type between states.
+Important:
+- Pullout must increase monotonically from frame 1 to frame 5
+- The cabinet shell never moves
+- The drawer remains aligned on the same axis in every frame
 
 NEGATIVE CONSTRAINTS:
 Do not generate:
+- angled view different from resolved camera
+- extra drawers
+- merged drawer sections
+- perspective drift
 - text
 - numbers
 - labels
-- multi-drawer furniture
-- doors
-- safes
-- chests
-- trunks
-- lid boxes
-- props
-- animals
-- cameras
-- interior contents
 - frame overlap
 - cross-frame spill
-- background shadows
+- shadows on background
+- interior contents
 - inconsistent proportions
 - inconsistent hardware
 - inconsistent object count
 
 QUALITY PRIORITY:
-1. Exact 5 equal frames
-2. No text at all
-3. No cross-frame overlap or spill
-4. Exactly one drawer only
-5. True sliding-drawer mechanics
-6. Consistent geometry and hardware across all frames
-7. No background shadows
-8. Empty interior
-9. Clean green background
-10. Style fidelity`;
+1. Obey all resolved configuration values literally
+2. Exact camera angle lock
+3. Exact 5 equal self-contained frames
+4. No text at all
+5. Exactly one drawer only
+6. True straight sliding-drawer mechanics
+7. No cross-frame overlap or spill
+8. Consistent geometry and hardware across all 5 frames
+9. No shadows
+10. Empty interior
+11. Clean pure green background
+12. Style fidelity`;
 }
 
 function resolveStyleTags(style: DrawerStyle): string {
@@ -281,16 +272,37 @@ function resolveDecorTags(style: DrawerStyle): string {
 
 function resolveAngle(angle: string): string {
   if (angle === 'left-45') {
-    return `Three-quarter view from the left side (approximately 45° from front-left)
-- Slightly above eye-level
-- Left side panel partially visible, front face dominant`;
+    return `- View = fixed left three-quarter view
+- Cabinet is rotated so the left side is visible and the front remains clearly visible
+- Keep the same exact left 45-degree style view in all 5 frames
+- Do not switch to front view
+- Do not switch to right 45-degree view
+- Do not switch to isometric
+- Do not change perspective between frames
+- Top surface visibility must remain consistent across all frames`;
   }
   if (angle === 'right-45') {
-    return `Three-quarter view from the right side (approximately 45° from front-right)
-- Slightly above eye-level
-- Right side panel partially visible, front face dominant`;
+    return `- View = fixed right three-quarter view
+- Cabinet is rotated so the right side is visible and the front remains clearly visible
+- Keep the same exact right 45-degree style view in all 5 frames
+- Do not switch to front view
+- Do not switch to left 45-degree view
+- Do not switch to isometric
+- Do not change perspective between frames
+- Top surface visibility must remain consistent across all frames`;
   }
-  return `Three-quarter front view from slightly above
-- Front face dominant
-- Slight downward perspective`;
+  return `- View = straight front view
+- Drawer front must face directly toward the viewer
+- Drawer front plane is parallel to the image plane
+- No left 45-degree view
+- No right 45-degree view
+- No three-quarter view
+- No isometric view
+- No top-down view
+- No bottom-up view
+- No side panel visible
+- No cabinet depth emphasis from perspective rotation
+- Top surface should not be visible
+- Left and right outer edges appear vertical and front-facing
+- This must read as a flat straight-on elevation view, not an angled product render`;
 }
