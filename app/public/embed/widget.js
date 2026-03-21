@@ -117,7 +117,35 @@
   var overlayParams = 'mode=overlay&anchor=' + encodeURIComponent(anchor) +
     '&ox=' + offsetX + '&oy=' + offsetY;
   var boxIframe = createIframe(overlayW, overlayH, overlayParams);
+  boxIframe.style.pointerEvents = 'none';
   boxContainer.appendChild(boxIframe);
+
+  // Hit zone: small div positioned over the drawer to detect hover intent
+  // while the iframe has pointer-events: none
+  var hitZone = document.createElement('div');
+  hitZone.style.cssText = 'position:absolute;z-index:1;cursor:pointer;display:none;';
+  boxContainer.appendChild(hitZone);
+
+  hitZone.addEventListener('mouseenter', function() {
+    boxIframe.style.pointerEvents = 'auto';
+    hitZone.style.display = 'none';
+  });
+  hitZone.addEventListener('touchstart', function() {
+    boxIframe.style.pointerEvents = 'auto';
+    hitZone.style.display = 'none';
+  }, { passive: true });
+
+  // Safety net: if mouse leaves iframe without triggering drawer interaction,
+  // re-disable pointer events so host page stays interactive
+  boxIframe.addEventListener('mouseleave', function() {
+    setTimeout(function() {
+      if (boxIframe.style.pointerEvents === 'auto' && hitZone.style.display === 'none') {
+        boxIframe.style.pointerEvents = 'none';
+        hitZone.style.display = 'block';
+      }
+    }, 100);
+  });
+
   document.body.appendChild(boxContainer);
 
   // 3. Create full-viewport canvas overlay (renders items streamed from iframe physics)
@@ -200,6 +228,24 @@
 
     if (event.data.action === 'request-viewport-info') {
       sendViewportInfo();
+    }
+
+    // Drawer rect: position hit zone over the drawer area
+    if (event.data.action === 'drawer-rect' && event.data.rect) {
+      var rect = event.data.rect;
+      hitZone.style.left = rect.x + 'px';
+      hitZone.style.top = rect.y + 'px';
+      hitZone.style.width = rect.width + 'px';
+      hitZone.style.height = rect.height + 'px';
+      if (boxIframe.style.pointerEvents === 'none') {
+        hitZone.style.display = 'block';
+      }
+    }
+
+    // Drawer state: on IDLE, disable pointer events and re-show hit zone
+    if (event.data.action === 'drawer-state' && event.data.state === 'IDLE') {
+      boxIframe.style.pointerEvents = 'none';
+      hitZone.style.display = 'block';
     }
   });
 

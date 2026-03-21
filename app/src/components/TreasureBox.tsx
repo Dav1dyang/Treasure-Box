@@ -1053,6 +1053,35 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     }
   }, [boxState]);
 
+  // --- postMessage: notify parent of drawer state changes (overlay embed) ---
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.parent === window) return;
+    window.parent.postMessage({
+      type: 'treasure-box',
+      action: 'drawer-state',
+      state: boxState,
+    }, '*');
+  }, [boxState]);
+
+  // --- postMessage: send drawer bounding rect to parent (overlay embed) ---
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.parent === window) return;
+    const el = drawerElRef.current;
+    if (!el) return;
+    const sendRect = () => {
+      const r = el.getBoundingClientRect();
+      window.parent.postMessage({
+        type: 'treasure-box',
+        action: 'drawer-rect',
+        rect: { x: r.left, y: r.top, width: r.width, height: r.height },
+      }, '*');
+    };
+    sendRect();
+    const ro = new ResizeObserver(sendRect);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [boxState]);
+
   // Accelerometer for mobile
   useEffect(() => {
     const handler = (e: DeviceMotionEvent) => {
