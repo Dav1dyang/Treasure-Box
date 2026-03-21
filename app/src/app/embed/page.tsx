@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getPublicBoxConfig, getPublicItems } from '@/lib/firestore';
-import type { TreasureItem, BoxConfig } from '@/lib/types';
+import type { TreasureItem, BoxConfig, FrameSyncBody, HostViewport, AnchorCorner } from '@/lib/types';
 import TreasureBox from '@/components/TreasureBox';
+import { computeDrawerPosition, computeSpawnOrigin } from '@/lib/embedPosition';
 import { Suspense } from 'react';
 
 function EmbedContent() {
@@ -13,6 +14,11 @@ function EmbedContent() {
   const bgOverride = searchParams.get('bg');
   const embedMode = searchParams.get('mode') || 'contained';
   const scaleParam = searchParams.get('scale');
+
+  // Overlay position params
+  const anchorParam = (searchParams.get('anchor') || 'bottom-right') as AnchorCorner;
+  const offsetXParam = parseInt(searchParams.get('ox') || '32', 10) || 32;
+  const offsetYParam = parseInt(searchParams.get('oy') || '32', 10) || 32;
 
   // Padding params for contained mode (default 0 for backward compat)
   const pt = Math.max(0, Math.min(60, parseInt(searchParams.get('pt') || '0', 10) || 0));
@@ -24,6 +30,8 @@ function EmbedContent() {
   const [config, setConfig] = useState<BoxConfig | null>(null);
   const [items, setItems] = useState<TreasureItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [hostViewport, setHostViewport] = useState<HostViewport | null>(null);
+  const sceneRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!boxId) {
@@ -56,9 +64,45 @@ function EmbedContent() {
     })();
   }, [boxId]);
 
-  // postMessage handler for overlay mode: notify parent when items escape/return
   const isOverlay = embedMode === 'overlay' || embedMode === 'fullpage';
 
+  // Listen for viewport-info and dom-rects from parent (widget.js)
+  useEffect(() => {
+    if (!isOverlay) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data || event.data.type !== 'treasure-box') return;
+
+      if (event.data.action === 'viewport-info') {
+        setHostViewport({
+          width: event.data.width,
+          height: event.data.height,
+          offsetX: event.data.offsetX || 0,
+          offsetY: event.data.offsetY || 0,
+        });
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    // Request viewport info from parent on mount
+    window.parent.postMessage({ type: 'treasure-box', action: 'request-viewport-info' }, '*');
+
+    return () => window.removeEventListener('message', handleMessage);
+  }, [isOverlay]);
+
+  // Frame sync: stream body positions to parent for overlay rendering
+  const handleFrameSync = useCallback((bodies: FrameSyncBody[], effects: { brightness: number; contrast: number; tint?: string }) => {
+    if (typeof window === 'undefined') return;
+    window.parent.postMessage({
+      type: 'treasure-box',
+      action: 'frame-sync',
+      bodies,
+      effects,
+    }, '*');
+  }, []);
+
+  // Legacy handlers for backward compatibility (fullpageMode path)
   const handleItemsEscaped = useCallback((escapedItems: { id: string; imageUrl: string; label: string }[]) => {
     if (!isOverlay || typeof window === 'undefined') return;
     window.parent.postMessage({
@@ -107,6 +151,35 @@ function EmbedContent() {
   const paddingStyle = (isContained && hasPadding)
     ? { padding: `${pt}px ${pr}px ${pb}px ${pl}px` }
     : undefined;
+
+  // For overlay mode with frame sync: use overlayPreview to position drawer and run physics locally
+  if (isOverlay && hostViewport) {
+    const overlayConfig = {
+      ...effectiveConfig,
+      backgroundColor: 'transparent',
+      contentScale: effectiveConfig.embedSettings?.embedScale ?? effectiveConfig.contentScale ?? 1,
+    };
+
+    const containerW = sceneRef.current?.offsetWidth || window.innerWidth;
+    const containerH = sceneRef.current?.offsetHeight || window.innerHeight;
+
+    return (
+      <div ref={sceneRef} className="w-full h-screen overflow-hidden" style={{ background: 'transparent' }}>
+        <TreasureBox
+          items={items}
+          config={overlayConfig}
+          backgroundColor="transparent"
+          embedded
+          overlayPreview={{
+            drawerStyle: computeDrawerPosition(anchorParam, offsetXParam, offsetYParam, containerW, containerH),
+            spawnOrigin: computeSpawnOrigin(anchorParam, offsetXParam, offsetYParam, containerW, containerH),
+          }}
+          hostViewport={hostViewport}
+          onFrameSync={handleFrameSync}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-screen overflow-hidden" style={paddingStyle}>
