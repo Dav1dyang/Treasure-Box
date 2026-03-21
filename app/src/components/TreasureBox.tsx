@@ -66,6 +66,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
   const didDragRef = useRef(false);
   const longPressFiredRef = useRef(false);
+  const hostInitiatedRef = useRef(false);
   const pendingLinkRef = useRef<string | null>(null);
   const lastClickTimeRef = useRef(0);
   const lastClickBodyRef = useRef<string | null>(null);
@@ -545,14 +546,19 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         ? { x: mouse.position.x, y: mouse.position.y }
         : null;
       if (body?.itemData) {
-        // Notify parent that item drag started (overlay embed: enables host-page mouse forwarding)
-        if (window.parent !== window) {
-          window.parent.postMessage({ type: 'treasure-box', action: 'item-drag-start' }, '*');
+        if (hostInitiatedRef.current) {
+          // Host canvas handles interaction — only grab physics, skip timers
+          hostInitiatedRef.current = false;
+        } else {
+          // Native iframe interaction — full behavior
+          if (window.parent !== window) {
+            window.parent.postMessage({ type: 'treasure-box', action: 'item-drag-start' }, '*');
+          }
+          longPressRef.current = setTimeout(() => {
+            longPressFiredRef.current = true;
+            setActiveStory(body.itemData);
+          }, 800);
         }
-        longPressRef.current = setTimeout(() => {
-          longPressFiredRef.current = true;
-          setActiveStory(body.itemData);
-        }, 800);
       }
     });
     Matter.Events.on(mouseConstraint, 'mouseup', () => {
@@ -600,6 +606,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     const handleHostMouseForward = (event: MessageEvent) => {
       if (!event.data || event.data.type !== 'treasure-box-host') return;
       if (event.data.action === 'mouse-down') {
+        hostInitiatedRef.current = true;
         mouse.position.x = event.data.x;
         mouse.position.y = event.data.y;
         mouse.absolute.x = event.data.x;

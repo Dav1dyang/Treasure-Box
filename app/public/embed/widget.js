@@ -6,7 +6,7 @@
   // ═══════════════════════════════════════════════════════════════
   var DEFAULTS = {
     WIDTH: 350,
-    HEIGHT: 300,
+    HEIGHT: 420,
     SCALE: 1,
     ANCHOR: 'bottom-right',
     OFFSET_X: 32,
@@ -443,7 +443,7 @@
         // Release physics body
         sendMouseUpToIframe(e.clientX, e.clientY);
         // Show story overlay
-        if (canvasDragBody && canvasDragBody.story) {
+        if (canvasDragBody) {
           showStoryOverlay(canvasDragBody);
         }
       }, 800);
@@ -483,7 +483,7 @@
       canvasLongPressTimer = setTimeout(function() {
         canvasLongPressFired = true;
         sendMouseUpToIframe(touch.clientX, touch.clientY);
-        if (canvasDragBody && canvasDragBody.story) showStoryOverlay(canvasDragBody);
+        if (canvasDragBody) showStoryOverlay(canvasDragBody);
       }, 800);
       startHostCanvasDrag(touch.clientX, touch.clientY);
     } else {
@@ -577,6 +577,14 @@
       hitZone.style.height = rect.height + 'px';
       if (boxIframe.style.pointerEvents === 'none') {
         hitZone.style.display = 'block';
+      }
+      // Ensure container is tall enough for the drawer
+      var neededH = Math.ceil(rect.y + rect.height + 20);
+      var currentH = parseInt(boxContainer.style.height, 10) || 0;
+      if (neededH > currentH) {
+        boxContainer.style.height = neededH + 'px';
+        boxIframe.height = neededH;
+        boxIframe.style.height = neededH + 'px';
       }
     }
 
