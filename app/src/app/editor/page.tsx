@@ -774,7 +774,6 @@ function UnifiedPreview({
   const isEmbedTab = tab === 'embed';
   const isOverlay = es.mode !== 'contained';
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
-  const [previewMode, setPreviewMode] = useState<'edit' | 'play'>('edit');
   const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
 
   // Compute drawer position: centered for items/config, stored anchor for embed overlay
@@ -882,25 +881,6 @@ function UnifiedPreview({
         </div>
       )}
 
-      {/* Edit / Play mode toggle — only on embed tab overlay mode */}
-      {isEmbedTab && isOverlay && (
-        <div className="absolute top-2 right-3 z-30 flex rounded overflow-hidden border" style={{ borderColor: 'var(--tb-border)' }}>
-          {(['edit', 'play'] as const).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setPreviewMode(mode)}
-              className="px-1.5 py-0.5 text-[9px] transition-colors"
-              style={{
-                background: previewMode === mode ? 'var(--tb-fg)' : 'transparent',
-                color: previewMode === mode ? 'var(--tb-bg)' : 'var(--tb-fg-muted)',
-              }}
-            >
-              {mode === 'edit' ? '✎ edit' : '▶ play'}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Single persistent TreasureBox — never unmounted across tab switches */}
       <div className="absolute inset-0" style={{ zIndex: 5 }}>
         <TreasureBox
@@ -909,7 +889,7 @@ function UnifiedPreview({
           overlayPreview={{
             drawerStyle: drawerStyleWithTransition,
             spawnOrigin: getSpawnOrigin(),
-            onDrag: (isEmbedTab && isOverlay && previewMode === 'edit') ? handleDrag : undefined,
+            onDrag: (isEmbedTab && isOverlay) ? handleDrag : undefined,
           }}
         />
       </div>
@@ -921,7 +901,7 @@ function UnifiedPreview({
             {es.position.anchor} &middot; {es.position.offsetX}px, {es.position.offsetY}px
           </div>
           <div className="absolute bottom-2 right-3 z-30 text-[8px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
-            {previewMode === 'edit' ? 'drag drawer to reposition' : 'click drawer to interact'}
+            drag drawer to reposition
           </div>
         </>
       )}
