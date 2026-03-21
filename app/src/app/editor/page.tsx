@@ -930,6 +930,7 @@ function UnifiedPreview({
           height: boundaryBox.height,
           border: '2px solid var(--tb-accent)',
           overflow: 'hidden',
+          background: '#ffffff',
         } : { zIndex: 5 }}
       >
         <TreasureBox
