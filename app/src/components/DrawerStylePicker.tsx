@@ -132,13 +132,22 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
   const [color, setColor] = useState(currentImages?.style.color || '#8B4513');
   const [accentColor, setAccentColor] = useState(currentImages?.style.accentColor || '#B08D57');
   // 3. Style (surface pattern)
-  const [stylePattern, setStylePattern] = useState(currentImages?.style.customPrompt?.split('|')[0] || 'plain');
+  const [stylePattern, setStylePattern] = useState(() => {
+    const s = currentImages?.style;
+    if (s?.stylePattern) return s.stylePattern;
+    // Backward compat: old docs stored label in customPrompt — match it back to ID
+    if (s?.customPrompt) {
+      const match = STYLE_PRESETS.find(p => p.label === s.customPrompt);
+      if (match) return match.id;
+    }
+    return 'plain';
+  });
   // 4. Decor (hardware items)
   const [selectedDecor, setSelectedDecor] = useState<string[]>(() => {
     const d = currentImages?.style.decor;
     return d ? d.split(', ') : [];
   });
-  const [customDecor, setCustomDecor] = useState('');
+  const [customDecor, setCustomDecor] = useState(currentImages?.style.customDecorText || '');
   // 5. Size & angle
   const [drawerWidth, setDrawerWidth] = useState(currentImages?.style.drawerWidth || 3);
   const [drawerHeight, setDrawerHeight] = useState(currentImages?.style.drawerHeight || 2);
@@ -197,14 +206,11 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
     }
     const decorStr = allDecor.join(', ');
 
-    // Build custom prompt from style pattern
-    const styleDesc = STYLE_PRESETS.find(s => s.id === stylePattern);
-    const customPrompt = styleDesc && styleDesc.id !== 'plain' ? styleDesc.label : undefined;
-
     const style: DrawerStyle = {
       preset,
       color,
-      customPrompt,
+      stylePattern: stylePattern !== 'plain' ? stylePattern : undefined,
+      customDecorText: customDecor.trim() || undefined,
       accentColor,
       decor: decorStr || undefined,
       drawerWidth,

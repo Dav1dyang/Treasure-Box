@@ -1,4 +1,4 @@
-import type { DrawerStyle, DrawerStylePreset, DrawerMaterial } from './types';
+import type { DrawerStyle, DrawerStylePreset } from './types';
 
 /**
  * Structured style definitions for each preset.
@@ -58,86 +58,6 @@ export const STYLE_BASES: Record<DrawerStylePreset, StyleDefinition> = {
 };
 
 /**
- * Material definitions — maps material ID to descriptive strings
- * for the prompt template. Merged with preset as a modifier.
- */
-interface MaterialDefinition {
-  label: string;
-  surface: string;    // describes the material surface/texture
-  hardware: string;   // what hardware looks like in this material
-  artHint: string;    // art style hint
-}
-
-export const MATERIALS: Record<DrawerMaterial, MaterialDefinition> = {
-  wood: {
-    label: 'Wood',
-    surface: 'polished wood grain with warm lacquer finish',
-    hardware: 'warm brass fittings',
-    artHint: 'hand-painted woodwork illustration',
-  },
-  metal: {
-    label: 'Metal',
-    surface: 'brushed metal with subtle reflections',
-    hardware: 'industrial steel with rivets',
-    artHint: 'detailed metalwork rendering with weathering',
-  },
-  ceramic: {
-    label: 'Ceramic',
-    surface: 'smooth glazed ceramic with subtle sheen',
-    hardware: 'delicate porcelain with painted details',
-    artHint: 'fine ceramic illustration with clean glaze reflections',
-  },
-  stone: {
-    label: 'Stone',
-    surface: 'carved stone with natural grain and subtle moss',
-    hardware: 'rough-hewn stone with iron reinforcement',
-    artHint: 'stone carving illustration with natural texture',
-  },
-  glass: {
-    label: 'Glass',
-    surface: 'translucent glass with soft refractions and iridescent edges',
-    hardware: 'frosted glass with subtle shimmer',
-    artHint: 'ethereal glasswork with soft light and translucency',
-  },
-  fabric: {
-    label: 'Fabric / Leather',
-    surface: 'rich textured fabric or leather with visible stitching',
-    hardware: 'leather straps with brass buckles',
-    artHint: 'textile illustration with visible weave and stitch detail',
-  },
-  clay: {
-    label: 'Clay',
-    surface: 'soft warm clay with visible fingerprint textures',
-    hardware: 'clay with rounded sculpted shapes',
-    artHint: 'claymation stop-motion style with soft rounded forms',
-  },
-  pixel: {
-    label: 'Pixel Art',
-    surface: 'crisp pixel blocks with limited color palette',
-    hardware: 'pixel-styled with crisp edges',
-    artHint: '16-bit pixel art with crisp edges and no anti-aliasing',
-  },
-  paper: {
-    label: 'Paper / Origami',
-    surface: 'cream and kraft paper with visible fold lines',
-    hardware: 'folded paper with sharp creases',
-    artHint: 'papercraft illustration with visible creases and layered depth',
-  },
-  watercolor: {
-    label: 'Watercolor',
-    surface: 'soft watercolor wash with visible brush strokes and pigment blooms',
-    hardware: 'painted with loose watercolor brush strokes',
-    artHint: 'watercolor painting style with soft edges and visible paper texture',
-  },
-  neon: {
-    label: 'Neon / Cyberpunk',
-    surface: 'dark matte surface with bright neon edge lighting and glow effects',
-    hardware: 'glowing neon strips and LED accents',
-    artHint: 'cyberpunk neon illustration with dark base and vivid glow effects',
-  },
-};
-
-/**
  * Style presets — surface patterns / aesthetics (was "decor presets").
  */
 export const STYLE_PRESETS = [
@@ -170,20 +90,19 @@ export const DECOR_ITEMS = [
  */
 export function buildSpriteSheetPrompt(style: DrawerStyle): string {
   const def = STYLE_BASES[style.preset];
-  const mat = style.material ? MATERIALS[style.material] : null;
 
   // Resolve placeholder values
-  const material = mat ? `${def.furnitureStyle} rendered in ${mat.label} (${mat.surface})` : def.furnitureStyle;
+  const material = def.furnitureStyle;
   const primaryColor = style.color ? `${style.color} ${colorLabel(style.color)}` : def.mainColor;
   const accentColor = style.accentColor ? `${style.accentColor} ${colorLabel(style.accentColor)}` : 'warm brass';
   const styleTags = resolveStyleTags(style);
   const decorTags = resolveDecorTags(style);
-  const customDecor = style.customPrompt || 'none';
+  const customDecor = style.customDecorText || 'none';
   const widthRatio = style.drawerWidth || 3;
   const heightRatio = style.drawerHeight || 2;
   const openingAngle = resolveAngle(style.angle || 'front');
   const handleType = def.handleStyle;
-  const artStyle = mat ? `${def.artStyle}, rendered with ${mat.artHint}` : def.artStyle;
+  const artStyle = def.artStyle;
 
   return `Create exactly ONE single sprite sheet image for a web creative project.
 
@@ -350,7 +269,11 @@ function colorLabel(hex: string): string {
 }
 
 function resolveStyleTags(style: DrawerStyle): string {
-  // customPrompt is used for style pattern label from STYLE_PRESETS
+  if (style.stylePattern) {
+    const preset = STYLE_PRESETS.find(s => s.id === style.stylePattern);
+    return preset ? preset.label : 'plain';
+  }
+  // Backward compat: old docs stored the label in customPrompt
   if (style.customPrompt) return style.customPrompt;
   return 'plain';
 }

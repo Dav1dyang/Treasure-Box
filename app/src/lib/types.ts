@@ -35,20 +35,17 @@ export type BoxState = 'IDLE' | 'HOVER_PEEK' | 'OPEN' | 'HOVER_CLOSE' | 'CLOSING
 
 export type DrawerStylePreset = 'clay' | 'metal' | 'wood' | 'pixel' | 'paper' | 'glass';
 
-export type DrawerMaterial =
-  | 'wood' | 'metal' | 'ceramic' | 'stone' | 'glass' | 'fabric'
-  | 'clay' | 'pixel' | 'paper' | 'watercolor' | 'neon';
-
 export type DrawerAngle = 'front' | 'left-45' | 'right-45';
 
 export interface DrawerStyle {
   preset: DrawerStylePreset;
   color: string;           // hex color e.g. "#8B4513"
-  customPrompt?: string;   // optional user text appended to prompt
-  // New fields — all optional for backward compat
-  material?: DrawerMaterial;
+  /** @deprecated Use stylePattern + customDecorText instead. Kept for backward compat with old Firestore docs. */
+  customPrompt?: string;
+  stylePattern?: string;      // STYLE_PRESETS id: 'plain', 'floral', 'geometric', 'vintage', 'modern'
+  customDecorText?: string;   // user's free-text decor keywords (persisted for round-trip)
   accentColor?: string;    // hex color for hardware/trim
-  decor?: string;          // decoration description
+  decor?: string;          // decoration description (combined toggle pills + custom text)
   drawerWidth?: number;    // ratio width 1-5 (default 3)
   drawerHeight?: number;   // ratio height 1-5 (default 2)
   angle?: DrawerAngle;     // camera angle
