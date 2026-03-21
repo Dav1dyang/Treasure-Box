@@ -6,8 +6,7 @@ import { soundEngine } from '@/lib/sounds';
 import { contourToVertices } from '@/lib/contour';
 import { computeCenteredDrawerPosition, computeCenteredSpawnOrigin } from '@/lib/embedPosition';
 import type { TreasureItem, BoxConfig, BoxState, DrawerImages, BoxDimensions, FrameSyncBody, HostViewport } from '@/lib/types';
-import { DEFAULT_DRAWER_DISPLAY_SIZE } from '@/lib/types';
-import { DEFAULT_BOX_DIMENSIONS } from '@/lib/types';
+import { DEFAULT_DRAWER_DISPLAY_SIZE, DEFAULT_BOX_DIMENSIONS } from '@/lib/config';
 import StoryCard from './StoryCard';
 
 const ITEM_BASE_SIZE = 52;
@@ -25,7 +24,6 @@ interface Props {
   items: TreasureItem[];
   config: BoxConfig;
   backgroundColor?: string;
-  fullpageMode?: boolean;
   onItemsEscaped?: (items: { id: string; imageUrl: string; label: string }[]) => void;
   onItemsReturned?: () => void;
   /** When set, TreasureBox uses full-scene edge walls and positions drawer at anchor */
@@ -40,7 +38,7 @@ interface Props {
 
 const ALL_BOX_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
 
-export default function TreasureBox({ items, config, backgroundColor, fullpageMode, onItemsEscaped, onItemsReturned, overlayPreview, embedded, onFrameSync, hostViewport }: Props) {
+export default function TreasureBox({ items, config, backgroundColor, onItemsEscaped, onItemsReturned, overlayPreview, embedded, onFrameSync, hostViewport }: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
@@ -741,8 +739,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       }, 200);
     }, 600);
 
-    // In fullpage mode, notify parent that items have escaped
-    if (fullpageMode && onItemsEscaped) {
+    if (onItemsEscaped) {
       managedTimeout(() => {
         onItemsEscaped(items.map(item => ({
           id: item.id,
@@ -752,7 +749,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         itemsHandedOffRef.current = true;
       }, 800);
     }
-  }, [isOpen, initPhysics, spawnItems, renderLoop, clearPhysics, clearAllTimeouts, managedTimeout, fullpageMode, onItemsEscaped, items]);
+  }, [isOpen, initPhysics, spawnItems, renderLoop, clearPhysics, clearAllTimeouts, managedTimeout, onItemsEscaped, items]);
 
   const closeDrawer = useCallback(() => {
     // Guard: only close from open states
@@ -762,11 +759,10 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     clearAllTimeouts();
     if (spawnIntervalRef.current) { clearInterval(spawnIntervalRef.current); spawnIntervalRef.current = null; }
 
-    // Reset fullpage handoff so items render locally during close animation
+    // Reset handoff so items render locally during close animation
     itemsHandedOffRef.current = false;
 
-    // In fullpage mode, notify parent that items are returning
-    if (fullpageMode && onItemsReturned) {
+    if (onItemsReturned) {
       onItemsReturned();
     }
 
@@ -866,7 +862,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         setBoxState('IDLE');
       }, maxStagger + 300);
     }, Math.round(duration * 0.6 + maxStagger));
-  }, [isOpen, clearPhysics, clearAllTimeouts, managedTimeout, fullpageMode, onItemsReturned]);
+  }, [isOpen, clearPhysics, clearAllTimeouts, managedTimeout, onItemsReturned]);
 
   // Stable refs so handlers don't go stale across re-renders
   const openDrawerRef = useRef(openDrawer);

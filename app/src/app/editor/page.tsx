@@ -11,24 +11,13 @@ import {
   clearDrawerImages, deleteItemWithCleanup, deleteBox,
 } from '@/lib/firestore';
 import type { TreasureItem, BoxConfig, SoundPreset, DrawerImages, EmbedSettings, AnchorCorner } from '@/lib/types';
-import { DEFAULT_EMBED_SETTINGS, getEmbedDimensions } from '@/lib/types';
+import { DEFAULT_EMBED_SETTINGS, DEFAULT_BOX_CONFIG, getEmbedDimensions } from '@/lib/config';
 import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
 import LoadingAnimation from '@/components/LoadingAnimation';
 import { extractContourFromImage } from '@/lib/contour';
 import EmbedConfigurator from '@/components/EmbedConfigurator';
 import { computeDrawerPosition, computeSpawnOrigin, computeCenteredDrawerPosition, computeCenteredSpawnOrigin, positionFromPointer } from '@/lib/embedPosition';
-
-const DEFAULT_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'> = {
-  title: 'My Treasure Box',
-  backgroundColor: 'transparent',
-  drawerLabel: 'TREASURE BOX',
-  maxItems: 15,
-  soundEnabled: true,
-  soundVolume: 0.3,
-  soundPreset: 'metallic',
-  isPublic: false,
-};
 
 const SOUND_PRESETS: SoundPreset[] = ['metallic', 'wooden', 'glass', 'paper', 'pixel', 'clay', 'silent'];
 function VolumeBar({ volume, onChange }: { volume: number; onChange: (v: number) => void }) {
@@ -120,7 +109,7 @@ export default function EditorPage() {
     (async () => {
       let box = await getBoxConfig(user.uid);
       if (!box) {
-        box = { ...DEFAULT_CONFIG, id: user.uid, ownerId: user.uid, createdAt: Date.now(), updatedAt: Date.now() };
+        box = { ...DEFAULT_BOX_CONFIG, id: user.uid, ownerId: user.uid, createdAt: Date.now(), updatedAt: Date.now() };
         await saveBoxConfig(box);
       }
       setConfig(box);
