@@ -103,7 +103,6 @@ export interface BoxConfig {
   updatedAt: number;
   drawerImages?: DrawerImages;  // undefined = use ASCII fallback
   boxDimensions?: BoxDimensions; // custom box shape/proportions
-  generatedSounds?: GeneratedSounds; // AI-generated sound effects
   embedSettings?: EmbedSettings; // embed configuration (mode, size, position)
   itemCount?: number;            // cached count of items in the box
   drawerDisplaySize?: { width: number; height: number }; // fixed pixel size for drawer frame (default 420×280)
@@ -115,17 +114,7 @@ export interface BoxConfig {
 
 export const DEFAULT_DRAWER_DISPLAY_SIZE = { width: 420, height: 420 };
 
-export type SoundPreset = 'metallic' | 'wooden' | 'glass' | 'paper' | 'silent' | 'ai-generated';
-
-// ===== AI-Generated Sounds =====
-
-export interface GeneratedSounds {
-  collisionUrl: string;
-  drawerOpenUrl: string;
-  drawerCloseUrl: string;
-  style: DrawerStyle;
-  generatedAt: number;
-}
+export type SoundPreset = 'metallic' | 'wooden' | 'glass' | 'paper' | 'pixel' | 'clay' | 'silent';
 
 // ===== Embed Padding =====
 

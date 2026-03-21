@@ -5,7 +5,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getDb, getStorageInstance } from './firebase';
-import type { TreasureItem, BoxConfig, BoxState, DrawerImages, GeneratedSounds } from './types';
+import type { TreasureItem, BoxConfig, BoxState, DrawerImages } from './types';
 // Note: Firestore composite index needed: isPublic ASC + updatedAt DESC
 // Firebase will auto-prompt the index creation URL on first query
 
@@ -138,97 +138,6 @@ export async function clearDrawerImages(userId: string): Promise<void> {
   // Remove the field entirely from Firestore (not just null)
   await updateDoc(doc(getDb(), 'boxes', userId), {
     drawerImages: deleteField(),
-    updatedAt: Date.now(),
-  });
-}
-
-// ===== Generated Sound Upload =====
-
-export async function uploadGeneratedSound(
-  userId: string,
-  soundType: string,
-  base64Data: string,
-  mimeType: string,
-): Promise<string> {
-  const ext = mimeType.includes('wav') ? 'wav' : 'bin';
-  // Gemini may return raw PCM (audio/L16) — wrap it in a WAV container for browser playback
-  let bytes: Uint8Array;
-  if (mimeType.startsWith('audio/L16') || mimeType.startsWith('audio/pcm')) {
-    const rateMatch = mimeType.match(/rate=(\d+)/);
-    const sampleRate = rateMatch ? parseInt(rateMatch[1]) : 24000;
-    const raw = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-    bytes = wrapPcmAsWav(raw, sampleRate);
-  } else {
-    bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-  }
-  const blob = new Blob([new Uint8Array(bytes) as BlobPart], { type: 'audio/wav' });
-  const storageRef = ref(getStorageInstance(), `boxes/${userId}/sounds/${soundType}.${ext}`);
-  await uploadBytes(storageRef, blob);
-  return getDownloadURL(storageRef);
-}
-
-/** Wrap raw PCM 16-bit LE mono samples in a minimal WAV header */
-function wrapPcmAsWav(pcmData: Uint8Array, sampleRate: number): Uint8Array {
-  const numChannels = 1;
-  const bitsPerSample = 16;
-  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
-  const blockAlign = numChannels * (bitsPerSample / 8);
-  const dataSize = pcmData.length;
-  const headerSize = 44;
-  const buffer = new ArrayBuffer(headerSize + dataSize);
-  const view = new DataView(buffer);
-
-  // RIFF header
-  writeString(view, 0, 'RIFF');
-  view.setUint32(4, 36 + dataSize, true);
-  writeString(view, 8, 'WAVE');
-
-  // fmt sub-chunk
-  writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true);          // sub-chunk size
-  view.setUint16(20, 1, true);           // PCM format
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitsPerSample, true);
-
-  // data sub-chunk
-  writeString(view, 36, 'data');
-  view.setUint32(40, dataSize, true);
-
-  const wavBytes = new Uint8Array(buffer);
-  wavBytes.set(pcmData, headerSize);
-  return wavBytes;
-}
-
-function writeString(view: DataView, offset: number, str: string) {
-  for (let i = 0; i < str.length; i++) {
-    view.setUint8(offset + i, str.charCodeAt(i));
-  }
-}
-
-export async function saveGeneratedSounds(
-  userId: string,
-  sounds: GeneratedSounds,
-): Promise<void> {
-  await updateDoc(doc(getDb(), 'boxes', userId), {
-    generatedSounds: sounds,
-    updatedAt: Date.now(),
-  });
-}
-
-export async function clearGeneratedSounds(userId: string): Promise<void> {
-  await Promise.allSettled([
-    deleteImage(`boxes/${userId}/sounds/collision.wav`),
-    deleteImage(`boxes/${userId}/sounds/collision.bin`),
-    deleteImage(`boxes/${userId}/sounds/drawer-open.wav`),
-    deleteImage(`boxes/${userId}/sounds/drawer-open.bin`),
-    deleteImage(`boxes/${userId}/sounds/drawer-close.wav`),
-    deleteImage(`boxes/${userId}/sounds/drawer-close.bin`),
-  ]);
-  await updateDoc(doc(getDb(), 'boxes', userId), {
-    generatedSounds: deleteField(),
     updatedAt: Date.now(),
   });
 }

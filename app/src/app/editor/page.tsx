@@ -27,7 +27,7 @@ const DEFAULT_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' | 'updatedA
   isPublic: false,
 };
 
-const SOUND_PRESETS: SoundPreset[] = ['metallic', 'wooden', 'glass', 'paper', 'silent', 'ai-generated'];
+const SOUND_PRESETS: SoundPreset[] = ['metallic', 'wooden', 'glass', 'paper', 'pixel', 'clay', 'silent'];
 function VolumeBar({ volume, onChange }: { volume: number; onChange: (v: number) => void }) {
   const steps = 10;
   const filled = Math.round(volume * steps);
@@ -478,11 +478,8 @@ export default function EditorPage() {
                   <DrawerStylePicker
                     userId={user.uid}
                     currentImages={config.drawerImages || undefined}
-                    currentSounds={config.generatedSounds || undefined}
                     onComplete={(images: DrawerImages) => { skipAutoSaveRef.current = true; setConfig({ ...config, drawerImages: images }); }}
                     onReset={async () => { await clearDrawerImages(user.uid); setConfig({ ...config, drawerImages: undefined }); }}
-                    onSoundsGenerated={(sounds) => { skipAutoSaveRef.current = true; setConfig({ ...config, generatedSounds: sounds, soundPreset: 'ai-generated', soundEnabled: true }); }}
-                    onSoundsCleared={() => { setConfig({ ...config, generatedSounds: undefined, soundPreset: 'metallic' }); }}
                   />
                 </CfgGroup>
 
@@ -580,9 +577,9 @@ export default function EditorPage() {
                   <CfgSection>
                     <CfgLabel>collision sound</CfgLabel>
                     <div className="flex flex-wrap">
-                      {SOUND_PRESETS.filter(p => p !== 'ai-generated' || config.generatedSounds).map((p, i) => (
+                      {SOUND_PRESETS.map((p, i) => (
                         <CfgToggle key={p} first={i === 0} active={config.soundPreset === p}
-                          onClick={() => setConfig({ ...config, soundPreset: p, soundEnabled: p !== 'silent' })}>{p === 'ai-generated' ? 'ai' : p}</CfgToggle>
+                          onClick={() => setConfig({ ...config, soundPreset: p, soundEnabled: p !== 'silent' })}>{p}</CfgToggle>
                       ))}
                     </div>
                   </CfgSection>
@@ -597,7 +594,7 @@ export default function EditorPage() {
                   {/* Future sound controls */}
                   <CfgSection>
                     <CfgLabel>drawer open / close</CfgLabel>
-                    <span className="text-[9px] tracking-[0.08em]" style={{ color: 'var(--tb-fg-ghost)' }}>coming soon</span>
+                    <span className="text-[9px] tracking-[0.08em]" style={{ color: 'var(--tb-fg-muted)' }}>synthesized per preset</span>
                   </CfgSection>
                   <CfgSection>
                     <CfgLabel>item drop</CfgLabel>

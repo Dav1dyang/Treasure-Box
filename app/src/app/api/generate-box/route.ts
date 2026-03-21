@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import sharp from 'sharp';
 import { buildSpriteSheetPrompt } from '@/lib/boxStyles';
 import type { DrawerStyle } from '@/lib/types';
@@ -28,27 +28,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-3.1-flash-image-preview',
-      // @ts-expect-error - responseModalities not yet in types but supported by API
-      generationConfig: { responseModalities: ['Text', 'Image'] },
-    });
+    const genAI = new GoogleGenAI({ apiKey });
 
-    // Single prompt for all 5 states as a sprite sheet
-    const result = await model.generateContent([{ text: builtPrompt }]);
-    const response = result.response;
+    const result = await genAI.models.generateContent({
+      model: 'gemini-2.0-flash-exp-image-generation',
+      contents: [{ role: 'user', parts: [{ text: builtPrompt }] }],
+      config: { responseModalities: ['Text', 'Image'] },
+    });
 
     // Extract image from response
     let imageBase64: string | null = null;
-    const candidates = response.candidates;
-    if (candidates && candidates.length > 0) {
-      const contentParts = candidates[0].content?.parts ?? [];
-      for (const part of contentParts) {
-        if ((part as any).inlineData) {
-          imageBase64 = (part as any).inlineData.data;
-          break;
-        }
+    const parts = result.candidates?.[0]?.content?.parts ?? [];
+    for (const part of parts) {
+      if (part.inlineData) {
+        imageBase64 = part.inlineData.data ?? null;
+        break;
       }
     }
 

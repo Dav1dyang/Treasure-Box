@@ -180,14 +180,9 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     soundEngine.init();
     soundEngine.setEnabled(config.soundEnabled);
     soundEngine.setVolume(config.soundVolume);
-    soundEngine.setPreset(config.soundPreset);
-
-    // Load AI-generated sounds if available
-    if (config.soundPreset === 'ai-generated' && config.generatedSounds) {
-      soundEngine.loadAISounds(config.generatedSounds);
-    } else {
-      soundEngine.clearAISounds();
-    }
+    // Backward compat: old boxes with 'ai-generated' preset fall back to 'metallic'
+    const preset = config.soundPreset === 'ai-generated' as string ? 'metallic' : config.soundPreset;
+    soundEngine.setPreset(preset);
   }, [config]);
 
   const resizeCanvas = useCallback(() => {
