@@ -896,7 +896,22 @@ function UnifiedPreview({
       {isEmbedTab && (
         <div style={{ opacity: 1, transition: 'opacity 0.3s' }}>
           <MockWebsitePlaceholder />
-          {es.previewUrl && (
+          {/* Screenshot preview */}
+          {es.previewMode === 'screenshot' && es.previewImageUrl && (
+            <>
+              <img
+                src={es.previewImageUrl}
+                alt=""
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                style={{ opacity: 0.4, zIndex: 1, objectFit: 'cover', objectPosition: 'top left' }}
+              />
+              <div className="absolute top-2 left-3 z-30 text-[7px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
+                screenshot preview
+              </div>
+            </>
+          )}
+          {/* Live URL iframe preview */}
+          {es.previewMode === 'url' && es.previewUrl && (
             <>
               <iframe
                 src={es.previewUrl}
