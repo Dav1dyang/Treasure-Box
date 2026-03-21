@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import Matter from 'matter-js';
 
 const PASTEL_PALETTE = [
@@ -14,13 +14,13 @@ const PASTEL_PALETTE = [
   '#B3FFE6', // seafoam
 ];
 
-const SPAWN_INTERVAL = 300;
-const MAX_BOXES = 25;
-const DRAIN_DURATION = 1200;
-const RESET_PAUSE = 300;
-const BOX_SIZES = [28, 36, 44];
+const SPAWN_INTERVAL = 250;
+const MAX_BOXES = 80;
+const DRAIN_DURATION = 1500;
+const RESET_PAUSE = 400;
+const BOX_SIZES = [55, 70, 85];
 
-type CycleState = 'SPAWNING' | 'DRAINING' | 'RESETTING';
+type CycleState = 'SPAWNING' | 'DRAINING' | 'RESETTING' | 'FINISHED';
 
 interface BoxBody extends Matter.Body {
   color?: string;
@@ -30,9 +30,13 @@ interface BoxBody extends Matter.Body {
 
 interface LoadingAnimationProps {
   className?: string;
+  /** When true, immediately drains all boxes and stops the animation gracefully */
+  finishing?: boolean;
+  /** Called after the finishing drain completes and canvas is clear */
+  onFinished?: () => void;
 }
 
-export default function LoadingAnimation({ className }: LoadingAnimationProps) {
+export default function LoadingAnimation({ className, finishing, onFinished }: LoadingAnimationProps) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
@@ -43,6 +47,12 @@ export default function LoadingAnimation({ className }: LoadingAnimationProps) {
   const cycleStateRef = useRef<CycleState>('SPAWNING');
   const spawnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const finishingRef = useRef(false);
+  const onFinishedRef = useRef(onFinished);
+  const [opacity, setOpacity] = useState(1);
+
+  // Keep ref in sync with prop
+  onFinishedRef.current = onFinished;
 
   const scheduleTimeout = useCallback((fn: () => void, ms: number) => {
     const id = setTimeout(() => {
@@ -75,13 +85,13 @@ export default function LoadingAnimation({ className }: LoadingAnimationProps) {
     const size = BOX_SIZES[Math.floor(Math.random() * BOX_SIZES.length)];
     const boxW = size;
     const boxH = size * 0.7;
-    const x = 30 + Math.random() * (w - 60);
+    const x = 40 + Math.random() * (w - 80);
 
-    const body = Matter.Bodies.rectangle(x, -50, boxW, boxH, {
-      restitution: 0.2,
-      friction: 0.6,
+    const body = Matter.Bodies.rectangle(x, -60, boxW, boxH, {
+      restitution: 0.15,
+      friction: 0.7,
       density: 0.002,
-      chamfer: { radius: 2 },
+      chamfer: { radius: 3 },
     }) as BoxBody;
 
     body.color = PASTEL_PALETTE[Math.floor(Math.random() * PASTEL_PALETTE.length)];
@@ -89,27 +99,32 @@ export default function LoadingAnimation({ className }: LoadingAnimationProps) {
     body.boxH = boxH;
 
     // Slight random spin
-    Matter.Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.1);
+    Matter.Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.08);
 
     Matter.Composite.add(engine.world, body);
     boxBodiesRef.current.push(body);
   }, []);
 
+  const stopSpawning = useCallback(() => {
+    if (spawnIntervalRef.current) {
+      clearInterval(spawnIntervalRef.current);
+      spawnIntervalRef.current = null;
+    }
+  }, []);
+
   const startSpawning = useCallback(() => {
-    if (spawnIntervalRef.current) clearInterval(spawnIntervalRef.current);
+    stopSpawning();
     cycleStateRef.current = 'SPAWNING';
     spawnIntervalRef.current = setInterval(() => {
       if (cycleStateRef.current !== 'SPAWNING') return;
       spawnBox();
     }, SPAWN_INTERVAL);
-  }, [spawnBox]);
+  }, [spawnBox, stopSpawning]);
 
-  const startDraining = useCallback(() => {
+  const startDraining = useCallback((isFinalDrain: boolean) => {
+    if (cycleStateRef.current === 'DRAINING' || cycleStateRef.current === 'FINISHED') return;
     cycleStateRef.current = 'DRAINING';
-    if (spawnIntervalRef.current) {
-      clearInterval(spawnIntervalRef.current);
-      spawnIntervalRef.current = null;
-    }
+    stopSpawning();
 
     const scene = sceneRef.current;
     const floor = floorRef.current;
@@ -120,9 +135,24 @@ export default function LoadingAnimation({ className }: LoadingAnimationProps) {
     Matter.Body.setPosition(floor, { x: floor.position.x, y: h + 500 });
 
     scheduleTimeout(() => {
-      startResetting();
+      if (isFinalDrain) {
+        // Final drain: clean up and signal done
+        cycleStateRef.current = 'FINISHED';
+        const engine = engineRef.current;
+        if (engine) {
+          boxBodiesRef.current.forEach((b: BoxBody) => Matter.Composite.remove(engine.world, b));
+          boxBodiesRef.current = [];
+        }
+        // Fade out
+        setOpacity(0);
+        scheduleTimeout(() => {
+          onFinishedRef.current?.();
+        }, 400);
+      } else {
+        startResetting();
+      }
     }, DRAIN_DURATION);
-  }, [scheduleTimeout]);
+  }, [stopSpawning, scheduleTimeout]);
 
   const startResetting = useCallback(() => {
     cycleStateRef.current = 'RESETTING';
@@ -141,11 +171,20 @@ export default function LoadingAnimation({ className }: LoadingAnimationProps) {
     Matter.Body.setPosition(floor, { x: w / 2, y: h + 10 });
 
     scheduleTimeout(() => {
+      // If finishing was requested during drain/reset, stop instead of restarting
+      if (finishingRef.current) {
+        cycleStateRef.current = 'FINISHED';
+        setOpacity(0);
+        scheduleTimeout(() => {
+          onFinishedRef.current?.();
+        }, 400);
+        return;
+      }
       startSpawning();
     }, RESET_PAUSE);
   }, [scheduleTimeout, startSpawning]);
 
-  // Check if pile is full enough to drain
+  // Check if pile is full — only drain when boxes reach the top
   const checkFullness = useCallback(() => {
     if (cycleStateRef.current !== 'SPAWNING') return;
     const scene = sceneRef.current;
@@ -154,21 +193,43 @@ export default function LoadingAnimation({ className }: LoadingAnimationProps) {
     const h = scene.offsetHeight;
     const bodies = boxBodiesRef.current;
 
+    // Safety cap
     if (bodies.length >= MAX_BOXES) {
-      startDraining();
+      startDraining(false);
       return;
     }
 
-    // Count settled boxes near the top
-    const settled = bodies.filter((b: BoxBody) => {
+    // Find the topmost settled body
+    let topmostY = h;
+    for (const b of bodies) {
       const speed = Math.sqrt(b.velocity.x ** 2 + b.velocity.y ** 2);
-      return b.position.y < h * 0.3 && speed < 0.5;
-    });
+      if (speed < 1.0 && b.position.y < topmostY) {
+        topmostY = b.position.y;
+      }
+    }
 
-    if (settled.length >= 3) {
-      startDraining();
+    // Drain when settled pile reaches near the top (within ~15% of canvas height)
+    if (bodies.length > 5 && topmostY < h * 0.15) {
+      startDraining(false);
     }
   }, [startDraining]);
+
+  // Handle finishing prop change — immediately drain
+  useEffect(() => {
+    if (finishing && !finishingRef.current) {
+      finishingRef.current = true;
+
+      if (cycleStateRef.current === 'SPAWNING') {
+        // Currently spawning: drain immediately as final drain
+        startDraining(true);
+      } else if (cycleStateRef.current === 'DRAINING') {
+        // Already draining: finishingRef is set, startResetting will check it
+      } else if (cycleStateRef.current === 'RESETTING') {
+        // Resetting: finishingRef is set, startResetting will check it
+      }
+      // FINISHED: already done, nothing to do
+    }
+  }, [finishing, startDraining]);
 
   // Main render loop
   const renderLoop = useCallback(() => {
@@ -187,8 +248,8 @@ export default function LoadingAnimation({ className }: LoadingAnimationProps) {
       const { x, y } = body.position;
       const angle = body.angle;
       const color = body.color || '#BAE1FF';
-      const bw = body.boxW || 36;
-      const bh = body.boxH || 25;
+      const bw = body.boxW || 70;
+      const bh = body.boxH || 49;
 
       ctx.save();
       ctx.translate(x, y);
@@ -198,9 +259,9 @@ export default function LoadingAnimation({ className }: LoadingAnimationProps) {
       ctx.lineWidth = 2;
       ctx.lineJoin = 'round';
 
-      // Outer box outline
+      // Outer box outline with rounded corners
       ctx.beginPath();
-      const r = 3;
+      const r = 4;
       const hw = bw / 2;
       const hh = bh / 2;
       ctx.moveTo(-hw + r, -hh);
@@ -287,7 +348,18 @@ export default function LoadingAnimation({ className }: LoadingAnimationProps) {
   }, [resizeCanvas, renderLoop, startSpawning, checkFullness]);
 
   return (
-    <div ref={sceneRef} className={className} style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
+    <div
+      ref={sceneRef}
+      className={className}
+      style={{
+        width: '100%',
+        height: '100%',
+        position: 'relative',
+        overflow: 'hidden',
+        opacity,
+        transition: 'opacity 0.4s ease-out',
+      }}
+    >
       <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} />
     </div>
   );
