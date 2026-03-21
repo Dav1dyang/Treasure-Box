@@ -14,6 +14,7 @@ import type { TreasureItem, BoxConfig, SoundPreset, DrawerImages, EmbedSettings,
 import { DEFAULT_EMBED_SETTINGS, getEmbedDimensions } from '@/lib/types';
 import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
+import LoadingAnimation from '@/components/LoadingAnimation';
 import { extractContourFromImage } from '@/lib/contour';
 import EmbedConfigurator from '@/components/EmbedConfigurator';
 import { computeDrawerPosition, computeSpawnOrigin, computeCenteredDrawerPosition, computeCenteredSpawnOrigin, positionFromPointer } from '@/lib/embedPosition';
@@ -103,9 +104,15 @@ export default function EditorPage() {
   const configTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const configLoadedRef = useRef(false);
   const skipAutoSaveRef = useRef(false);
+  const [generating, setGenerating] = useState(false);
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (generating) setShowLoadingOverlay(true);
+  }, [generating]);
 
   useEffect(() => {
     if (!user) return;
@@ -424,6 +431,7 @@ export default function EditorPage() {
                     currentImages={config.drawerImages || undefined}
                     onComplete={(images: DrawerImages) => { skipAutoSaveRef.current = true; setConfig({ ...config, drawerImages: images }); }}
                     onReset={async () => { await clearDrawerImages(user.uid); setConfig({ ...config, drawerImages: undefined }); }}
+                    onGeneratingChange={setGenerating}
                   />
                 </CfgGroup>
 
@@ -699,6 +707,14 @@ export default function EditorPage() {
                   });
                 }}
               />
+            )}
+            {showLoadingOverlay && (
+              <div style={{ position: 'absolute', inset: 0, zIndex: 10 }}>
+                <LoadingAnimation
+                  finishing={!generating}
+                  onFinished={() => setShowLoadingOverlay(false)}
+                />
+              </div>
             )}
           </div>
         </div>

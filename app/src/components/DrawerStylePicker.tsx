@@ -120,9 +120,10 @@ interface Props {
   currentImages?: DrawerImages;
   onComplete: (images: DrawerImages) => void;
   onReset: () => void;
+  onGeneratingChange?: (generating: boolean) => void;
 }
 
-export default function DrawerStylePicker({ userId, currentImages, onComplete, onReset }: Props) {
+export default function DrawerStylePicker({ userId, currentImages, onComplete, onReset, onGeneratingChange }: Props) {
   // 1. Material (= old preset)
   const [preset, setPreset] = useState<DrawerStylePreset>(
     currentImages?.style.preset || 'clay'
@@ -176,6 +177,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
 
   const handleGenerate = async () => {
     setGenerating(true);
+    onGeneratingChange?.(true);
     setError(null);
     setPreviewUrls({});
     setSpritePreviewUrl(null);
@@ -256,6 +258,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
       setError(e.message || 'Generation failed');
     } finally {
       setGenerating(false);
+      onGeneratingChange?.(false);
     }
   };
 
