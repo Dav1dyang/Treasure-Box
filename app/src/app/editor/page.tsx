@@ -11,6 +11,7 @@ import {
   clearDrawerImages, deleteItemWithCleanup, deleteBox,
 } from '@/lib/firestore';
 import type { TreasureItem, BoxConfig, SoundPreset, DrawerImages, EmbedSettings, AnchorCorner } from '@/lib/types';
+import { DEFAULT_EMBED_SETTINGS, getEmbedDimensions } from '@/lib/types';
 import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
 import { extractContourFromImage } from '@/lib/contour';
@@ -716,7 +717,15 @@ export default function EditorPage() {
                 config={config}
                 userId={user.uid}
                 onSettingsChange={(settings: EmbedSettings) => setConfig({ ...config, embedSettings: settings })}
-                onScaleChange={(s: number) => setConfig({ ...config, contentScale: s })}
+                onScaleChange={(s: number) => {
+                  const dims = getEmbedDimensions(s);
+                  const es = config.embedSettings || DEFAULT_EMBED_SETTINGS;
+                  setConfig({
+                    ...config,
+                    contentScale: s,
+                    embedSettings: { ...es, width: dims.width, height: dims.height },
+                  });
+                }}
               />
             )}
           </div>
