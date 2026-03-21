@@ -24,7 +24,7 @@ export interface DrawerStyle {
   color: string;           // hex color e.g. "#8B4513"
   /** @deprecated Use stylePattern + customDecorText instead. Kept for backward compat with old Firestore docs. */
   customPrompt?: string;
-  stylePattern?: string;      // STYLE_PRESETS id: 'plain', 'floral', 'geometric', 'vintage', 'modern'
+  stylePattern?: string;      // STYLE_PRESETS id: 'mid-century-modern', 'victorian-ornate', 'art-deco-glam', 'rustic-farmhouse', 'modern-minimal'
   customDecorText?: string;   // user's free-text decor keywords (persisted for round-trip)
   accentColor?: string;    // hex color for hardware/trim
   decor?: string;          // decoration description (combined toggle pills + custom text)
