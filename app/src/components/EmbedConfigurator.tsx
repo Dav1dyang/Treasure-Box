@@ -191,10 +191,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
               value={embedScale}
               onChange={e => {
                 const s = Number(e.target.value);
-                // Update contentScale (unified) and derive embed dimensions
                 if (onScaleChange) onScaleChange(s);
-                const dims = getEmbedDimensions(s);
-                update({ width: dims.width, height: dims.height });
               }}
               className="flex-1"
               style={{ accentColor: 'var(--tb-accent)' }}
