@@ -11,24 +11,6 @@ export interface BoxDimensions {
   hasKeyhole: boolean;
 }
 
-export const DEFAULT_BOX_DIMENSIONS: BoxDimensions = {
-  boxWidth: 44,
-  boxHeight: 12,
-  drawerHeight: 6,
-  drawerPullout: {
-    IDLE: 0,
-    HOVER_PEEK: 25,
-    OPEN: 100,
-    HOVER_CLOSE: 75,
-    CLOSING: 50,
-    SLAMMING: 0,
-  },
-  handleStyle: 'pull-bar',
-  cornerStyle: 'double',
-  hasRivets: true,
-  hasKeyhole: false,
-};
-
 // ===== Drawer AI Generation =====
 
 export type BoxState = 'IDLE' | 'HOVER_PEEK' | 'OPEN' | 'HOVER_CLOSE' | 'CLOSING' | 'SLAMMING';
@@ -60,8 +42,9 @@ export interface SpriteActiveArea {
 }
 
 export interface DrawerImages {
-  urls: Record<BoxState, string>;  // legacy: per-state URLs (old boxes)
-  spriteUrl?: string;              // new: single sprite sheet URL
+  /** @legacy Per-state URLs from old boxes. New boxes use spriteUrl. Kept for reading old Firestore documents. */
+  urls: Record<BoxState, string>;
+  spriteUrl?: string;              // single sprite sheet URL
   style: DrawerStyle;
   generatedAt: number;
   activeArea?: SpriteActiveArea;   // tight bounding box of actual drawer content
@@ -102,14 +85,12 @@ export interface BoxConfig {
   boxDimensions?: BoxDimensions; // custom box shape/proportions
   embedSettings?: EmbedSettings; // embed configuration (mode, size, position)
   itemCount?: number;            // cached count of items in the box
-  drawerDisplaySize?: { width: number; height: number }; // fixed pixel size for drawer frame (default 420×280)
+  drawerDisplaySize?: { width: number; height: number }; // fixed pixel size for drawer frame (default 420×420)
   contentScale?: number;         // 0.5-2.0, scales drawer + items + physics (default 1.0)
   itemBrightness?: number;       // 0.5-1.5, default 1.0
   itemContrast?: number;         // 0.5-1.5, default 1.0
   itemTint?: string;             // hex color e.g. "#ff0000", undefined = no tint
 }
-
-export const DEFAULT_DRAWER_DISPLAY_SIZE = { width: 420, height: 420 };
 
 export type SoundPreset = 'metallic' | 'wooden' | 'glass' | 'paper' | 'pixel' | 'clay' | 'silent';
 
@@ -121,10 +102,6 @@ export interface EmbedPadding {
   bottom: number;
   left: number;
 }
-
-export const DEFAULT_EMBED_PADDING: EmbedPadding = {
-  top: 16, right: 16, bottom: 8, left: 16,
-};
 
 // ===== Embed Settings =====
 
@@ -145,16 +122,7 @@ export interface EmbedSettings {
   position: EmbedPosition;    // overlay positioning
   domCollide?: boolean;       // optional: items collide with DOM elements
   previewUrl?: string;        // optional: user's website URL for preview background
-  /** @deprecated Use BoxConfig.contentScale instead. Kept for backward compat with old Firestore docs. */
-  embedScale?: number;
   padding?: EmbedPadding;     // contained mode: CSS inset padding around active area
-}
-
-/** Derive embed widget dimensions from a single scale factor. */
-export const EMBED_BASE_W = 350;
-export const EMBED_BASE_H = 300;
-export function getEmbedDimensions(scale: number) {
-  return { width: Math.round(EMBED_BASE_W * scale), height: Math.round(EMBED_BASE_H * scale) };
 }
 
 // ===== Frame Sync (postMessage position streaming) =====
@@ -178,14 +146,3 @@ export interface HostViewport {
   offsetX: number;
   offsetY: number;
 }
-
-export const DEFAULT_EMBED_SETTINGS: EmbedSettings = {
-  mode: 'overlay',
-  width: 350,
-  height: 300,
-  position: {
-    anchor: 'bottom-right',
-    offsetX: 32,
-    offsetY: 32,
-  },
-};

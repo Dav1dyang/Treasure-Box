@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import type { BoxConfig, EmbedSettings, EmbedMode, EmbedPadding } from '@/lib/types';
-import { DEFAULT_EMBED_SETTINGS, DEFAULT_EMBED_PADDING, EMBED_BASE_W, EMBED_BASE_H, getEmbedDimensions } from '@/lib/types';
+import { DEFAULT_EMBED_SETTINGS, DEFAULT_EMBED_PADDING, EMBED_BASE_W, EMBED_BASE_H, getEmbedDimensions } from '@/lib/config';
 
 const CONTAINED_SIZE_PRESETS = [
   { label: 'S', width: 300, height: 300 },
@@ -31,22 +31,13 @@ interface Props {
 }
 
 export default function EmbedConfigurator({ config, userId, onSettingsChange, onScaleChange }: Props) {
-  // Migrate legacy modes to new types
   const rawSettings = config.embedSettings || DEFAULT_EMBED_SETTINGS;
   const settings: EmbedSettings = {
     ...rawSettings,
     mode: (rawSettings.mode === 'overlay' || rawSettings.mode === 'contained')
       ? rawSettings.mode
       : 'overlay',
-    position: {
-      anchor: rawSettings.position.anchor,
-      offsetX: 'offsetX' in rawSettings.position
-        ? rawSettings.position.offsetX
-        : ((rawSettings.position as Record<string, number>).xPercent ?? 5) * 14,
-      offsetY: 'offsetY' in rawSettings.position
-        ? rawSettings.position.offsetY
-        : ((rawSettings.position as Record<string, number>).yPercent ?? 5) * 9,
-    },
+    position: rawSettings.position || DEFAULT_EMBED_SETTINGS.position,
   };
 
   const [copied, setCopied] = useState<string | null>(null);
@@ -55,8 +46,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
   const [aspectRatio, setAspectRatio] = useState(settings.width / settings.height);
   const [paddingExpanded, setPaddingExpanded] = useState(false);
 
-  // Unified scale: prefer contentScale, fall back to legacy embedScale
-  const embedScale = config.contentScale ?? settings.embedScale ?? 1;
+  const embedScale = config.contentScale ?? 1;
   const padding = settings.padding || { top: 0, right: 0, bottom: 0, left: 0 };
 
   const update = useCallback((patch: Partial<EmbedSettings>) => {

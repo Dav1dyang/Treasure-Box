@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { uploadSpriteSheet, saveDrawerImages } from '@/lib/firestore';
-import { COLOR_PRESETS, STYLE_PRESETS, DECOR_ITEMS } from '@/lib/boxStyles';
+import { PRESET_MATERIALS, STYLE_PRESETS, DECOR_ITEMS, ANGLE_OPTIONS, ADDITIONAL_FEATURES_INPUT_MAX_LENGTH, ADDITIONAL_FEATURES_MAX_KEYWORDS, ADDITIONAL_FEATURES_MAX_CHAR_PER_KEYWORD } from '@/lib/config';
 import type {
   DrawerStylePreset,
   DrawerAngle,
@@ -10,22 +10,6 @@ import type {
   DrawerImages,
   BoxState,
 } from '@/lib/types';
-
-// ── Material = the old style presets ─────────────────────────────
-const MATERIALS: { id: DrawerStylePreset; label: string }[] = [
-  { id: 'clay', label: 'clay' },
-  { id: 'metal', label: 'metal' },
-  { id: 'wood', label: 'wood' },
-  { id: 'pixel', label: 'pixel' },
-  { id: 'paper', label: 'paper' },
-  { id: 'glass', label: 'glass' },
-];
-
-const ANGLE_OPTIONS: { id: DrawerAngle; label: string; icon: string }[] = [
-  { id: 'front', label: 'Front', icon: '▣' },
-  { id: 'left-45', label: '45° Left', icon: '◧' },
-  { id: 'right-45', label: '45° Right', icon: '◨' },
-];
 
 const ALL_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
 
@@ -51,17 +35,6 @@ const pillBtn = (active: boolean, disabled: boolean): React.CSSProperties => ({
   transition: 'all 0.15s',
 });
 
-const colorSwatch = (hex: string, active: boolean, disabled: boolean): React.CSSProperties => ({
-  width: 22,
-  height: 22,
-  borderRadius: 3,
-  border: `2px solid ${active ? 'var(--tb-accent)' : 'var(--tb-fg-ghost, #333)'}`,
-  background: hex,
-  cursor: disabled ? 'not-allowed' : 'pointer',
-  opacity: disabled ? 0.5 : 1,
-  transform: active ? 'scale(1.15)' : 'scale(1)',
-  transition: 'all 0.15s',
-});
 
 // ── ASCII preview renderer ───────────────────────────────────────
 function renderAsciiPreview(w: number, h: number, angle: DrawerAngle): string {
@@ -199,9 +172,9 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
       const keywords = customDecor
         .replace(/[^a-zA-Z0-9\s,]/g, '')
         .split(/[,\s]+/)
-        .map(w => w.trim().slice(0, 20))
+        .map(w => w.trim().slice(0, ADDITIONAL_FEATURES_MAX_CHAR_PER_KEYWORD))
         .filter(Boolean)
-        .slice(0, 3);
+        .slice(0, ADDITIONAL_FEATURES_MAX_KEYWORDS);
       allDecor.push(...keywords);
     }
     const decorStr = allDecor.join(', ');
@@ -275,7 +248,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
       <div>
         <label style={sectionLabel}>material</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {MATERIALS.map(m => (
+          {PRESET_MATERIALS.map(m => (
             <button
               key={m.id}
               onClick={() => setPreset(m.id)}
@@ -292,16 +265,18 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
       <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 160 }}>
           <label style={sectionLabel}>primary color</label>
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
-            {COLOR_PRESETS.map(c => (
-              <button
-                key={c.value}
-                onClick={() => setColor(c.value)}
-                disabled={generating}
-                style={colorSwatch(c.value, color === c.value, generating)}
-                title={c.label}
-              />
-            ))}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="color"
+              value={color}
+              onChange={e => setColor(e.target.value)}
+              disabled={generating}
+              style={{
+                width: 32, height: 32, padding: 0, border: '1px solid var(--tb-border-subtle)',
+                borderRadius: 3, cursor: generating ? 'not-allowed' : 'pointer',
+                opacity: generating ? 0.5 : 1, background: 'transparent',
+              }}
+            />
             <input
               value={color}
               onChange={e => setColor(e.target.value)}
@@ -309,7 +284,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
               placeholder="#hex"
               style={{
                 background: 'transparent', fontSize: 11, padding: '3px 6px',
-                width: 68, outline: 'none', borderRadius: 3,
+                width: 80, outline: 'none', borderRadius: 3,
                 border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-muted)',
                 opacity: generating ? 0.5 : 1,
               }}
@@ -318,23 +293,18 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
         </div>
         <div style={{ flex: 1, minWidth: 160 }}>
           <label style={sectionLabel}>accent color <span style={{ color: 'var(--tb-fg-ghost)', textTransform: 'none' }}>(hardware / trim)</span></label>
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
-            {[
-              { label: 'brass', value: '#B08D57' },
-              { label: 'silver', value: '#C0C0C0' },
-              { label: 'black iron', value: '#333333' },
-              { label: 'gold', value: '#FFB300' },
-              { label: 'copper', value: '#B87333' },
-              { label: 'chrome', value: '#DDD' },
-            ].map(c => (
-              <button
-                key={c.value}
-                onClick={() => setAccentColor(c.value)}
-                disabled={generating}
-                style={colorSwatch(c.value, accentColor === c.value, generating)}
-                title={c.label}
-              />
-            ))}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="color"
+              value={accentColor}
+              onChange={e => setAccentColor(e.target.value)}
+              disabled={generating}
+              style={{
+                width: 32, height: 32, padding: 0, border: '1px solid var(--tb-border-subtle)',
+                borderRadius: 3, cursor: generating ? 'not-allowed' : 'pointer',
+                opacity: generating ? 0.5 : 1, background: 'transparent',
+              }}
+            />
             <input
               value={accentColor}
               onChange={e => setAccentColor(e.target.value)}
@@ -342,7 +312,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
               placeholder="#hex"
               style={{
                 background: 'transparent', fontSize: 11, padding: '3px 6px',
-                width: 68, outline: 'none', borderRadius: 3,
+                width: 80, outline: 'none', borderRadius: 3,
                 border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-muted)',
                 opacity: generating ? 0.5 : 1,
               }}
@@ -370,7 +340,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
 
       {/* ── 4. Decor (hardware items) ───────────────────── */}
       <div>
-        <label style={sectionLabel}>decor</label>
+        <label style={sectionLabel}>additional features or styles</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
           {DECOR_ITEMS.map(d => (
             <button
@@ -387,8 +357,8 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
           value={customDecor}
           onChange={e => setCustomDecor(e.target.value)}
           disabled={generating}
-          placeholder="up to 3 keywords — e.g. dragon, gemstones, filigree"
-          maxLength={60}
+          placeholder={`up to ${ADDITIONAL_FEATURES_MAX_KEYWORDS} keywords — e.g. dragon, gemstones, filigree`}
+          maxLength={ADDITIONAL_FEATURES_INPUT_MAX_LENGTH}
           style={{
             width: '100%', background: 'transparent', fontSize: 11,
             padding: '5px 8px', outline: 'none', borderRadius: 3,
