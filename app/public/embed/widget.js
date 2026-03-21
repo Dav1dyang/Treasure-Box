@@ -63,7 +63,8 @@
 
   // ===== MODE: OVERLAY (default) =====
   // Consolidates former "floating" and "fullpage" modes.
-  // Box is fixed-positioned on the page; items fly across the entire viewport.
+  // Box is fixed-positioned on the page; physics runs inside the iframe,
+  // body positions are streamed via postMessage and rendered on a host-page canvas.
 
   // Read position — support both new (px) and legacy (%) formats
   var anchor = script.getAttribute('data-anchor')
@@ -105,12 +106,14 @@
     boxContainer.style.left = offsetXIsPercent ? offsetXVal + '%' : offsetXVal + 'px';
   }
 
-  // 2. Create iframe inside box container
-  var boxIframe = createIframe(width, height, 'mode=overlay');
+  // 2. Create iframe inside box container — pass anchor/offset params for overlay positioning
+  var overlayParams = 'mode=overlay&anchor=' + encodeURIComponent(anchor) +
+    '&ox=' + Math.round(offsetXVal) + '&oy=' + Math.round(offsetYVal);
+  var boxIframe = createIframe(width, height, overlayParams);
   boxContainer.appendChild(boxIframe);
   document.body.appendChild(boxContainer);
 
-  // 3. Create full-viewport canvas overlay
+  // 3. Create full-viewport canvas overlay (renders items streamed from iframe physics)
   var canvas = document.createElement('canvas');
   canvas.id = 'treasure-box-canvas';
   var dpr = window.devicePixelRatio || 1;
@@ -122,227 +125,156 @@
   var ctx = canvas.getContext('2d');
   if (ctx) ctx.scale(dpr, dpr);
 
-  // 4. Load Matter.js dynamically
-  var matterScript = document.createElement('script');
-  matterScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js';
-  matterScript.onload = function() { initOverlayPhysics(); };
-  document.head.appendChild(matterScript);
-
-  var engine, world, runner;
-  var itemBodies = [];
+  // State: latest frame data from iframe physics engine
+  var frameBodies = [];
+  var frameEffects = { brightness: 1, contrast: 1, tint: undefined };
   var itemImages = {};
-  var domBodies = [];
-  var itemEffects = { brightness: 1, contrast: 1, tint: undefined };
 
-  function initOverlayPhysics() {
-    var Matter = window.Matter;
-    engine = Matter.Engine.create({ gravity: { x: 0, y: 1 } });
-    world = engine.world;
-    runner = Matter.Runner.create();
-    Matter.Runner.run(runner, engine);
-
-    // Viewport walls
-    var vw = window.innerWidth;
-    var vh = window.innerHeight;
-    var wallOpts = { isStatic: true, friction: 0.9, restitution: 0.15 };
-    Matter.Composite.add(world, [
-      Matter.Bodies.rectangle(vw / 2, vh + 25, vw, 50, wallOpts), // floor
-      Matter.Bodies.rectangle(vw / 2, -25, vw, 50, wallOpts),     // ceiling
-      Matter.Bodies.rectangle(-25, vh / 2, 50, vh, wallOpts),      // left
-      Matter.Bodies.rectangle(vw + 25, vh / 2, 50, vh, wallOpts),  // right
-    ]);
-
-    // Optionally scan DOM for collision elements
-    if (domCollide) {
-      scanDOMElements();
-    }
-
-    // Re-scan on scroll/resize (debounced)
-    var scanTimer = null;
-    function debouncedScan() {
-      if (scanTimer) clearTimeout(scanTimer);
-      scanTimer = setTimeout(function() {
-        if (domCollide) {
-          clearDOMBodies();
-          scanDOMElements();
-        }
-        // Update canvas size with DPR
-        var curDpr = window.devicePixelRatio || 1;
-        canvas.width = window.innerWidth * curDpr;
-        canvas.height = window.innerHeight * curDpr;
-        var resizeCtx = canvas.getContext('2d');
-        if (resizeCtx) resizeCtx.scale(curDpr, curDpr);
-      }, 200);
-    }
-    window.addEventListener('scroll', debouncedScan, { passive: true });
-    window.addEventListener('resize', debouncedScan, { passive: true });
-
-    // Render loop
-    requestAnimationFrame(renderLoop);
-
-    // Listen for postMessage from iframe
-    window.addEventListener('message', handleMessage);
+  // 4. Send viewport info to iframe so it can create correct walls
+  function sendViewportInfo() {
+    if (!boxIframe.contentWindow) return;
+    var boxRect = boxContainer.getBoundingClientRect();
+    boxIframe.contentWindow.postMessage({
+      type: 'treasure-box',
+      action: 'viewport-info',
+      width: window.innerWidth,
+      height: window.innerHeight,
+      offsetX: boxRect.left,
+      offsetY: boxRect.top,
+    }, '*');
   }
 
-  function scanDOMElements() {
-    var Matter = window.Matter;
-    var selectors = 'h1,h2,h3,h4,p,img,button,nav,header,footer,section,article';
-    var elements = document.querySelectorAll(selectors);
-    var vw = window.innerWidth;
-    var vh = window.innerHeight;
+  // Send viewport info when iframe loads and on resize
+  boxIframe.addEventListener('load', function() {
+    sendViewportInfo();
+  });
 
-    for (var i = 0; i < elements.length; i++) {
-      var el = elements[i];
-      // Skip our own elements
-      if (el.closest('#treasure-box-overlay') || el.closest('#treasure-box-canvas')) continue;
-
-      var rect = el.getBoundingClientRect();
-      // Only include visible elements of significant size
-      if (rect.width < 50 || rect.height < 20) continue;
-      if (rect.bottom < 0 || rect.top > vh || rect.right < 0 || rect.left > vw) continue;
-
-      var body = Matter.Bodies.rectangle(
-        rect.left + rect.width / 2,
-        rect.top + rect.height / 2,
-        rect.width,
-        rect.height,
-        { isStatic: true, friction: 0.5, restitution: 0.2, label: 'dom-' + i }
-      );
-      Matter.Composite.add(world, body);
-      domBodies.push(body);
-    }
+  var resizeTimer = null;
+  function handleResize() {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function() {
+      // Update canvas size
+      var curDpr = window.devicePixelRatio || 1;
+      canvas.width = window.innerWidth * curDpr;
+      canvas.height = window.innerHeight * curDpr;
+      var resizeCtx = canvas.getContext('2d');
+      if (resizeCtx) resizeCtx.scale(curDpr, curDpr);
+      // Notify iframe of new viewport
+      sendViewportInfo();
+    }, 200);
   }
+  window.addEventListener('resize', handleResize, { passive: true });
 
-  function clearDOMBodies() {
-    var Matter = window.Matter;
-    for (var i = 0; i < domBodies.length; i++) {
-      Matter.Composite.remove(world, domBodies[i]);
-    }
-    domBodies = [];
-  }
-
-  function handleMessage(event) {
+  // 5. Listen for postMessage from iframe
+  window.addEventListener('message', function handleMessage(event) {
     if (!event.data || event.data.type !== 'treasure-box') return;
-    var Matter = window.Matter;
 
-    if (event.data.action === 'items-escaped') {
-      // Items have left the box — create physics bodies for each
-      var items = event.data.items || [];
-      if (event.data.itemEffects) itemEffects = event.data.itemEffects;
-      // Get box iframe position to spawn items from
-      var boxRect = boxContainer.getBoundingClientRect();
-      var spawnX = boxRect.left + boxRect.width / 2;
-      var spawnY = boxRect.top + boxRect.height * 0.3;
+    if (event.data.action === 'frame-sync') {
+      // Receive body positions from iframe physics engine
+      frameBodies = event.data.bodies || [];
+      frameEffects = event.data.effects || frameEffects;
 
-      // Acknowledge receipt so iframe stops rendering items locally
-      boxIframe.contentWindow.postMessage({
-        type: 'treasure-box',
-        action: 'items-acknowledged'
-      }, '*');
-
-      items.forEach(function(item, idx) {
-        // Preload image
-        var img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.src = item.imageUrl;
-        itemImages[item.id] = img;
-
-        var body = Matter.Bodies.circle(
-          spawnX + (Math.random() - 0.5) * 100,
-          spawnY,
-          25,
-          {
-            restitution: 0.25,
-            friction: 0.7,
-            density: 0.003,
-            label: 'item-' + item.id,
-          }
-        );
-        // Apply random impulse to scatter items
-        Matter.Body.applyForce(body, body.position, {
-          x: (Math.random() - 0.5) * 0.05,
-          y: -(Math.random() * 0.03 + 0.01),
-        });
-        Matter.Composite.add(world, body);
-        itemBodies.push({ body: body, item: item });
-      });
+      // Preload images for new items
+      for (var i = 0; i < frameBodies.length; i++) {
+        var body = frameBodies[i];
+        if (body.imageUrl && !itemImages[body.id]) {
+          var img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = body.imageUrl;
+          itemImages[body.id] = img;
+        }
+      }
     }
 
-    if (event.data.action === 'items-returned') {
-      // Clean up all item bodies
-      var Matter2 = window.Matter;
-      itemBodies.forEach(function(ib) {
-        Matter2.Composite.remove(world, ib.body);
-      });
-      itemBodies = [];
+    if (event.data.action === 'items-cleared' || event.data.action === 'items-returned') {
+      frameBodies = [];
       itemImages = {};
     }
-  }
 
+    if (event.data.action === 'request-viewport-info') {
+      sendViewportInfo();
+    }
+
+    // Legacy support: items-escaped still works for backward compat
+    if (event.data.action === 'items-escaped') {
+      var items = event.data.items || [];
+      if (event.data.itemEffects) frameEffects = event.data.itemEffects;
+      for (var j = 0; j < items.length; j++) {
+        var item = items[j];
+        if (!itemImages[item.id]) {
+          var legacyImg = new Image();
+          legacyImg.crossOrigin = 'anonymous';
+          legacyImg.src = item.imageUrl;
+          itemImages[item.id] = legacyImg;
+        }
+      }
+      // Acknowledge receipt
+      if (boxIframe.contentWindow) {
+        boxIframe.contentWindow.postMessage({
+          type: 'treasure-box',
+          action: 'items-acknowledged'
+        }, '*');
+      }
+    }
+  });
+
+  // 6. Render loop — draws items at positions received from iframe
   function renderLoop() {
     if (!ctx) { requestAnimationFrame(renderLoop); return; }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    for (var i = 0; i < itemBodies.length; i++) {
-      var ib = itemBodies[i];
-      var pos = ib.body.position;
-      var angle = ib.body.angle;
-      var img = itemImages[ib.item.id];
-      var size = 52;
+    for (var i = 0; i < frameBodies.length; i++) {
+      var body = frameBodies[i];
+      var img = itemImages[body.id];
+      var size = (body.width || 52) * (body.scale || 1);
 
       ctx.save();
-      ctx.translate(pos.x, pos.y);
-      ctx.rotate(angle);
+      ctx.translate(body.x, body.y);
+      ctx.rotate(body.angle || 0);
+
+      if (body.opacity !== undefined && body.opacity < 1) {
+        ctx.globalAlpha = body.opacity;
+      }
 
       if (img && img.complete && img.naturalWidth > 0) {
-        // Apply brightness/contrast/grayscale filter
-        var br = itemEffects.brightness || 1;
-        var ct = itemEffects.contrast || 1;
-        var bw = itemEffects.tint === 'bw';
+        var br = frameEffects.brightness || 1;
+        var ct = frameEffects.contrast || 1;
+        var bw = frameEffects.tint === 'bw';
         if (br !== 1 || ct !== 1 || bw) {
           ctx.filter = 'brightness(' + br + ') contrast(' + ct + ')' + (bw ? ' grayscale(1)' : '');
         }
-        // Draw image with rounded corners
+
+        var imgAspect = img.naturalWidth / img.naturalHeight;
+        var drawW = size;
+        var drawH = size;
+        if (imgAspect > 1) drawH = size / imgAspect;
+        else drawW = size * imgAspect;
+
         ctx.beginPath();
-        var r = 6;
-        var hs = size / 2;
-        ctx.moveTo(-hs + r, -hs);
-        ctx.arcTo(hs, -hs, hs, hs, r);
-        ctx.arcTo(hs, hs, -hs, hs, r);
-        ctx.arcTo(-hs, hs, -hs, -hs, r);
-        ctx.arcTo(-hs, -hs, hs, -hs, r);
-        ctx.closePath();
+        ctx.roundRect(-drawW / 2, -drawH / 2, drawW, drawH, 4);
         ctx.clip();
-        ctx.drawImage(img, -hs, -hs, size, size);
-        // Apply tint overlay (skip for grayscale mode)
-        if (itemEffects.tint && itemEffects.tint !== 'bw') {
+        ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+
+        if (frameEffects.tint && frameEffects.tint !== 'bw') {
           ctx.globalCompositeOperation = 'source-atop';
-          ctx.fillStyle = itemEffects.tint + '40';
-          ctx.fillRect(-hs, -hs, size, size);
+          ctx.fillStyle = frameEffects.tint + '40';
+          ctx.fillRect(-drawW / 2, -drawH / 2, drawW, drawH);
           ctx.globalCompositeOperation = 'source-over';
         }
         ctx.filter = 'none';
       } else {
-        // Fallback: colored circle
         ctx.fillStyle = 'rgba(180,160,100,0.6)';
         ctx.beginPath();
-        ctx.arc(0, 0, 25, 0, Math.PI * 2);
+        ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
         ctx.fill();
       }
 
       ctx.restore();
-
-      // Draw label below
-      if (ib.item.label) {
-        ctx.save();
-        ctx.font = '9px monospace';
-        ctx.fillStyle = 'rgba(255,255,255,0.7)';
-        ctx.textAlign = 'center';
-        ctx.fillText(ib.item.label, pos.x, pos.y + 34);
-        ctx.restore();
-      }
     }
 
     requestAnimationFrame(renderLoop);
   }
+
+  // Start render loop immediately
+  requestAnimationFrame(renderLoop);
 })();

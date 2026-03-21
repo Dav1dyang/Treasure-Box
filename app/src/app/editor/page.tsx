@@ -15,6 +15,7 @@ import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
 import { extractContourFromImage } from '@/lib/contour';
 import EmbedConfigurator from '@/components/EmbedConfigurator';
+import { computeDrawerPosition, computeSpawnOrigin, positionFromPointer } from '@/lib/embedPosition';
 
 const DEFAULT_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'> = {
   title: 'My Treasure Box',
@@ -823,9 +824,6 @@ function CfgToggle({ active, first, children, onClick }: { active: boolean; firs
   );
 }
 
-const REFERENCE_W = 1440;
-const REFERENCE_H = 900;
-
 /** Interactive embed preview — TreasureBox fills the preview, drawer is draggable */
 function EmbedPreview({
   config,
@@ -842,45 +840,25 @@ function EmbedPreview({
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const [previewMode, setPreviewMode] = useState<'edit' | 'play'>('edit');
 
-  // Compute drawer position as CSS styles for TreasureBox overlayPreview
+  // Compute drawer position via shared utility
   const getDrawerStyle = useCallback((): React.CSSProperties => {
-    // During drag: position directly under cursor
     if (dragPos) {
       return { left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)' };
     }
     if (!previewRef.current) return { bottom: 24, right: 24 };
-    const pw = previewRef.current.offsetWidth;
-    const ph = previewRef.current.offsetHeight;
-    const scaleX = pw / REFERENCE_W;
-    const scaleY = ph / REFERENCE_H;
-    const anchor = es.position.anchor;
-
-    // Always use center-point positioning to match drag behavior
-    let cx: number, cy: number;
-    if (anchor.includes('right')) cx = pw - es.position.offsetX * scaleX;
-    else cx = es.position.offsetX * scaleX;
-    if (anchor.includes('bottom')) cy = ph - es.position.offsetY * scaleY;
-    else cy = es.position.offsetY * scaleY;
-
-    return { left: cx, top: cy, transform: 'translate(-50%, -50%)' };
+    return computeDrawerPosition(
+      es.position.anchor, es.position.offsetX, es.position.offsetY,
+      previewRef.current.offsetWidth, previewRef.current.offsetHeight,
+    );
   }, [es.position, dragPos]);
 
-  // Compute spawn origin as fraction of preview
+  // Compute spawn origin via shared utility
   const getSpawnOrigin = useCallback(() => {
     if (!previewRef.current) return { x: 0.8, y: 0.8 };
-    const pw = previewRef.current.offsetWidth;
-    const ph = previewRef.current.offsetHeight;
-    const scaleX = pw / REFERENCE_W;
-    const scaleY = ph / REFERENCE_H;
-    const anchor = es.position.anchor;
-
-    let x: number, y: number;
-    if (anchor.includes('right')) x = (pw - es.position.offsetX * scaleX) / pw;
-    else x = (es.position.offsetX * scaleX) / pw;
-    if (anchor.includes('bottom')) y = (ph - es.position.offsetY * scaleY) / ph;
-    else y = (es.position.offsetY * scaleY) / ph;
-
-    return { x: Math.max(0.1, Math.min(0.9, x)), y: Math.max(0.1, Math.min(0.9, y)) };
+    return computeSpawnOrigin(
+      es.position.anchor, es.position.offsetX, es.position.offsetY,
+      previewRef.current.offsetWidth, previewRef.current.offsetHeight,
+    );
   }, [es.position]);
 
   // Handle drag from TreasureBox drawer — follow mouse during move, commit on end
@@ -899,27 +877,7 @@ function EmbedPreview({
 
     // phase === 'end' — commit position and clear drag state
     setDragPos(null);
-    const pw = rect.width;
-    const ph = rect.height;
-    const scaleX = pw / REFERENCE_W;
-    const scaleY = ph / REFERENCE_H;
-
-    const anchor: AnchorCorner =
-      x < pw / 2 && y < ph / 2 ? 'top-left' :
-      x >= pw / 2 && y < ph / 2 ? 'top-right' :
-      x < pw / 2 ? 'bottom-left' : 'bottom-right';
-
-    let offsetX: number, offsetY: number;
-    if (anchor.includes('right')) offsetX = (pw - x) / scaleX;
-    else offsetX = x / scaleX;
-    if (anchor.includes('bottom')) offsetY = (ph - y) / scaleY;
-    else offsetY = y / scaleY;
-
-    onPositionChange({
-      anchor,
-      offsetX: Math.round(Math.max(0, offsetX)),
-      offsetY: Math.round(Math.max(0, offsetY)),
-    });
+    onPositionChange(positionFromPointer(x, y, rect.width, rect.height));
   }, [onPositionChange]);
 
   if (!isOverlay) {
@@ -986,7 +944,7 @@ function EmbedPreview({
       </div>
 
       {/* TreasureBox fills entire preview — items bounce off edges */}
-      <div key={previewMode} className="absolute inset-0" style={{ zIndex: 5 }}>
+      <div className="absolute inset-0" style={{ zIndex: 5 }}>
         <TreasureBox
           items={items}
           config={previewConfig}

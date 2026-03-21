@@ -152,6 +152,28 @@ export interface EmbedSettings {
   padding?: EmbedPadding;     // contained mode: CSS inset padding around active area
 }
 
+// ===== Frame Sync (postMessage position streaming) =====
+
+export interface FrameSyncBody {
+  id: string;
+  x: number;
+  y: number;
+  angle: number;
+  width: number;
+  height: number;
+  imageUrl: string;
+  scale: number;
+  opacity: number;
+}
+
+export interface HostViewport {
+  width: number;
+  height: number;
+  /** Offset of the iframe/container from the host viewport origin */
+  offsetX: number;
+  offsetY: number;
+}
+
 export const DEFAULT_EMBED_SETTINGS: EmbedSettings = {
   mode: 'overlay',
   width: 350,

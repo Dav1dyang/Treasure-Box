@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import Matter from 'matter-js';
 import { soundEngine } from '@/lib/sounds';
 import { contourToVertices } from '@/lib/contour';
-import type { TreasureItem, BoxConfig, BoxState, DrawerImages, BoxDimensions } from '@/lib/types';
+import type { TreasureItem, BoxConfig, BoxState, DrawerImages, BoxDimensions, FrameSyncBody, HostViewport } from '@/lib/types';
 import { DEFAULT_DRAWER_DISPLAY_SIZE } from '@/lib/types';
 import { DEFAULT_BOX_DIMENSIONS } from '@/lib/types';
 import StoryCard from './StoryCard';
@@ -31,11 +31,15 @@ interface Props {
   overlayPreview?: OverlayPreviewConfig;
   /** When true, skips min-h constraint for iframe/contained embeds */
   embedded?: boolean;
+  /** Called each render frame with body positions for postMessage streaming */
+  onFrameSync?: (bodies: FrameSyncBody[], effects: { brightness: number; contrast: number; tint?: string }) => void;
+  /** Host viewport dimensions for wall placement when embedded in an iframe */
+  hostViewport?: HostViewport;
 }
 
 const ALL_BOX_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
 
-export default function TreasureBox({ items, config, backgroundColor, fullpageMode, onItemsEscaped, onItemsReturned, overlayPreview, embedded }: Props) {
+export default function TreasureBox({ items, config, backgroundColor, fullpageMode, onItemsEscaped, onItemsReturned, overlayPreview, embedded, onFrameSync, hostViewport }: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
@@ -69,6 +73,16 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   const closingAnimRef = useRef(false);
   const drawerElRef = useRef<HTMLDivElement>(null);
 
+  // Wall body references for dynamic repositioning
+  const wallsRef = useRef<{
+    floor?: Matter.Body;
+    ceiling?: Matter.Body;
+    left?: Matter.Body;
+    right?: Matter.Body;
+    drawerBody?: Matter.Body;
+  }>({});
+  const repositionRafRef = useRef<number>(0);
+
   // Drag-to-reposition state (overlay preview only)
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const isDraggingDrawer = useRef(false);
@@ -76,6 +90,12 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   // Keep overlayPreview ref fresh for use inside callbacks
   const overlayPreviewRef = useRef(overlayPreview);
   useEffect(() => { overlayPreviewRef.current = overlayPreview; }, [overlayPreview]);
+
+  // Keep onFrameSync and hostViewport refs fresh
+  const onFrameSyncRef = useRef(onFrameSync);
+  useEffect(() => { onFrameSyncRef.current = onFrameSync; }, [onFrameSync]);
+  const hostViewportRef = useRef(hostViewport);
+  useEffect(() => { hostViewportRef.current = hostViewport; }, [hostViewport]);
 
   // Managed timeout system — tracks ALL timeouts for clean cancellation
   const timeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -96,6 +116,78 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
 
   // Keep contentScale ref in sync for use inside initPhysics closure
   useEffect(() => { contentScaleRef.current = config.contentScale ?? 1; }, [config.contentScale]);
+
+  // Reposition overlay walls and drawer body when position/scale changes (smooth — items keep momentum)
+  const repositionBoundaries = useCallback(() => {
+    const engine = engineRef.current;
+    const walls = wallsRef.current;
+    const scene = sceneRef.current;
+    if (!engine || !scene) return;
+    if (!overlayPreviewRef.current && !hostViewportRef.current) return;
+
+    const hv = hostViewportRef.current;
+    const wallW = hv ? hv.width : scene.offsetWidth;
+    const wallH = hv ? hv.height : scene.offsetHeight;
+
+    // Reposition viewport walls
+    if (walls.floor) Matter.Body.setPosition(walls.floor, { x: wallW / 2, y: wallH + 7 });
+    if (walls.ceiling) Matter.Body.setPosition(walls.ceiling, { x: wallW / 2, y: -7 });
+    if (walls.left) Matter.Body.setPosition(walls.left, { x: -7, y: wallH / 2 });
+    if (walls.right) Matter.Body.setPosition(walls.right, { x: wallW + 7, y: wallH / 2 });
+
+    // Reposition drawer collision body
+    if (drawerElRef.current && scene) {
+      const sceneRect = scene.getBoundingClientRect();
+      const drawerRect = drawerElRef.current.getBoundingClientRect();
+      const dw = drawerRect.width;
+      const dh = drawerRect.height;
+      const centerX = drawerRect.left - sceneRect.left + dw / 2;
+      const centerY = drawerRect.top - sceneRect.top + dh / 2;
+      const bodyH = dh * 0.75;
+      const bodyY = centerY + dh / 8;
+
+      if (walls.drawerBody) {
+        // Remove old, create new at updated position/size (swap avoids setVertices complexity)
+        Matter.Composite.remove(engine.world, walls.drawerBody);
+      }
+      const newDrawerBody = Matter.Bodies.rectangle(centerX, bodyY, dw, bodyH, {
+        isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
+      });
+      Matter.Composite.add(engine.world, newDrawerBody);
+      wallsRef.current.drawerBody = newDrawerBody;
+    }
+  }, []);
+
+  // Throttled boundary reposition — max once per animation frame
+  const scheduleRepositionBoundaries = useCallback(() => {
+    if (repositionRafRef.current) return;
+    repositionRafRef.current = requestAnimationFrame(() => {
+      repositionRafRef.current = 0;
+      repositionBoundaries();
+    });
+  }, [repositionBoundaries]);
+
+  // Watch overlayPreview style changes and trigger repositioning
+  const prevDrawerStyleKey = useRef('');
+  useEffect(() => {
+    if (!overlayPreview?.drawerStyle) return;
+    const key = JSON.stringify(overlayPreview.drawerStyle);
+    if (key === prevDrawerStyleKey.current) return;
+    prevDrawerStyleKey.current = key;
+    scheduleRepositionBoundaries();
+  }, [overlayPreview?.drawerStyle, scheduleRepositionBoundaries]);
+
+  // Watch hostViewport changes and trigger repositioning
+  useEffect(() => {
+    if (!hostViewport) return;
+    scheduleRepositionBoundaries();
+  }, [hostViewport, scheduleRepositionBoundaries]);
+
+  // Watch contentScale changes and trigger repositioning
+  useEffect(() => {
+    if (!overlayPreviewRef.current && !hostViewportRef.current) return;
+    scheduleRepositionBoundaries();
+  }, [config.contentScale, scheduleRepositionBoundaries]);
 
   const contentScale = config.contentScale ?? 1;
   const hasGeneratedImages = !!(config.drawerImages && (config.drawerImages.spriteUrl || config.drawerImages.urls?.IDLE));
@@ -212,6 +304,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       if (runnerRef.current) Matter.Runner.stop(runnerRef.current);
       if (engineRef.current) Matter.Engine.clear(engineRef.current);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (repositionRafRef.current) cancelAnimationFrame(repositionRafRef.current);
       if (spawnIntervalRef.current) clearInterval(spawnIntervalRef.current);
       timeoutsRef.current.forEach(id => clearTimeout(id));
       timeoutsRef.current.clear();
@@ -256,20 +349,21 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     const cs = contentScaleRef.current;
     const wallOpts = { isStatic: true, friction: 0.9, restitution: 0.15 };
 
-    if (overlayPreviewRef.current) {
-      // Full-scene walls — items bounce off all 4 edges of the preview
-      Matter.Composite.add(engine.world, [
-        Matter.Bodies.rectangle(w / 2, h + 7, w + 14, 14, wallOpts),   // floor
-        Matter.Bodies.rectangle(w / 2, -7, w + 14, 14, wallOpts),       // ceiling
-        Matter.Bodies.rectangle(-7, h / 2, 14, h + 14, wallOpts),       // left
-        Matter.Bodies.rectangle(w + 7, h / 2, 14, h + 14, wallOpts),    // right
-      ]);
+    // Determine wall bounds — use hostViewport if provided (embed overlay), else scene dimensions
+    const hv = hostViewportRef.current;
+    const wallW = hv ? hv.width : w;
+    const wallH = hv ? hv.height : h;
+
+    if (overlayPreviewRef.current || hv) {
+      // Full-scene walls — items bounce off all 4 edges
+      const floor = Matter.Bodies.rectangle(wallW / 2, wallH + 7, wallW + 14, 14, wallOpts);
+      const ceiling = Matter.Bodies.rectangle(wallW / 2, -7, wallW + 14, 14, wallOpts);
+      const left = Matter.Bodies.rectangle(-7, wallH / 2, 14, wallH + 14, wallOpts);
+      const right = Matter.Bodies.rectangle(wallW + 7, wallH / 2, 14, wallH + 14, wallOpts);
+      Matter.Composite.add(engine.world, [floor, ceiling, left, right]);
+      wallsRef.current = { floor, ceiling, left, right };
 
       // Drawer collision body — bottom 3/4 is solid, top 1/4 is open.
-      // Items land on the top surface of the solid portion (the "rim"),
-      // and visually overlap the top 1/4 since the canvas z-index (15)
-      // sits above the drawer z-index (10) when open — creating the
-      // illusion of items sitting inside the drawer, peeking out.
       if (drawerElRef.current && sceneRef.current) {
         const sceneRect = sceneRef.current.getBoundingClientRect();
         const drawerRect = drawerElRef.current.getBoundingClientRect();
@@ -277,17 +371,13 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         const dh = drawerRect.height;
         const centerX = drawerRect.left - sceneRect.left + dw / 2;
         const centerY = drawerRect.top - sceneRect.top + dh / 2;
-
-        // Solid body = bottom 3/4 of the drawer visual
-        //   top edge:    centerY - dh/2 + dh*0.25  (1/4 down from visual top)
-        //   bottom edge: centerY + dh/2             (visual bottom)
-        //   center:      centerY + dh/8             (shifted down by 1/8)
         const bodyH = dh * 0.75;
         const bodyY = centerY + dh / 8;
         const drawerBody = Matter.Bodies.rectangle(centerX, bodyY, dw, bodyH, {
           isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
         });
         Matter.Composite.add(engine.world, drawerBody);
+        wallsRef.current.drawerBody = drawerBody;
       }
     } else {
       // Normal mode: box-shaped walls centered around the actual drawer element
@@ -295,7 +385,6 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       let floorY = h - Math.max(120 * cs, h * 0.3);
       let boxW = Math.min(420 * cs, w * 0.85);
 
-      // Derive wall positions from the drawer element's actual DOM rect
       if (drawerElRef.current && scene) {
         const sceneRect = scene.getBoundingClientRect();
         const drawerRect = drawerElRef.current.getBoundingClientRect();
@@ -312,6 +401,7 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         boxCenterX + boxW / 2 + 7, floorY - 300, 14, 700 * cs, wallOpts
       );
       Matter.Composite.add(engine.world, [floor, leftWall, rightWall]);
+      wallsRef.current = { floor, left: leftWall, right: rightWall };
     }
 
     const mouse = Matter.Mouse.create(canvas);
@@ -568,6 +658,33 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       ctx.restore();
 
     });
+
+    // Stream body positions to parent via onFrameSync (for postMessage position sync)
+    if (onFrameSyncRef.current && bodiesRef.current.length > 0) {
+      const hv = hostViewportRef.current;
+      const ox = hv ? hv.offsetX : 0;
+      const oy = hv ? hv.offsetY : 0;
+      const syncBodies: FrameSyncBody[] = bodiesRef.current.map(body => {
+        const item = body.itemData;
+        const size = ITEM_BASE_SIZE * (item?.scale ?? 1);
+        return {
+          id: item?.id ?? '',
+          x: body.position.x + ox,
+          y: body.position.y + oy,
+          angle: body.angle,
+          width: size,
+          height: size,
+          imageUrl: item?.imageUrl ?? '',
+          scale: item?.scale ?? 1,
+          opacity: closingAnimRef.current ? Math.max(0.1, 1 - (1 / Math.max(1, Math.sqrt((body.position.x - w / 2) ** 2 + (body.position.y - h + 150) ** 2) / 250))) : 1,
+        };
+      }).filter(b => b.id);
+      onFrameSyncRef.current(syncBodies, {
+        brightness: config.itemBrightness ?? 1,
+        contrast: config.itemContrast ?? 1,
+        tint: config.itemTint,
+      });
+    }
 
     animFrameRef.current = requestAnimationFrame(renderLoop);
   }, [isLightBg, config.itemBrightness, config.itemContrast, config.itemTint]);
