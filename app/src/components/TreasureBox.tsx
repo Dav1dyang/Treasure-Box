@@ -293,10 +293,20 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
         Matter.Composite.add(engine.world, drawerBody);
       }
     } else {
-      // Normal mode: box-shaped walls centered around the drawer
-      const boxW = Math.min(420 * cs, w * 0.85);
-      const boxCenterX = w / 2;
-      const floorY = h - Math.max(120 * cs, h * 0.3);
+      // Normal mode: box-shaped walls centered around the actual drawer element
+      let boxCenterX = w / 2;
+      let floorY = h - Math.max(120 * cs, h * 0.3);
+      let boxW = Math.min(420 * cs, w * 0.85);
+
+      // Derive wall positions from the drawer element's actual DOM rect
+      if (drawerElRef.current && scene) {
+        const sceneRect = scene.getBoundingClientRect();
+        const drawerRect = drawerElRef.current.getBoundingClientRect();
+        boxCenterX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
+        floorY = drawerRect.top - sceneRect.top + drawerRect.height * 0.4;
+        boxW = Math.max(drawerRect.width, 200 * cs);
+      }
+
       const floor = Matter.Bodies.rectangle(boxCenterX, floorY, boxW, 14, wallOpts);
       const leftWall = Matter.Bodies.rectangle(
         boxCenterX - boxW / 2 - 7, floorY - 300, 14, 700 * cs, wallOpts
@@ -384,8 +394,22 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     const h = scene.offsetHeight;
     const cs = contentScaleRef.current;
     const op = overlayPreviewRef.current;
-    const spawnY = op ? op.spawnOrigin.y * h : h - 200 * cs;
-    const centerX = op ? op.spawnOrigin.x * w : w / 2;
+
+    // Derive spawn position from the actual drawer element when available
+    let spawnY: number;
+    let centerX: number;
+    if (op) {
+      spawnY = op.spawnOrigin.y * h;
+      centerX = op.spawnOrigin.x * w;
+    } else if (drawerElRef.current) {
+      const sceneRect = scene.getBoundingClientRect();
+      const drawerRect = drawerElRef.current.getBoundingClientRect();
+      centerX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
+      spawnY = drawerRect.top - sceneRect.top - 20 * cs;
+    } else {
+      spawnY = h - 200 * cs;
+      centerX = w / 2;
+    }
 
     spawnIndexRef.current = 0;
 
@@ -599,12 +623,17 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
     const scene = sceneRef.current;
     const engine = engineRef.current;
     const drawerEl = drawerElRef.current;
-    const drawerCenterX = (overlayPreviewRef.current && drawerEl)
-      ? drawerEl.offsetLeft + drawerEl.offsetWidth / 2
-      : (scene ? scene.offsetWidth / 2 : 200);
-    const drawerY = (overlayPreviewRef.current && drawerEl)
-      ? drawerEl.offsetTop + drawerEl.offsetHeight / 2
-      : (scene ? scene.offsetHeight - 150 : 300);
+    let drawerCenterX: number;
+    let drawerY: number;
+    if (drawerEl && scene) {
+      const sceneRect = scene.getBoundingClientRect();
+      const drawerRect = drawerEl.getBoundingClientRect();
+      drawerCenterX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
+      drawerY = drawerRect.top - sceneRect.top + drawerRect.height / 2;
+    } else {
+      drawerCenterX = scene ? scene.offsetWidth / 2 : 200;
+      drawerY = scene ? scene.offsetHeight - 150 : 300;
+    }
 
     if (engine) {
       // Kill gravity so items float toward the drawer
