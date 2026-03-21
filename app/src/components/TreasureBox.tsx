@@ -60,6 +60,8 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
   const didDragRef = useRef(false);
   const longPressFiredRef = useRef(false);
   const pendingLinkRef = useRef<string | null>(null);
+  const lastClickTimeRef = useRef(0);
+  const lastClickBodyRef = useRef<string | null>(null);
   const spawnIndexRef = useRef(0);
   const animFrameRef = useRef<number>(0);
   const spawnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -345,7 +347,16 @@ export default function TreasureBox({ items, config, backgroundColor, fullpageMo
       if (body?.itemData && !didDragRef.current && !longPressFiredRef.current) {
         const link = body.itemData.link;
         if (link) {
-          pendingLinkRef.current = link;
+          const now = Date.now();
+          const bodyId = String(body.id);
+          if (lastClickBodyRef.current === bodyId && now - lastClickTimeRef.current < 400) {
+            pendingLinkRef.current = link;
+            lastClickTimeRef.current = 0;
+            lastClickBodyRef.current = null;
+          } else {
+            lastClickTimeRef.current = now;
+            lastClickBodyRef.current = bodyId;
+          }
         }
       }
       mouseDownBodyRef.current = null;
