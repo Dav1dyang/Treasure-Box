@@ -3,9 +3,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getPublicBoxConfig, getPublicItems } from '@/lib/firestore';
-import type { TreasureItem, BoxConfig, FrameSyncBody, HostViewport, AnchorCorner } from '@/lib/types';
+import type { TreasureItem, BoxConfig, FrameSyncBody, HostViewport } from '@/lib/types';
 import TreasureBox from '@/components/TreasureBox';
-import { computeDrawerPosition, computeSpawnOrigin } from '@/lib/embedPosition';
+import { computeCenteredDrawerPosition, computeCenteredSpawnOrigin } from '@/lib/embedPosition';
 import { Suspense } from 'react';
 
 function EmbedContent() {
@@ -14,11 +14,6 @@ function EmbedContent() {
   const bgOverride = searchParams.get('bg');
   const embedMode = searchParams.get('mode') || 'contained';
   const scaleParam = searchParams.get('scale');
-
-  // Overlay position params
-  const anchorParam = (searchParams.get('anchor') || 'bottom-right') as AnchorCorner;
-  const offsetXParam = parseInt(searchParams.get('ox') || '32', 10) || 32;
-  const offsetYParam = parseInt(searchParams.get('oy') || '32', 10) || 32;
 
   // Padding params for contained mode (default 0 for backward compat)
   const pt = Math.max(0, Math.min(60, parseInt(searchParams.get('pt') || '0', 10) || 0));
@@ -65,6 +60,14 @@ function EmbedContent() {
   }, [boxId]);
 
   const isOverlay = embedMode === 'overlay' || embedMode === 'fullpage';
+
+  // Force transparent background on body/html for overlay mode
+  useEffect(() => {
+    if (isOverlay) {
+      document.body.style.background = 'transparent';
+      document.documentElement.style.background = 'transparent';
+    }
+  }, [isOverlay]);
 
   // Listen for viewport-info and dom-rects from parent (widget.js)
   useEffect(() => {
@@ -127,7 +130,7 @@ function EmbedContent() {
 
   if (error) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-[#0e0e0e]">
+      <div className={`w-full h-screen flex items-center justify-center ${isOverlay ? 'bg-transparent' : 'bg-[#0e0e0e]'}`}>
         <div className="text-[#3a3a32] font-mono text-xs">{error}</div>
       </div>
     );
@@ -135,7 +138,7 @@ function EmbedContent() {
 
   if (!config) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-[#0e0e0e]">
+      <div className={`w-full h-screen flex items-center justify-center ${isOverlay ? 'bg-transparent' : 'bg-[#0e0e0e]'}`}>
         <div className="text-[#3a3a32] font-mono text-xs animate-pulse">loading...</div>
       </div>
     );
@@ -171,8 +174,8 @@ function EmbedContent() {
           backgroundColor="transparent"
           embedded
           overlayPreview={{
-            drawerStyle: computeDrawerPosition(anchorParam, offsetXParam, offsetYParam, containerW, containerH),
-            spawnOrigin: computeSpawnOrigin(anchorParam, offsetXParam, offsetYParam, containerW, containerH),
+            drawerStyle: computeCenteredDrawerPosition(containerW, containerH),
+            spawnOrigin: computeCenteredSpawnOrigin(),
           }}
           hostViewport={hostViewport}
           onFrameSync={handleFrameSync}
@@ -202,7 +205,7 @@ export default function EmbedPage() {
   return (
     <Suspense
       fallback={
-        <div className="w-full h-screen flex items-center justify-center bg-[#0e0e0e]">
+        <div className="w-full h-screen flex items-center justify-center">
           <div className="text-[#3a3a32] font-mono text-xs animate-pulse">loading...</div>
         </div>
       }

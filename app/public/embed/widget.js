@@ -35,6 +35,8 @@
     iframe.height = h;
     iframe.style.border = 'none';
     iframe.style.overflow = 'hidden';
+    iframe.style.background = 'transparent';
+    iframe.setAttribute('allowtransparency', 'true');
     iframe.loading = 'lazy';
     iframe.setAttribute('allow', 'accelerometer');
     iframe.title = 'Treasure Box';
@@ -89,10 +91,8 @@
   // 1. Create fixed-position box container
   var boxContainer = document.createElement('div');
   boxContainer.id = 'treasure-box-overlay';
-  boxContainer.style.position = 'fixed';
-  boxContainer.style.zIndex = '999999';
-  boxContainer.style.width = width + 'px';
-  boxContainer.style.height = height + 'px';
+  boxContainer.style.cssText = 'all:initial;position:fixed;z-index:999999;' +
+    'width:' + width + 'px;height:' + height + 'px;';
 
   // Position using anchor + offsets
   if (anchor.indexOf('bottom') !== -1) {
@@ -117,7 +117,7 @@
   var canvas = document.createElement('canvas');
   canvas.id = 'treasure-box-canvas';
   var dpr = window.devicePixelRatio || 1;
-  canvas.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;' +
+  canvas.style.cssText = 'all:initial;position:fixed;top:0;left:0;width:100vw;height:100vh;' +
     'pointer-events:none;z-index:999998;';
   canvas.width = window.innerWidth * dpr;
   canvas.height = window.innerHeight * dpr;
@@ -226,7 +226,7 @@
     for (var i = 0; i < frameBodies.length; i++) {
       var body = frameBodies[i];
       var img = itemImages[body.id];
-      var size = (body.width || 52) * (body.scale || 1);
+      var size = body.width || 52;
 
       ctx.save();
       ctx.translate(body.x, body.y);
