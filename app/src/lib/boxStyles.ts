@@ -246,11 +246,11 @@ function colorLabel(hex: string): string {
 function resolveStyleTags(style: DrawerStyle): string {
   if (style.stylePattern) {
     const preset = STYLE_PRESETS.find(s => s.id === style.stylePattern);
-    return preset ? preset.label : 'plain';
+    return preset ? preset.label : 'Modern Minimal';
   }
   // Backward compat: old docs stored the label in customPrompt
   if (style.customPrompt) return style.customPrompt;
-  return 'plain';
+  return 'Modern Minimal';
 }
 
 function resolveDecorTags(style: DrawerStyle): string {

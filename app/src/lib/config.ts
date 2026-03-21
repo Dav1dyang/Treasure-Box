@@ -109,23 +109,20 @@ export const PRESET_MATERIALS: { id: DrawerStylePreset; label: string }[] = [
 
 /** Surface pattern / aesthetic options for the drawer front face. */
 export const STYLE_PRESETS = [
-  { id: 'plain', label: 'Plain / Smooth' },
-  { id: 'floral', label: 'Floral Carving' },
-  { id: 'geometric', label: 'Geometric Pattern' },
-  { id: 'vintage', label: 'Vintage Ornate' },
-  { id: 'modern', label: 'Modern Minimal' },
+  { id: 'mid-century-modern', label: 'Mid-Century Modern' },
+  { id: 'victorian-ornate', label: 'Victorian Ornate' },
+  { id: 'art-deco-glam', label: 'Art Deco Glam' },
+  { id: 'rustic-farmhouse', label: 'Rustic Farmhouse' },
+  { id: 'modern-minimal', label: 'Modern Minimal' },
 ] as const;
 
 /** Hardware & decorative elements (multi-select). */
 export const DECOR_ITEMS = [
-  { id: 'keyhole', label: 'Keyhole' },
-  { id: 'corner-brackets', label: 'Corner Brackets' },
-  { id: 'studs', label: 'Studs' },
+  { id: 'old-keyhole', label: 'Old Keyhole' },
+  { id: 'corner-caps', label: 'Corner Caps' },
+  { id: 'metal-studs', label: 'Metal Studs' },
   { id: 'ring-pull', label: 'Ring Pull' },
-  { id: 'hinges', label: 'Hinges' },
-  { id: 'lock-plate', label: 'Lock Plate' },
-  { id: 'inlay', label: 'Inlay' },
-  { id: 'engravings', label: 'Engravings' },
+  { id: 'engraved-trim', label: 'Engraved Trim' },
 ] as const;
 
 /** Camera angle options for drawer generation. */

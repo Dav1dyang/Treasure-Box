@@ -134,7 +134,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
       const match = STYLE_PRESETS.find(p => p.label === s.customPrompt);
       if (match) return match.id;
     }
-    return 'plain';
+    return 'modern-minimal';
   });
   // 4. Decor (hardware items)
   const [selectedDecor, setSelectedDecor] = useState<string[]>(() => {
