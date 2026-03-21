@@ -84,9 +84,6 @@ export async function POST(request: NextRequest) {
       fullWidth = targetWidth;
     }
 
-    // Keep raw sprite (green bg) for client-side ML removal
-    const rawBase64 = spriteBuffer.toString('base64');
-
     let bgRemoval: 'vision' | 'chroma-fallback';
     let visionObjects = 0;
     let processedBase64: string;
@@ -140,7 +137,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       sprite: processedBase64,
-      rawSprite: rawBase64,
       prompt: builtPrompt,
       mimeType: 'image/png',
       spriteSize: { width: fullWidth, height: fullHeight, frameCount: 5 },
