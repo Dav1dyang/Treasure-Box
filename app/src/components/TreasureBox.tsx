@@ -87,6 +87,9 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const repositionRafRef = useRef<number>(0);
   const drawerWallPathRef = useRef<{ x: number; y: number }[] | null>(null);
 
+  // Host mouse forwarding handler ref (for cleanup)
+  const hostMouseHandlerRef = useRef<((e: MessageEvent) => void) | null>(null);
+
   // Drag-to-reposition state (overlay preview only)
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const isDraggingDrawer = useRef(false);
@@ -410,6 +413,10 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       timeoutsRef.current.clear();
       blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
       blobUrlsRef.current = [];
+      if (hostMouseHandlerRef.current) {
+        window.removeEventListener('message', hostMouseHandlerRef.current);
+        hostMouseHandlerRef.current = null;
+      }
     };
   }, []);
 
@@ -537,6 +544,10 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         ? { x: mouse.position.x, y: mouse.position.y }
         : null;
       if (body?.itemData) {
+        // Notify parent that item drag started (overlay embed: enables host-page mouse forwarding)
+        if (window.parent !== window) {
+          window.parent.postMessage({ type: 'treasure-box', action: 'item-drag-start' }, '*');
+        }
         longPressRef.current = setTimeout(() => {
           longPressFiredRef.current = true;
           setActiveStory(body.itemData);
@@ -544,6 +555,10 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       }
     });
     Matter.Events.on(mouseConstraint, 'mouseup', () => {
+      // Notify parent that item drag ended
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: 'treasure-box', action: 'item-drag-end' }, '*');
+      }
       if (longPressRef.current) {
         clearTimeout(longPressRef.current);
         longPressRef.current = null;
@@ -579,6 +594,35 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         }
       }
     });
+
+    // In overlay embed: receive forwarded mouse events from host page when drag extends outside iframe
+    const handleHostMouseForward = (event: MessageEvent) => {
+      if (!event.data || event.data.type !== 'treasure-box-host') return;
+      if (event.data.action === 'mouse-move') {
+        mouse.position.x = event.data.x;
+        mouse.position.y = event.data.y;
+        mouse.absolute.x = event.data.x;
+        mouse.absolute.y = event.data.y;
+      }
+      if (event.data.action === 'mouse-up') {
+        mouse.button = -1;
+        const cvs = canvasRef.current;
+        if (cvs) {
+          cvs.dispatchEvent(new MouseEvent('mouseup', {
+            clientX: event.data.x,
+            clientY: event.data.y,
+          }));
+        }
+      }
+    };
+    if (window.parent !== window) {
+      // Remove previous handler if re-initializing
+      if (hostMouseHandlerRef.current) {
+        window.removeEventListener('message', hostMouseHandlerRef.current);
+      }
+      hostMouseHandlerRef.current = handleHostMouseForward;
+      window.addEventListener('message', handleHostMouseForward);
+    }
 
     // Collision sounds
     Matter.Events.on(engine, 'collisionStart', (e) => {

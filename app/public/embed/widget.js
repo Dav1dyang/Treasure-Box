@@ -138,7 +138,9 @@
   // Safety net: if mouse leaves iframe without triggering drawer interaction,
   // re-disable pointer events so host page stays interactive
   boxIframe.addEventListener('mouseleave', function() {
+    if (isDraggingItem) return;
     setTimeout(function() {
+      if (isDraggingItem) return;
       if (boxIframe.style.pointerEvents === 'auto' && hitZone.style.display === 'none') {
         boxIframe.style.pointerEvents = 'none';
         hitZone.style.display = 'block';
@@ -164,6 +166,63 @@
   var frameBodies = [];
   var frameEffects = { brightness: 1, contrast: 1, tint: undefined };
   var itemImages = {};
+
+  // Drag tracking: when the user drags an item, we forward host-page mouse events
+  // into the iframe so the drag continues even when the cursor leaves the iframe boundary.
+  var isDraggingItem = false;
+
+  function onHostMouseMove(e) {
+    if (!isDraggingItem) return;
+    var iframeRect = boxIframe.getBoundingClientRect();
+    boxIframe.contentWindow.postMessage({
+      type: 'treasure-box-host',
+      action: 'mouse-move',
+      x: e.clientX - iframeRect.left,
+      y: e.clientY - iframeRect.top,
+    }, '*');
+  }
+
+  function onHostMouseUp(e) {
+    if (!isDraggingItem) return;
+    var iframeRect = boxIframe.getBoundingClientRect();
+    boxIframe.contentWindow.postMessage({
+      type: 'treasure-box-host',
+      action: 'mouse-up',
+      x: e.clientX - iframeRect.left,
+      y: e.clientY - iframeRect.top,
+    }, '*');
+    isDraggingItem = false;
+    document.removeEventListener('mousemove', onHostMouseMove, true);
+    document.removeEventListener('mouseup', onHostMouseUp, true);
+    document.removeEventListener('touchmove', onHostTouchMove, true);
+    document.removeEventListener('touchend', onHostTouchEnd, true);
+  }
+
+  function onHostTouchMove(e) {
+    if (!isDraggingItem || !e.touches[0]) return;
+    e.preventDefault();
+    var iframeRect = boxIframe.getBoundingClientRect();
+    boxIframe.contentWindow.postMessage({
+      type: 'treasure-box-host',
+      action: 'mouse-move',
+      x: e.touches[0].clientX - iframeRect.left,
+      y: e.touches[0].clientY - iframeRect.top,
+    }, '*');
+  }
+
+  function onHostTouchEnd() {
+    if (!isDraggingItem) return;
+    boxIframe.contentWindow.postMessage({
+      type: 'treasure-box-host',
+      action: 'mouse-up',
+      x: 0, y: 0,
+    }, '*');
+    isDraggingItem = false;
+    document.removeEventListener('mousemove', onHostMouseMove, true);
+    document.removeEventListener('mouseup', onHostMouseUp, true);
+    document.removeEventListener('touchmove', onHostTouchMove, true);
+    document.removeEventListener('touchend', onHostTouchEnd, true);
+  }
 
   // 4. Send viewport info to iframe so it can create correct walls
   function sendViewportInfo() {
@@ -240,6 +299,23 @@
       if (boxIframe.style.pointerEvents === 'none') {
         hitZone.style.display = 'block';
       }
+    }
+
+    // Item drag: forward host-page mouse events into iframe during drag
+    if (event.data.action === 'item-drag-start') {
+      isDraggingItem = true;
+      document.addEventListener('mousemove', onHostMouseMove, true);
+      document.addEventListener('mouseup', onHostMouseUp, true);
+      document.addEventListener('touchmove', onHostTouchMove, { capture: true, passive: false });
+      document.addEventListener('touchend', onHostTouchEnd, true);
+    }
+
+    if (event.data.action === 'item-drag-end') {
+      isDraggingItem = false;
+      document.removeEventListener('mousemove', onHostMouseMove, true);
+      document.removeEventListener('mouseup', onHostMouseUp, true);
+      document.removeEventListener('touchmove', onHostTouchMove, true);
+      document.removeEventListener('touchend', onHostTouchEnd, true);
     }
 
     // Drawer state: on IDLE, disable pointer events and re-show hit zone
