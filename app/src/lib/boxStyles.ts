@@ -106,14 +106,20 @@ SPRITE SHEET LAYOUT:
 - Leave enough internal empty margin so even the most open drawer fits entirely inside its own frame
 
 BACKGROUND:
-- Pure flat white background
-- Exact #FFFFFF
+- Pure flat vivid green background
+- Exact #00FF00 / RGB (0, 255, 0)
 - No transparency
 - No checkerboard
 - No texture
 - No gradient
 - No vignette
 - No lighting variation
+
+IMPORTANT COLOR RULE:
+- Do NOT use vivid green (#00FF00) anywhere on the furniture body, hardware, or decorations
+- Do NOT use any bright or neon green tones on the furniture
+- Light colors (white, cream, ivory) are perfectly fine on the furniture
+- Ensure enough contrast between the furniture and the green background for clean separation
 
 TEXT RULE:
 - No text
@@ -254,7 +260,7 @@ QUALITY PRIORITY:
 6. Consistent geometry and hardware across all frames
 7. No background shadows
 8. Empty interior
-9. Clean white background
+9. Clean green background
 10. Style fidelity`;
 }
 
