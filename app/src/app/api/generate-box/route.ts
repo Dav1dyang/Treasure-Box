@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import sharp from 'sharp';
-import { buildSpriteSheetPrompt } from '@/lib/boxStyles';
+import { buildDrawerPrompt } from '@/lib/boxStyles';
 import { DEFAULT_BOX_DIMENSIONS } from '@/lib/config';
 import type { BoxDimensions, DrawerStyle } from '@/lib/types';
 
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     const body: GenerateBoxRequest = await request.json();
     const { style, dimensions } = body;
 
-    builtPrompt = buildSpriteSheetPrompt(style, dimensions ?? DEFAULT_BOX_DIMENSIONS);
+    builtPrompt = buildDrawerPrompt(style, dimensions ?? DEFAULT_BOX_DIMENSIONS);
 
     const apiKey = process.env.GOOGLE_AI_STUDIO_KEY;
     if (!apiKey) {

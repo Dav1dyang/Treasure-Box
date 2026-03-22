@@ -16,7 +16,6 @@ import type {
   BoxConfig,
   BoxDimensions,
   BoxState,
-  DrawerAngle,
   DrawerStylePreset,
   EmbedPadding,
   EmbedSettings,
@@ -127,12 +126,6 @@ export const DECOR_ITEMS = [
   { id: 'engraved-trim', label: 'Engraved Trim' },
 ] as const;
 
-/** Camera angle options for drawer generation. */
-export const ANGLE_OPTIONS: { id: DrawerAngle; label: string; icon: string }[] = [
-  { id: 'front', label: 'Front', icon: '▣' },
-  { id: 'left-45', label: '45° Left', icon: '◧' },
-  { id: 'right-45', label: '45° Right', icon: '◨' },
-];
 
 // ═══════════════════════════════════════════════════════════════
 // SOUND DEFAULTS

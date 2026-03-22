@@ -2,11 +2,10 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { uploadSpriteSheet, saveDrawerImages } from '@/lib/firestore';
-import { PRESET_MATERIALS, STYLE_PRESETS, DECOR_ITEMS, ANGLE_OPTIONS, ADDITIONAL_FEATURES_INPUT_MAX_LENGTH, ADDITIONAL_FEATURES_MAX_KEYWORDS, ADDITIONAL_FEATURES_MAX_CHAR_PER_KEYWORD } from '@/lib/config';
+import { PRESET_MATERIALS, STYLE_PRESETS, DECOR_ITEMS, ADDITIONAL_FEATURES_INPUT_MAX_LENGTH, ADDITIONAL_FEATURES_MAX_KEYWORDS, ADDITIONAL_FEATURES_MAX_CHAR_PER_KEYWORD } from '@/lib/config';
 import type {
   BoxDimensions,
   DrawerStylePreset,
-  DrawerAngle,
   DrawerStyle,
   DrawerImages,
   BoxState,
@@ -16,8 +15,6 @@ import type {
 const HEX6_RE = /^#[0-9a-fA-F]{6}$/;
 const VALID_PRESETS = new Set(PRESET_MATERIALS.map(m => m.id));
 const VALID_PATTERNS: Set<string> = new Set(STYLE_PRESETS.map(s => s.id));
-const VALID_ANGLES = new Set(ANGLE_OPTIONS.map(a => a.id));
-
 function validateStyle(style: DrawerStyle): string | null {
   if (!VALID_PRESETS.has(style.preset)) return `Invalid material: ${style.preset}`;
   if (!HEX6_RE.test(style.color)) return `Invalid primary color: ${style.color}`;
@@ -29,7 +26,6 @@ function validateStyle(style: DrawerStyle): string | null {
   const h = style.drawerHeight ?? 2;
   if (w < 1 || w > 5) return `Drawer width must be 1–5, got ${w}`;
   if (h < 1 || h > 5) return `Drawer height must be 1–5, got ${h}`;
-  if (style.angle && !VALID_ANGLES.has(style.angle)) return `Invalid angle: ${style.angle}`;
   return null;
 }
 
@@ -59,7 +55,7 @@ const pillBtn = (active: boolean, disabled: boolean): React.CSSProperties => ({
 
 
 // ── ASCII preview renderer ───────────────────────────────────────
-function renderAsciiPreview(w: number, h: number, angle: DrawerAngle): string {
+function renderAsciiPreview(w: number, h: number): string {
   const cw = Math.max(10, Math.round(w * 6));
   const ch = Math.max(3, Math.round(h * 3));
   const lines: string[] = [];
@@ -74,37 +70,11 @@ function renderAsciiPreview(w: number, h: number, angle: DrawerAngle): string {
 
   const mid = Math.floor(ch / 2);
 
-  if (angle === 'front') {
-    lines.push('╔' + '═'.repeat(cw) + '╗');
-    for (let r = 0; r < ch; r++) {
-      lines.push('║' + (r === mid ? handleLine : ' '.repeat(cw)) + '║');
-    }
-    lines.push('╚' + '═'.repeat(cw) + '╝');
-  } else {
-    const depth = 3;
-    const isLeft = angle === 'left-45';
-
-    // Top
-    lines.push((isLeft ? ' '.repeat(depth) : '') + '╔' + '═'.repeat(cw) + '╗');
-
-    // Body
-    for (let r = 0; r < ch; r++) {
-      const progress = Math.min(depth, Math.round(((r + 1) / ch) * depth));
-      const content = r === mid ? handleLine : ' '.repeat(cw);
-
-      if (isLeft) {
-        const indent = depth - progress;
-        const side = progress > 0 ? '╱' + ' '.repeat(progress - 1) : ' '.repeat(0);
-        lines.push(' '.repeat(indent) + side + '║' + content + '║');
-      } else {
-        const side = progress > 0 ? ' '.repeat(progress - 1) + '╲' : '';
-        lines.push('║' + content + '║' + side);
-      }
-    }
-
-    // Bottom
-    lines.push((isLeft ? '' : '') + '╚' + '═'.repeat(cw) + '╝');
+  lines.push('╔' + '═'.repeat(cw) + '╗');
+  for (let r = 0; r < ch; r++) {
+    lines.push('║' + (r === mid ? handleLine : ' '.repeat(cw)) + '║');
   }
+  lines.push('╚' + '═'.repeat(cw) + '╝');
 
   return lines.join('\n');
 }
@@ -147,7 +117,6 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
   // 5. Size & angle
   const [drawerWidth, setDrawerWidth] = useState(currentImages?.style.drawerWidth || 3);
   const [drawerHeight, setDrawerHeight] = useState(currentImages?.style.drawerHeight || 2);
-  const [angle, setAngle] = useState<DrawerAngle>(currentImages?.style.angle || 'front');
 
   // Generation state
   const [generating, setGenerating] = useState(false);
@@ -173,8 +142,8 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
   } | null>(null);
 
   const asciiPreview = useMemo(
-    () => renderAsciiPreview(drawerWidth, drawerHeight, angle),
-    [drawerWidth, drawerHeight, angle]
+    () => renderAsciiPreview(drawerWidth, drawerHeight),
+    [drawerWidth, drawerHeight]
   );
 
   // ── Build current style (single source of truth) ──────────────
@@ -199,9 +168,8 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
       decor: decorStr || undefined,
       drawerWidth,
       drawerHeight,
-      angle,
     };
-  }, [preset, color, accentColor, stylePattern, selectedDecor, customDecor, drawerWidth, drawerHeight, angle]);
+  }, [preset, color, accentColor, stylePattern, selectedDecor, customDecor, drawerWidth, drawerHeight]);
 
   const currentStyle = useMemo(() => buildCurrentStyle(), [buildCurrentStyle]);
 
@@ -219,7 +187,6 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
     if ((currentStyle.customDecorText ?? '') !== (lastStyle.customDecorText ?? '')) fields.add('customDecor');
     if ((currentStyle.drawerWidth ?? 3) !== (lastStyle.drawerWidth ?? 3)) fields.add('drawerWidth');
     if ((currentStyle.drawerHeight ?? 2) !== (lastStyle.drawerHeight ?? 2)) fields.add('drawerHeight');
-    if ((currentStyle.angle ?? 'front') !== (lastStyle.angle ?? 'front')) fields.add('angle');
     return fields;
   }, [currentStyle, lastStyle]);
 
@@ -466,20 +433,6 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
               style={{ width: '100%', accentColor: 'var(--tb-accent)' }}
             />
           </div>
-          <label style={{ ...sectionLabel, marginTop: 8 }}>opening angle{changedDot('angle')}</label>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {ANGLE_OPTIONS.map(a => (
-              <button
-                key={a.id}
-                onClick={() => setAngle(a.id)}
-                disabled={generating}
-                style={{ ...pillBtn(angle === a.id, generating), display: 'flex', alignItems: 'center', gap: 4 }}
-              >
-                <span style={{ fontSize: 13 }}>{a.icon}</span>
-                {a.label.toLowerCase()}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* ASCII preview — monospace, left-aligned */}
@@ -502,7 +455,7 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
             {asciiPreview}
           </pre>
           <span style={{ fontSize: 9, color: 'var(--tb-fg-ghost)', marginTop: 4, display: 'block' }}>
-            {drawerWidth}:{drawerHeight} ratio · {ANGLE_OPTIONS.find(a => a.id === angle)?.label}
+            {drawerWidth}:{drawerHeight} ratio
           </span>
         </div>
       </div>

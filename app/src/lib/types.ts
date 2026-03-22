@@ -27,7 +27,7 @@ export type BoxState = 'IDLE' | 'HOVER_PEEK' | 'OPEN' | 'HOVER_CLOSE' | 'CLOSING
 
 export type DrawerStylePreset = 'clay' | 'metal' | 'wood' | 'pixel' | 'paper' | 'glass';
 
-export type DrawerAngle = 'front' | 'left-45' | 'right-45';
+export type DrawerAngle = 'left-45' | 'right-45';
 
 export interface DrawerStyle {
   preset: DrawerStylePreset;
