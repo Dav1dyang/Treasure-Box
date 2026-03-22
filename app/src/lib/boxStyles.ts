@@ -210,12 +210,14 @@ export function buildSpriteSheetPrompt(style: DrawerStyle, dims?: BoxDimensions)
     style.customDecorText ? style.customDecorText.split(/[,\s]+/).filter(Boolean) : [],
   );
 
-  // Map drawerWidth/drawerHeight sliders (1-5) into prompt geometry
-  const widthScale = (style.drawerWidth ?? 3) / 3;    // 1→0.33, 3→1.0, 5→1.67
-  const heightScale = (style.drawerHeight ?? 2) / 2;   // 1→0.5, 2→1.0, 5→2.5
-  const promptWidth = Math.round(d.boxWidth * widthScale);
-  const promptHeight = Math.round(d.boxHeight * heightScale);
-  const promptDrawerHeight = Math.round(d.drawerHeight * heightScale);
+  // Cabinet shell stays fixed; sliders only affect the drawer front proportion
+  const promptWidth = d.boxWidth;
+  const promptHeight = d.boxHeight;
+
+  const drawerWidthScale = Math.min(1.15, Math.max(0.75, (style.drawerWidth ?? 3) / 3));
+  const drawerHeightScale = Math.min(1.25, Math.max(0.7, (style.drawerHeight ?? 2) / 2));
+  const promptDrawerWidth = Math.round(d.boxWidth * drawerWidthScale);
+  const promptDrawerHeight = Math.round(d.drawerHeight * drawerHeightScale);
 
   const states = DEFAULT_STATES;
 
@@ -227,9 +229,21 @@ Art direction: ${artStyleDesc}
 
 Perspective: ${angle.PERSPECTIVE_RULE}
 
-Geometry: width proportion ${promptWidth}, height proportion ${promptHeight}, drawer face height proportion ${promptDrawerHeight}. Keep it clearly readable as exactly one cabinet shell with exactly one drawer. Do not create stacked drawers, split sections, cabinet doors, chest lids, safes, crates, trunks, boxes with lids, or extra compartments.
+Geometry:
+• cabinet outer width proportion ${promptWidth}
+• cabinet outer height proportion ${promptHeight}
+• drawer front width proportion ${promptDrawerWidth}
+• drawer front height proportion ${promptDrawerHeight}
+The cabinet shell outer size must remain fixed and unchanged across all 5 states.
+Do not change the overall cabinet width, overall cabinet height, sprite ratio, or object scale.
+Do not stretch or squash the cabinet shell.
+Do not reinterpret drawer width or drawer height as cabinet width or cabinet height.
+Only the drawer front proportion may vary within the fixed cabinet shell.
+Keep it clearly readable as exactly one cabinet shell with exactly one drawer.
+Do not create stacked drawers, split sections, cabinet doors, chest lids, safes, crates, trunks, boxes with lids, or extra compartments.
 
 Motion: progressive linear mechanical movement of the same drawer from fully closed to fully open across the 5 cells: ${states[0]}%, ${states[1]}%, ${states[2]}%, ${states[3]}%, ${states[4]}%. The cabinet shell remains static and centered. Only the drawer slides directly ${angle.MOTION_DIRECTION}. The drawer front remains the same object in every state. Only drawer depth changes.
+Drawer width and drawer height settings must remain constant during motion.
 
 Requirements:
 • pure flat #00FF00 green background, exact #00FF00
@@ -240,6 +254,7 @@ Requirements:
 • no divider lines, no vertical lines, no panel borders between cells
 • crisp clean silhouettes only
 • consistent lighting, scale, camera, hardware placement, and decorative placement across all 5 states
+• consistent cabinet shell silhouette across all 5 states
 • no overlap, no cross-cell spill, no remnants from adjacent states
 • enough internal margin so the fully open drawer fits completely inside the final cell
 • drawer interior is completely empty — no props, no objects, no fabric, no dust
