@@ -231,19 +231,19 @@ function resolveDecorTags(style: DrawerStyle): string[] {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// DRAWER FACE RATIO — natural language instead of numeric geometry
+// FRONT SHAPE RATIO — shared cabinet + drawer front silhouette
 // ═══════════════════════════════════════════════════════════════
 
-export function mapDrawerFaceRatio(drawerWidth?: number, drawerHeight?: number): string {
+export function mapFrontRatio(drawerWidth?: number, drawerHeight?: number): string {
   const w = drawerWidth ?? 3;
   const h = drawerHeight ?? 2;
   const ratio = w / h;
 
-  if (ratio >= 1.6) return 'The drawer front is a wide landscape rectangle, clearly wider than tall.';
-  if (ratio >= 1.25) return 'The drawer front is a slightly wide rectangle, moderately wider than tall.';
-  if (ratio >= 0.9) return 'The drawer front is a near-square rectangle.';
-  if (ratio >= 0.7) return 'The drawer front is a slightly tall rectangle.';
-  return 'The drawer front is a tall portrait rectangle, clearly taller than wide.';
+  if (ratio >= 1.6) return 'a wide landscape rectangle, clearly wider than tall';
+  if (ratio >= 1.25) return 'a moderately wide rectangle, wider than tall';
+  if (ratio >= 0.95) return 'a near-square rectangle';
+  if (ratio >= 0.75) return 'a slightly tall rectangle';
+  return 'a tall portrait rectangle, clearly taller than wide';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -277,7 +277,7 @@ export function buildSpriteSheetPrompt(style: DrawerStyle, dims?: BoxDimensions)
     style.customDecorText ? style.customDecorText.split(/[,\s]+/).filter(Boolean) : [],
   );
 
-  const drawerFaceRatio = mapDrawerFaceRatio(style.drawerWidth, style.drawerHeight);
+  const frontRatio = mapFrontRatio(style.drawerWidth, style.drawerHeight);
 
   const states = DEFAULT_STATES;
 
@@ -335,18 +335,26 @@ A single ${angle.ANGLE_SUBJECT} one-drawer cabinet, ${stylePreset} style, ${mate
 
 ART DIRECTION: ${artStyleDesc}
 
-DRAWER SHAPE:
-${drawerFaceRatio}
-This drawer shape setting applies only to the drawer front panel inside the fixed cabinet shell.
-Do not reinterpret drawer shape as the overall cabinet ratio, sprite ratio, frame ratio, or canvas ratio.
+FRONT SHAPE RATIO:
+The cabinet front silhouette and the drawer front panel must follow the same configurable width to height ratio: ${frontRatio}.
+The drawer front is inset inside the cabinet shell and follows the same proportion family, only slightly smaller due to the cabinet frame margin.
+This ratio applies only to the front-facing object shape inside each sprite cell.
+Do not reinterpret it as the frame ratio, sprite sheet ratio, canvas ratio, or motion depth.
+
+SHAPE LOCK:
+The cabinet front silhouette and the drawer front panel must share the same overall width to height ratio.
+The drawer front must look like a smaller inset version of the cabinet front shape.
+Do not change this ratio across the 5 frames.
+Do not reinterpret this ratio as the canvas ratio or sprite sheet ratio.
+Only drawer depth changes during motion.
 
 MOTION:
 Show progressive linear mechanical movement of the same drawer across 5 states: ${states[0]}%, ${states[1]}%, ${states[2]}%, ${states[3]}%, ${states[4]}% open.
 The cabinet shell remains static and centered.
 Only the drawer slides directly ${angle.MOTION_DIRECTION}.
 The drawer front remains the same object in every frame.
+The front silhouette ratio remains unchanged.
 Only drawer depth changes.
-Drawer width and drawer face height remain constant during motion.
 
 MOTION LOCK:
 The cabinet shell is completely static.
