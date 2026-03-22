@@ -193,7 +193,7 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
     return {
       preset,
       color,
-      stylePattern: stylePattern !== 'plain' ? stylePattern : undefined,
+      stylePattern: stylePattern || undefined,
       customDecorText: customDecor.trim() || undefined,
       accentColor,
       decor: decorStr || undefined,

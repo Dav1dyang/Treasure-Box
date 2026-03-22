@@ -6,54 +6,33 @@ import { DEFAULT_BOX_DIMENSIONS, DEFAULT_STATES, STYLE_PRESETS } from './config'
 // ═══════════════════════════════════════════════════════════════
 
 interface StyleDefinition {
-  furnitureStyle: string;
-  mainColor: string;
-  hardware: string;
-  handleStyle: string;
-  artStyle: string;
+  material: string;   // surface description only — no furniture category words
+  artStyle: string;   // rendering direction per preset
 }
 
 export const STYLE_BASES: Record<DrawerStylePreset, StyleDefinition> = {
   clay: {
-    furnitureStyle: 'cute chunky claymation drawer from an Aardman Studios-style cabinet',
-    mainColor: 'soft warm clay with visible fingerprint textures',
-    hardware: 'clay with rounded sculpted shapes',
-    handleStyle: 'round clay knob',
+    material: 'clay material with visible fingerprint textures',
     artStyle: 'claymation stop-motion style with soft rounded forms and handmade charm',
   },
   metal: {
-    furnitureStyle: 'steampunk brass and iron drawer from an industrial apothecary cabinet',
-    mainColor: 'dark iron with brass accents and green patina',
-    hardware: 'aged brass with rivets and patina',
-    handleStyle: 'ornate metal ring-pull',
+    material: 'metal material with brass accents and aged patina',
     artStyle: 'stylized steampunk game art with detailed metalwork and weathering',
   },
   wood: {
-    furnitureStyle: 'ornate Victorian polished wooden drawer from an elegant dresser',
-    mainColor: 'rich polished wood grain with warm lacquer',
-    hardware: 'warm brass with corner brackets',
-    handleStyle: 'round brass knob',
+    material: 'wood material with polished grain and warm lacquer',
     artStyle: 'stylized game art with clean readable shapes and polished hand-painted detail',
   },
   pixel: {
-    furnitureStyle: 'retro pixel art drawer from a 16-bit RPG inventory cabinet',
-    mainColor: 'warm brown with limited pixel palette',
-    hardware: 'pixel-styled metal with crisp edges',
-    handleStyle: 'pixelated square knob',
+    material: 'pixel-art inspired surface treatment',
     artStyle: '16-bit pixel art with crisp edges, limited colors, and no anti-aliasing',
   },
   paper: {
-    furnitureStyle: 'origami papercraft drawer from a folded paper jewelry box',
-    mainColor: 'cream and kraft paper with visible fold lines',
-    hardware: 'folded paper with sharp creases',
-    handleStyle: 'paper tab pull',
+    material: 'paper-crafted material with visible fold lines and creases',
     artStyle: 'papercraft illustration with visible creases, folds, and layered paper depth',
   },
   glass: {
-    furnitureStyle: 'translucent blown glass drawer from an iridescent crystal cabinet',
-    mainColor: 'clear glass with soft refractions and iridescent edges',
-    hardware: 'frosted glass with subtle shimmer',
-    handleStyle: 'frosted glass knob',
+    material: 'glass material with soft refractions and iridescent edges',
     artStyle: 'ethereal glasswork illustration with soft light refractions and translucency',
   },
 };
@@ -70,19 +49,19 @@ const ANGLE_MAP: Record<DrawerAngle, {
   front: {
     ANGLE_SUBJECT: 'front-facing',
     PERSPECTIVE_RULE:
-      'orthographic flat front view only, 0% tilt, 0% rotation.',
+      'orthographic flat front view only, 0% tilt, 0% rotation, no perspective skew, no three-quarter view, no side reveal.',
     MOTION_DIRECTION: 'forward toward the camera',
   },
   'left-45': {
     ANGLE_SUBJECT: 'left 45 degree',
     PERSPECTIVE_RULE:
-      'fixed 45 degree left front view only. Keep the same camera angle, same perspective, and no rotation drift across all 5 states.',
+      'fixed 45 degree left front view only. Same camera angle, same horizon, same vanishing direction, same scale, same centering, and no camera drift across all 5 states. Do not rotate the cabinet between states.',
     MOTION_DIRECTION: 'outward along the drawer axis toward the left front camera view',
   },
   'right-45': {
     ANGLE_SUBJECT: 'right 45 degree',
     PERSPECTIVE_RULE:
-      'fixed 45 degree right front view only. Keep the same camera angle, same perspective, and no rotation drift across all 5 states.',
+      'fixed 45 degree right front view only. Same camera angle, same horizon, same vanishing direction, same scale, same centering, and no camera drift across all 5 states. Do not rotate the cabinet between states.',
     MOTION_DIRECTION: 'outward along the drawer axis toward the right front camera view',
   },
 } as const;
@@ -122,20 +101,6 @@ export function mapKeyhole(hasKeyhole: boolean): string {
   return hasKeyhole ? 'a visible keyhole' : 'no keyhole';
 }
 
-export function mapMaterial(material: string): string {
-  const map: Record<string, string> = {
-    wood: 'wood material',
-    'painted-wood': 'painted wood',
-    metal: 'metal material',
-    brass: 'brass material',
-    steel: 'steel material',
-    plastic: 'smooth plastic material',
-    velvet: 'velvet covered surface',
-    leather: 'leather wrapped surface',
-  };
-  return map[material] ?? `${material} material`;
-}
-
 export function mapColors(primaryColor?: string, accentColor?: string): string {
   if (primaryColor && accentColor) {
     return `${primaryColor} with ${accentColor} accents`;
@@ -147,7 +112,7 @@ export function mapColors(primaryColor?: string, accentColor?: string): string {
 
 export function mapDecor(
   decorItems: string[] = [],
-  opts?: { hasKeyhole?: boolean; handleStyle?: string },
+  opts?: { hasKeyhole?: boolean; hasRivets?: boolean; handleStyle?: string },
 ): string {
   const cleaned = decorItems
     .filter(Boolean)
@@ -155,6 +120,7 @@ export function mapDecor(
     .filter((item) => {
       if (!opts?.hasKeyhole && item.includes('keyhole')) return false;
       if (opts?.handleStyle && item.includes('ring pull') && opts.handleStyle !== 'ring-pull') return false;
+      if (!opts?.hasRivets && (item.includes('metal studs') || item.includes('metal-studs'))) return false;
       return true;
     });
 
@@ -229,7 +195,8 @@ export function buildSpriteSheetPrompt(style: DrawerStyle, dims?: BoxDimensions)
   // Resolve all tokens
   const angle = ANGLE_MAP[style.angle || 'front'];
   const stylePreset = resolveStyleTags(style);
-  const materialDesc = def.furnitureStyle;
+  const materialDesc = def.material;
+  const artStyleDesc = def.artStyle;
   const colorDesc = mapColors(style.color, style.accentColor);
   const handleDesc = mapHandle(d.handleStyle);
   const cornerDesc = mapCorner(d.cornerStyle);
@@ -237,100 +204,50 @@ export function buildSpriteSheetPrompt(style: DrawerStyle, dims?: BoxDimensions)
   const keyholeDesc = mapKeyhole(d.hasKeyhole);
   const decorDesc = mapDecor(
     resolveDecorTags(style),
-    { hasKeyhole: d.hasKeyhole, handleStyle: d.handleStyle },
+    { hasKeyhole: d.hasKeyhole, hasRivets: d.hasRivets, handleStyle: d.handleStyle },
   );
   const additionalDesc = mapAdditionalFeatures(
     style.customDecorText ? style.customDecorText.split(/[,\s]+/).filter(Boolean) : [],
   );
 
+  // Map drawerWidth/drawerHeight sliders (1-5) into prompt geometry
+  const widthScale = (style.drawerWidth ?? 3) / 3;    // 1→0.33, 3→1.0, 5→1.67
+  const heightScale = (style.drawerHeight ?? 2) / 2;   // 1→0.5, 2→1.0, 5→2.5
+  const promptWidth = Math.round(d.boxWidth * widthScale);
+  const promptHeight = Math.round(d.boxHeight * heightScale);
+  const promptDrawerHeight = Math.round(d.drawerHeight * heightScale);
+
   const states = DEFAULT_STATES;
 
-  return `Create exactly 1 production sprite sheet for a web UI.
-Generate a single horizontal strip with exactly 5 equal frames showing the SAME exact one-drawer cabinet at 5 pullout states. This is a clean asset, not a poster, not a diagram, and not a labeled sheet.
-Hard constraints:
-• overall layout: 5 frames in 1 row, equal size, no gaps, no borders, no separators
-• every frame must be fully self contained
-• no pixels may spill into adjacent frames
-• leave enough internal margin so the 100% open drawer still fits completely inside its own frame
+  return `A clean production sprite sheet for a web UI. A single seamless horizontal row of 5 equal sprite cells with invisible boundaries, showing 5 aligned sprite states of the same exact one-drawer cabinet.
+
+Subject: a single ${angle.ANGLE_SUBJECT} one-drawer cabinet, ${stylePreset} style, ${materialDesc}, colored ${colorDesc}, with ${handleDesc}, ${cornerDesc}, ${rivetDesc}, and ${keyholeDesc}. Attached surface decor only: ${decorDesc}. Extra visual details: ${additionalDesc}.
+
+Art direction: ${artStyleDesc}
+
+Perspective: ${angle.PERSPECTIVE_RULE}
+
+Geometry: width proportion ${promptWidth}, height proportion ${promptHeight}, drawer face height proportion ${promptDrawerHeight}. Keep it clearly readable as exactly one cabinet shell with exactly one drawer. Do not create stacked drawers, split sections, cabinet doors, chest lids, safes, crates, trunks, boxes with lids, or extra compartments.
+
+Motion: progressive linear mechanical movement of the same drawer from fully closed to fully open across the 5 cells: ${states[0]}%, ${states[1]}%, ${states[2]}%, ${states[3]}%, ${states[4]}%. The cabinet shell remains static and centered. Only the drawer slides directly ${angle.MOTION_DIRECTION}. The drawer front remains the same object in every state. Only drawer depth changes.
+
+Requirements:
 • pure flat #00FF00 green background, exact #00FF00
-• no transparency, no checkerboard, no gradient, no texture
-• no text, no numbers, no labels, no logo, no watermark
-• never render any drawer label as visible text
-• no cast shadow, no floor shadow, no contact shadow, no glow, no halo
 • do NOT use #00FF00 anywhere on the cabinet, drawer, handle, hardware, or decor
-• crisp clean silhouette only
-Subject:
-Exactly one standalone cabinet shell containing exactly one sliding drawer.
-Not two drawers.
-Not stacked drawers.
-Not a cabinet door.
-Not a safe door.
-Not a treasure chest.
-Not a trunk.
-Not a hinged lid box.
-Not a crate.
-A single ${angle.ANGLE_SUBJECT} one-drawer cabinet, ${stylePreset} style, ${materialDesc}, ${colorDesc}, with ${handleDesc}, ${cornerDesc}, ${rivetDesc}, and ${keyholeDesc}. Decor details: ${decorDesc}. Extra visual details: ${additionalDesc}.
-Mechanics:
-Only the drawer moves.
-The cabinet shell stays fixed.
-The drawer slides straight ${angle.MOTION_DIRECTION}.
-No hinge motion.
-No rotation.
-No tilting.
-No morphing into another furniture type.
-Consistency across all 5 frames:
-Same camera angle
-Same scale
-Same centering
-Same lighting
-Same cabinet shape
-Same drawer front shape
-Same handle position
-Same keyhole position if present
-Same decorative placement
-No jitter
-No drift
-No zoom change
-Camera:
-${angle.PERSPECTIVE_RULE}
-Geometry:
-Use these proportions as guidance while keeping the object clearly readable as a single-drawer cabinet:
-overall width: ${d.boxWidth}
-overall height: ${d.boxHeight}
-drawer face height: ${d.drawerHeight}
-Hardware:
-handle style: ${handleDesc}
-corner style: ${cornerDesc}
-rivets: ${rivetDesc}
-keyhole: ${keyholeDesc}
-Style:
-material: ${materialDesc}
-style preset: ${stylePreset}
-decor items: ${decorDesc}
-additional feature keywords: ${additionalDesc}
+• no shadows, no floor shadow, no contact shadow, no glow, no halo
+• no gradients, no transparency, no checkerboard, no texture on background
+• no text, no numbers, no labels, no logo, no watermark
+• no divider lines, no vertical lines, no panel borders between cells
+• crisp clean silhouettes only
+• consistent lighting, scale, camera, hardware placement, and decorative placement across all 5 states
+• no overlap, no cross-cell spill, no remnants from adjacent states
+• enough internal margin so the fully open drawer fits completely inside the final cell
+• drawer interior is completely empty — no props, no objects, no fabric, no dust
+
 Interpretation rules:
-• style and decor may change surface design only
-• do not add extra drawers, extra compartments, doors, props, or interior objects
-• if any style choice conflicts with the single-drawer structure, preserve the single-drawer structure first
-• if keyhole is not enabled, do not show a keyhole unless explicitly required by decor
-• if rivets are enabled, keep rivets subtle and fully inside the silhouette
-Interior:
-Drawer interior must be completely empty.
-No props.
-No camera.
-No cat.
-No fabric.
-No dust.
-No debris.
-Frame sequence from left to right:
-1. closed, pullout ${states[0]}%
-2. slightly open, pullout ${states[1]}%
-3. half open, pullout ${states[2]}%
-4. mostly open, pullout ${states[3]}%
-5. fully open, pullout ${states[4]}%
-Important:
-The front drawer face must remain the same object in every frame.
-Only the drawer depth changes.
-The 100% open state must still be fully contained inside frame 5.
-No overlap, no cross-frame bleed, no remnants from neighboring states.`;
+• style, material, and decor may only affect surface appearance and attached ornament
+• they must not change the one-drawer structure, add extra compartments, add extra handles, override the camera, introduce visible text, or place objects inside the drawer
+• if keyhole is not enabled, do not show a keyhole regardless of decor
+• if rivets are not enabled, do not show rivets or metal studs
+• handle style is authoritative — decor must not replace or add handles`;
 }
