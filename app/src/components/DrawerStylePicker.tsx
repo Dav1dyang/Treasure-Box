@@ -54,31 +54,6 @@ const pillBtn = (active: boolean, disabled: boolean): React.CSSProperties => ({
 });
 
 
-// ── ASCII preview renderer ───────────────────────────────────────
-function renderAsciiPreview(w: number, h: number): string {
-  const cw = Math.max(10, Math.round(w * 6));
-  const ch = Math.max(3, Math.round(h * 3));
-  const lines: string[] = [];
-
-  // Build handle centered
-  const handleGap = Math.min(4, Math.floor(cw / 4));
-  const handleBar = Math.max(2, Math.floor((cw - handleGap - 2) / 2));
-  const handleW = handleBar * 2 + handleGap + 2;
-  const hPadL = Math.floor((cw - handleW) / 2);
-  const hPadR = cw - hPadL - handleW;
-  const handleLine = ' '.repeat(hPadL) + '═'.repeat(handleBar) + '╡' + ' '.repeat(handleGap) + '╞' + '═'.repeat(handleBar) + ' '.repeat(hPadR);
-
-  const mid = Math.floor(ch / 2);
-
-  lines.push('╔' + '═'.repeat(cw) + '╗');
-  for (let r = 0; r < ch; r++) {
-    lines.push('║' + (r === mid ? handleLine : ' '.repeat(cw)) + '║');
-  }
-  lines.push('╚' + '═'.repeat(cw) + '╝');
-
-  return lines.join('\n');
-}
-
 // ── Component ────────────────────────────────────────────────────
 interface Props {
   userId: string;
@@ -115,8 +90,8 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
   });
   const [customDecor, setCustomDecor] = useState(currentImages?.style.customDecorText || '');
   // 5. Size & angle
-  const [drawerWidth, setDrawerWidth] = useState(currentImages?.style.drawerWidth || 3);
-  const [drawerHeight, setDrawerHeight] = useState(currentImages?.style.drawerHeight || 2);
+  const drawerWidth = currentImages?.style.drawerWidth || 3;
+  const drawerHeight = currentImages?.style.drawerHeight || 2;
 
   // Generation state
   const [generating, setGenerating] = useState(false);
@@ -140,11 +115,6 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
     visionObjects?: number;
     ratioWarning?: string;
   } | null>(null);
-
-  const asciiPreview = useMemo(
-    () => renderAsciiPreview(drawerWidth, drawerHeight),
-    [drawerWidth, drawerHeight]
-  );
 
   // ── Build current style (single source of truth) ──────────────
   const buildCurrentStyle = useCallback((): DrawerStyle => {
@@ -185,8 +155,6 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
     if ((currentStyle.stylePattern ?? 'plain') !== (lastStyle.stylePattern ?? 'plain')) fields.add('stylePattern');
     if ((currentStyle.decor ?? '') !== (lastStyle.decor ?? '')) fields.add('decor');
     if ((currentStyle.customDecorText ?? '') !== (lastStyle.customDecorText ?? '')) fields.add('customDecor');
-    if ((currentStyle.drawerWidth ?? 3) !== (lastStyle.drawerWidth ?? 3)) fields.add('drawerWidth');
-    if ((currentStyle.drawerHeight ?? 2) !== (lastStyle.drawerHeight ?? 2)) fields.add('drawerHeight');
     return fields;
   }, [currentStyle, lastStyle]);
 
@@ -401,63 +369,6 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
             opacity: generating ? 0.5 : 1,
           }}
         />
-      </div>
-
-      {/* ── 5. Size & Angle ─────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 160 }}>
-          <label style={sectionLabel}>drawer size{changedDot('drawerWidth')}{changedDot('drawerHeight')}</label>
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-              <span style={{ fontSize: 10, color: 'var(--tb-fg-faint)' }}>width</span>
-              <span style={{ fontSize: 10, color: 'var(--tb-fg-muted)' }}>{drawerWidth}</span>
-            </div>
-            <input
-              type="range" min={1} max={5} step={1}
-              value={drawerWidth}
-              onChange={e => setDrawerWidth(Number(e.target.value))}
-              disabled={generating}
-              style={{ width: '100%', accentColor: 'var(--tb-accent)' }}
-            />
-          </div>
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-              <span style={{ fontSize: 10, color: 'var(--tb-fg-faint)' }}>height</span>
-              <span style={{ fontSize: 10, color: 'var(--tb-fg-muted)' }}>{drawerHeight}</span>
-            </div>
-            <input
-              type="range" min={1} max={5} step={1}
-              value={drawerHeight}
-              onChange={e => setDrawerHeight(Number(e.target.value))}
-              disabled={generating}
-              style={{ width: '100%', accentColor: 'var(--tb-accent)' }}
-            />
-          </div>
-        </div>
-
-        {/* ASCII preview — monospace, left-aligned */}
-        <div style={{ flex: 1, minWidth: 160 }}>
-          <label style={sectionLabel}>preview</label>
-          <pre
-            style={{
-              fontSize: 10, lineHeight: 1.2,
-              color: 'var(--tb-accent)',
-              background: 'var(--tb-bg-muted, #111)',
-              border: '1px solid var(--tb-border-subtle)',
-              borderRadius: 3,
-              padding: '12px 16px',
-              fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
-              whiteSpace: 'pre',
-              overflow: 'auto',
-              margin: 0,
-            }}
-          >
-            {asciiPreview}
-          </pre>
-          <span style={{ fontSize: 9, color: 'var(--tb-fg-ghost)', marginTop: 4, display: 'block' }}>
-            {drawerWidth}:{drawerHeight} ratio
-          </span>
-        </div>
       </div>
 
       {/* ── Generate ────────────────────────────────────── */}

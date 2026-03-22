@@ -129,7 +129,7 @@ Each sprite has at least 10% empty green margin on all sides within its cell. No
 
 Subject: a single one-drawer cabinet, ${ANGLE} view, ${STYLE} style, ${MATERIAL}. ${MAIN_COLOR} body with ${ACCENT_COLOR} accents. ${HANDLE}, ${CORNERS}. ${DECOR}. Exactly one drawer, no stacked drawers, no multi-drawer, no extra compartments.
 
-Sprite 1: drawer fully closed. Sprites 2-5: drawer progressively opens from closed to fully extended along depth axis. Cabinet shell stays identical across all 5 sprites. Same angle, scale, position, lighting. Only the drawer translates outward. Drawer interior empty.
+Sprite 1: 0% closed flush. Sprite 2: 25% slightly ajar. Sprite 3: 50% half open. Sprite 4: 75% mostly open. Sprite 5: 100% fully extended. Cabinet shell stays identical across all 5 sprites. Same angle, scale, position, lighting. Only the drawer translates outward along depth axis. Drawer interior empty.
 
 No shadows, no floor, no text, no labels, no watermark. No props or objects inside drawer. Game asset style, clean edges.`;
 }
