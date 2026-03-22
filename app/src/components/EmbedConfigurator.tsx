@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import type { BoxConfig, EmbedSettings, EmbedMode, EmbedPadding } from '@/lib/types';
+import type { BoxConfig, EmbedSettings, EmbedMode, EmbedPadding, AnchorCorner } from '@/lib/types';
 import { DEFAULT_EMBED_SETTINGS, DEFAULT_EMBED_PADDING, EMBED_BASE_W, EMBED_BASE_H, getEmbedDimensions } from '@/lib/config';
 import { uploadProcessedImage } from '@/lib/firestore';
 
@@ -15,6 +15,13 @@ const CONTAINED_SIZE_PRESETS = [
 const MODES: { mode: EmbedMode; label: string; desc: string; icon: string }[] = [
   { mode: 'overlay', label: 'overlay', desc: 'items fly across the page', icon: '✦' },
   { mode: 'contained', label: 'iframe', desc: 'fits inside a sized container', icon: '▣' },
+];
+
+const CORNERS: { anchor: AnchorCorner; label: string }[] = [
+  { anchor: 'top-left', label: 'TL' },
+  { anchor: 'top-right', label: 'TR' },
+  { anchor: 'bottom-left', label: 'BL' },
+  { anchor: 'bottom-right', label: 'BR' },
 ];
 
 const S = {
@@ -47,6 +54,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
   const [aspectRatio, setAspectRatio] = useState(settings.width / settings.height);
   const [paddingExpanded, setPaddingExpanded] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [offsetsLinked, setOffsetsLinked] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const previewTab = settings.previewMode || (settings.previewUrl ? 'url' : 'screenshot');
@@ -411,6 +419,111 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
           )}
           <p className="text-[8px] mt-1" style={S.ghost}>
             inset from iframe edges — items bounce within the padded area
+          </p>
+        </div>
+      )}
+
+      {/* Overlay: Position Controls (corner picker + offset sliders) */}
+      {settings.mode === 'overlay' && (
+        <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
+          <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>position</label>
+          {/* 2x2 Corner Grid */}
+          <div className="grid grid-cols-2 gap-1 mb-3" style={{ maxWidth: 160 }}>
+            {CORNERS.map(c => {
+              const active = settings.position.anchor === c.anchor;
+              return (
+                <button
+                  key={c.anchor}
+                  onClick={() => update({ position: { ...settings.position, anchor: c.anchor } })}
+                  className="text-[10px] px-[10px] py-[5px] border cursor-pointer transition-all"
+                  style={{
+                    borderColor: active ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
+                    color: active ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
+                    background: active ? 'var(--tb-bg-muted)' : 'transparent',
+                  }}
+                >
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+          {/* X offset slider */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[9px] w-5 shrink-0" style={S.ghost}>X</span>
+            <input type="range" min={0} max={200} step={4}
+              value={settings.position.offsetX}
+              onChange={e => {
+                const v = Number(e.target.value);
+                update({
+                  position: {
+                    ...settings.position,
+                    offsetX: v,
+                    ...(offsetsLinked ? { offsetY: v } : {}),
+                  },
+                });
+              }}
+              className="flex-1"
+              style={{ accentColor: 'var(--tb-accent)' }} />
+            <input type="number" min={0} max={200} step={4}
+              value={settings.position.offsetX}
+              onChange={e => {
+                const v = Math.max(0, Math.min(200, Number(e.target.value)));
+                update({
+                  position: {
+                    ...settings.position,
+                    offsetX: v,
+                    ...(offsetsLinked ? { offsetY: v } : {}),
+                  },
+                });
+              }}
+              className="w-14 bg-transparent text-[10px] p-1 text-right outline-none"
+              style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-accent)' }} />
+            <span className="text-[9px]" style={S.ghost}>px</span>
+          </div>
+          {/* Y offset slider */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[9px] w-5 shrink-0" style={S.ghost}>Y</span>
+            <input type="range" min={0} max={200} step={4}
+              value={settings.position.offsetY}
+              onChange={e => {
+                const v = Number(e.target.value);
+                update({
+                  position: {
+                    ...settings.position,
+                    offsetY: v,
+                    ...(offsetsLinked ? { offsetX: v } : {}),
+                  },
+                });
+              }}
+              className="flex-1"
+              style={{ accentColor: 'var(--tb-accent)' }} />
+            <input type="number" min={0} max={200} step={4}
+              value={settings.position.offsetY}
+              onChange={e => {
+                const v = Math.max(0, Math.min(200, Number(e.target.value)));
+                update({
+                  position: {
+                    ...settings.position,
+                    offsetY: v,
+                    ...(offsetsLinked ? { offsetX: v } : {}),
+                  },
+                });
+              }}
+              className="w-14 bg-transparent text-[10px] p-1 text-right outline-none"
+              style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-accent)' }} />
+            <span className="text-[9px]" style={S.ghost}>px</span>
+          </div>
+          {/* Link toggle */}
+          <button
+            onClick={() => setOffsetsLinked(!offsetsLinked)}
+            className="flex items-center gap-[6px] cursor-pointer text-[9px] mt-1"
+            style={offsetsLinked ? S.accent : S.ghost}
+          >
+            <span>{offsetsLinked ? '=' : '~'}</span>
+            <span>{offsetsLinked ? 'offsets linked' : 'link offsets'}</span>
+          </button>
+          <p className="text-[8px] mt-1" style={S.ghost}>
+            distance from the chosen corner — also drag in preview
           </p>
         </div>
       )}
