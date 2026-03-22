@@ -180,6 +180,22 @@ function resolveDecorTags(style: DrawerStyle): string[] {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// DRAWER FACE RATIO — natural language instead of numeric geometry
+// ═══════════════════════════════════════════════════════════════
+
+export function mapDrawerFaceRatio(drawerWidth?: number, drawerHeight?: number): string {
+  const w = drawerWidth ?? 3;
+  const h = drawerHeight ?? 2;
+  const ratio = w / h;
+
+  if (ratio >= 1.6) return 'The drawer front is a wide landscape rectangle, clearly wider than tall.';
+  if (ratio >= 1.25) return 'The drawer front is a slightly wide rectangle, moderately wider than tall.';
+  if (ratio >= 0.9) return 'The drawer front is a near-square rectangle.';
+  if (ratio >= 0.7) return 'The drawer front is a slightly tall rectangle.';
+  return 'The drawer front is a tall portrait rectangle, clearly taller than wide.';
+}
+
+// ═══════════════════════════════════════════════════════════════
 // PROMPT BUILDER
 // ═══════════════════════════════════════════════════════════════
 
@@ -210,59 +226,96 @@ export function buildSpriteSheetPrompt(style: DrawerStyle, dims?: BoxDimensions)
     style.customDecorText ? style.customDecorText.split(/[,\s]+/).filter(Boolean) : [],
   );
 
-  // Cabinet shell stays fixed; sliders only affect the drawer front proportion
-  const promptWidth = d.boxWidth;
-  const promptHeight = d.boxHeight;
-
-  const drawerWidthScale = Math.min(1.15, Math.max(0.75, (style.drawerWidth ?? 3) / 3));
-  const drawerHeightScale = Math.min(1.25, Math.max(0.7, (style.drawerHeight ?? 2) / 2));
-  const promptDrawerWidth = Math.round(d.boxWidth * drawerWidthScale);
-  const promptDrawerHeight = Math.round(d.drawerHeight * drawerHeightScale);
+  const drawerFaceRatio = mapDrawerFaceRatio(style.drawerWidth, style.drawerHeight);
 
   const states = DEFAULT_STATES;
 
-  return `A clean production sprite sheet for a web UI. A single seamless horizontal row of 5 equal sprite cells with invisible boundaries, showing 5 aligned sprite states of the same exact one-drawer cabinet.
+  return `Create exactly 1 production sprite sheet image for interactive web use.
 
-Subject: a single ${angle.ANGLE_SUBJECT} one-drawer cabinet, ${stylePreset} style, ${materialDesc}, colored ${colorDesc}, with ${handleDesc}, ${cornerDesc}, ${rivetDesc}, and ${keyholeDesc}. Attached surface decor only: ${decorDesc}. Extra visual details: ${additionalDesc}.
+OUTPUT FORMAT:
+Exactly 5 frames arranged side by side in a single horizontal row.
+Overall image ratio must be exactly 5:1.
+Each frame must be exactly the same size.
+Each frame must occupy exactly one fifth of the total image width.
+Zero gaps.
+Zero padding.
+Zero borders.
+Zero separators.
+Frames must tile edge to edge with perfectly clean invisible frame boundaries.
+This sheet will be sliced programmatically, so alignment must be exact.
 
-Art direction: ${artStyleDesc}
+LAYOUT RULE:
+Treat the canvas as an invisible 5 column grid with 5 equal width cells.
+Each sprite state must stay fully inside its own cell.
+No pixels, shadows, highlights, handles, drawer edges, or decorative details may cross into a neighboring cell.
+No remnants of one state may appear inside another cell.
 
-Perspective: ${angle.PERSPECTIVE_RULE}
+SUBJECT:
+A single ${angle.ANGLE_SUBJECT} one-drawer cabinet, ${stylePreset} style, ${materialDesc}, colored ${colorDesc}, with ${handleDesc}, ${cornerDesc}, ${rivetDesc}, and ${keyholeDesc}. Attached surface decor only: ${decorDesc}. Extra visual details: ${additionalDesc}.
 
-Geometry:
-• cabinet outer width proportion ${promptWidth}
-• cabinet outer height proportion ${promptHeight}
-• drawer front width proportion ${promptDrawerWidth}
-• drawer front height proportion ${promptDrawerHeight}
-The cabinet shell outer size must remain fixed and unchanged across all 5 states.
-Do not change the overall cabinet width, overall cabinet height, sprite ratio, or object scale.
-Do not stretch or squash the cabinet shell.
-Do not reinterpret drawer width or drawer height as cabinet width or cabinet height.
-Only the drawer front proportion may vary within the fixed cabinet shell.
-Keep it clearly readable as exactly one cabinet shell with exactly one drawer.
-Do not create stacked drawers, split sections, cabinet doors, chest lids, safes, crates, trunks, boxes with lids, or extra compartments.
+ART DIRECTION: ${artStyleDesc}
 
-Motion: progressive linear mechanical movement of the same drawer from fully closed to fully open across the 5 cells: ${states[0]}%, ${states[1]}%, ${states[2]}%, ${states[3]}%, ${states[4]}%. The cabinet shell remains static and centered. Only the drawer slides directly ${angle.MOTION_DIRECTION}. The drawer front remains the same object in every state. Only drawer depth changes.
-Drawer width and drawer height settings must remain constant during motion.
+CAMERA: ${angle.PERSPECTIVE_RULE}
 
-Requirements:
-• pure flat #00FF00 green background, exact #00FF00
-• do NOT use #00FF00 anywhere on the cabinet, drawer, handle, hardware, or decor
-• no shadows, no floor shadow, no contact shadow, no glow, no halo
-• no gradients, no transparency, no checkerboard, no texture on background
-• no text, no numbers, no labels, no logo, no watermark
-• no divider lines, no vertical lines, no panel borders between cells
-• crisp clean silhouettes only
-• consistent lighting, scale, camera, hardware placement, and decorative placement across all 5 states
-• consistent cabinet shell silhouette across all 5 states
-• no overlap, no cross-cell spill, no remnants from adjacent states
-• enough internal margin so the fully open drawer fits completely inside the final cell
-• drawer interior is completely empty — no props, no objects, no fabric, no dust
+OBJECT LOCK:
+The cabinet shell must remain the same exact object in all 5 frames.
+Same outer silhouette.
+Same size.
+Same position.
+Same scale.
+Same lighting.
+Same handle placement.
+Same hardware placement.
+Same decorative placement.
+Do not resize, stretch, squash, narrow, widen, crop, zoom, or redesign the cabinet shell.
 
-Interpretation rules:
-• style, material, and decor may only affect surface appearance and attached ornament
-• they must not change the one-drawer structure, add extra compartments, add extra handles, override the camera, introduce visible text, or place objects inside the drawer
-• if keyhole is not enabled, do not show a keyhole regardless of decor
-• if rivets are not enabled, do not show rivets or metal studs
-• handle style is authoritative — decor must not replace or add handles`;
+DRAWER SHAPE:
+${drawerFaceRatio}
+This drawer shape setting applies only to the drawer front panel inside the fixed cabinet shell.
+Do not reinterpret drawer shape as the overall cabinet ratio, sprite ratio, frame ratio, or canvas ratio.
+
+MOTION:
+Show progressive linear mechanical movement of the same drawer across 5 states: ${states[0]}%, ${states[1]}%, ${states[2]}%, ${states[3]}%, ${states[4]}% open.
+The cabinet shell remains static and centered.
+Only the drawer slides directly ${angle.MOTION_DIRECTION}.
+The drawer front remains the same object in every frame.
+Only drawer depth changes.
+Drawer width and drawer face height remain constant during motion.
+
+CONTAINMENT:
+Even at 100% open, the entire cabinet and drawer must remain fully contained inside frame 5.
+Leave enough empty margin inside every cell so the open drawer never touches or crosses a frame boundary.
+
+BACKGROUND:
+Pure flat #00FF00 green background, exact #00FF00.
+Do NOT use #00FF00 anywhere on the cabinet, drawer, handle, hardware, or decor.
+No gradients.
+No transparency.
+No checkerboard.
+No texture.
+No floor.
+
+NEGATIVE CONSTRAINTS:
+No shadows. No floor shadows. No contact shadows. No glow. No halo.
+No text. No numbers. No labels. No logo. No watermark.
+No divider lines. No vertical lines. No panel borders.
+No extra drawers. No extra compartments. No cabinet doors. No chest lids. No safes.
+No props. No objects inside the drawer.
+
+INTERIOR:
+Drawer interior is completely empty.
+
+INTERPRETATION RULES:
+Style, material, and decor may only affect surface appearance and attached ornament.
+They must not change the one-drawer structure, add extra compartments, add extra handles, override the camera, introduce visible text, or place objects inside the drawer.
+${d.hasKeyhole ? '' : 'Do not show a keyhole regardless of decor. '}${d.hasRivets ? '' : 'Do not show rivets or metal studs. '}Handle style is authoritative — decor must not replace or add handles.
+
+PRIORITY ORDER:
+1. Exact 5:1 sprite sheet layout
+2. Exactly 5 equal frames
+3. No cross frame spill
+4. Fixed camera and fixed cabinet shell
+5. Only drawer depth changes
+6. Clean programmatic slicing boundaries
+7. Style and material fidelity`;
 }
