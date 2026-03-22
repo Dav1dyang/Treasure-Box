@@ -167,6 +167,11 @@
   var frameEffects = { brightness: 1, contrast: 1, tint: undefined };
   var itemImages = {};
 
+  // Drawer interaction state: track drawer rect + state from iframe for forwarding
+  var currentDrawerState = 'IDLE';
+  var drawerRect = null;
+  var isHoveringDrawer = false;
+
   // Drag tracking: when the user drags an item, we forward host-page mouse events
   // into the iframe so the drag continues even when the cursor leaves the iframe boundary.
   var isDraggingItem = false;
@@ -219,6 +224,16 @@
       x: clientX - iframeRect.left,
       y: clientY - iframeRect.top,
     }, '*');
+  }
+
+  // Helper: check if a point (in client coords) is inside the drawer rect
+  function isInsideDrawerRect(clientX, clientY) {
+    if (!drawerRect) return false;
+    var containerRect = boxContainer.getBoundingClientRect();
+    var dx = clientX - containerRect.left;
+    var dy = clientY - containerRect.top;
+    return dx >= drawerRect.x && dx <= drawerRect.x + drawerRect.width &&
+           dy >= drawerRect.y && dy <= drawerRect.y + drawerRect.height;
   }
 
   // Helper: pass event through to host page element under canvas
@@ -451,22 +466,56 @@
       // Tell iframe physics to grab the body
       startHostCanvasDrag(e.clientX, e.clientY);
     } else {
-      // Pass-through to host page elements
-      passThroughEvent(e);
+      // Drawer-aware pass-through
+      if (isInsideDrawerRect(e.clientX, e.clientY)) {
+        // Forward click to iframe drawer
+        boxIframe.style.pointerEvents = 'auto';
+        hitZone.style.display = 'none';
+        boxIframe.contentWindow.postMessage({
+          type: 'treasure-box-host', action: 'drawer-click',
+        }, '*');
+      } else if (currentDrawerState === 'OPEN' || currentDrawerState === 'HOVER_CLOSE') {
+        // Click empty area while drawer open → close drawer
+        boxIframe.contentWindow.postMessage({
+          type: 'treasure-box-host', action: 'drawer-click',
+        }, '*');
+      } else {
+        passThroughEvent(e);
+      }
     }
   });
 
   // Click pass-through for host page links/buttons in empty canvas areas
   canvas.addEventListener('click', function(e) {
     if (!hitTestBodies(e.clientX, e.clientY)) {
+      // Don't pass through clicks that were handled as drawer interactions
+      if (isInsideDrawerRect(e.clientX, e.clientY)) return;
+      if (currentDrawerState === 'OPEN' || currentDrawerState === 'HOVER_CLOSE') return;
       passThroughEvent(e);
     }
   });
 
-  // Cursor feedback on hover
+  // Cursor feedback + drawer hover detection
   canvas.addEventListener('mousemove', function(e) {
     if (isDraggingItem) { canvas.style.cursor = 'grabbing'; return; }
-    canvas.style.cursor = hitTestBodies(e.clientX, e.clientY) ? 'grab' : 'default';
+    var onItem = hitTestBodies(e.clientX, e.clientY);
+    var onDrawer = isInsideDrawerRect(e.clientX, e.clientY);
+
+    // Cursor feedback
+    canvas.style.cursor = onItem ? 'grab' : (onDrawer ? 'pointer' : 'default');
+
+    // Drawer hover state forwarding (mirrors handleCanvasMouseMove in TreasureBox.tsx)
+    if (onDrawer && !isHoveringDrawer) {
+      isHoveringDrawer = true;
+      boxIframe.contentWindow.postMessage({
+        type: 'treasure-box-host', action: 'drawer-hover-enter',
+      }, '*');
+    } else if (!onDrawer && isHoveringDrawer) {
+      isHoveringDrawer = false;
+      boxIframe.contentWindow.postMessage({
+        type: 'treasure-box-host', action: 'drawer-hover-leave',
+      }, '*');
+    }
   });
 
   // Touch support: same state machine as mouse
@@ -487,15 +536,27 @@
       }, 800);
       startHostCanvasDrag(touch.clientX, touch.clientY);
     } else {
-      // Pass-through to host page elements
-      canvas.style.pointerEvents = 'none';
-      var target = document.elementFromPoint(touch.clientX, touch.clientY);
-      canvas.style.pointerEvents = frameBodies.length > 0 ? 'auto' : 'none';
-      if (target) {
-        target.dispatchEvent(new MouseEvent('mousedown', {
-          bubbles: true, cancelable: true,
-          clientX: touch.clientX, clientY: touch.clientY,
-        }));
+      // Drawer-aware touch pass-through
+      if (isInsideDrawerRect(touch.clientX, touch.clientY)) {
+        boxIframe.style.pointerEvents = 'auto';
+        hitZone.style.display = 'none';
+        boxIframe.contentWindow.postMessage({
+          type: 'treasure-box-host', action: 'drawer-click',
+        }, '*');
+      } else if (currentDrawerState === 'OPEN' || currentDrawerState === 'HOVER_CLOSE') {
+        boxIframe.contentWindow.postMessage({
+          type: 'treasure-box-host', action: 'drawer-click',
+        }, '*');
+      } else {
+        canvas.style.pointerEvents = 'none';
+        var target = document.elementFromPoint(touch.clientX, touch.clientY);
+        canvas.style.pointerEvents = frameBodies.length > 0 ? 'auto' : 'none';
+        if (target) {
+          target.dispatchEvent(new MouseEvent('mousedown', {
+            bubbles: true, cancelable: true,
+            clientX: touch.clientX, clientY: touch.clientY,
+          }));
+        }
       }
     }
   }, { passive: false });
@@ -568,8 +629,9 @@
       sendViewportInfo();
     }
 
-    // Drawer rect: position hit zone over the drawer area
+    // Drawer rect: position hit zone over the drawer area + track for interaction forwarding
     if (event.data.action === 'drawer-rect' && event.data.rect) {
+      drawerRect = event.data.rect;
       var rect = event.data.rect;
       hitZone.style.left = rect.x + 'px';
       hitZone.style.top = rect.y + 'px';
@@ -605,10 +667,14 @@
       document.removeEventListener('touchend', onHostTouchEnd, true);
     }
 
-    // Drawer state: on IDLE, disable pointer events and re-show hit zone
-    if (event.data.action === 'drawer-state' && event.data.state === 'IDLE') {
-      boxIframe.style.pointerEvents = 'none';
-      hitZone.style.display = 'block';
+    // Drawer state: track all states for interaction forwarding
+    if (event.data.action === 'drawer-state') {
+      currentDrawerState = event.data.state;
+      if (event.data.state === 'IDLE') {
+        boxIframe.style.pointerEvents = 'none';
+        hitZone.style.display = 'block';
+        isHoveringDrawer = false;
+      }
     }
 
     // Story overlay delegation from iframe (long-press initiated inside iframe)

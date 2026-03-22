@@ -67,6 +67,9 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const didDragRef = useRef(false);
   const longPressFiredRef = useRef(false);
   const hostInitiatedRef = useRef(false);
+  const handleDrawerClickRef = useRef<() => void>(() => {});
+  const handleDrawerMouseEnterRef = useRef<() => void>(() => {});
+  const handleDrawerMouseLeaveRef = useRef<() => void>(() => {});
   const pendingLinkRef = useRef<string | null>(null);
   const lastClickTimeRef = useRef(0);
   const lastClickBodyRef = useRef<string | null>(null);
@@ -632,6 +635,16 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       if (event.data.action === 'dismiss-story') {
         setActiveStory(null);
       }
+      // Host canvas drawer interaction forwarding (overlay embed)
+      if (event.data.action === 'drawer-click') {
+        handleDrawerClickRef.current();
+      }
+      if (event.data.action === 'drawer-hover-enter') {
+        handleDrawerMouseEnterRef.current();
+      }
+      if (event.data.action === 'drawer-hover-leave') {
+        handleDrawerMouseLeaveRef.current();
+      }
     };
     if (window.parent !== window) {
       // Remove previous handler if re-initializing
@@ -1075,6 +1088,11 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     }
     // CLOSING and SLAMMING: ignore clicks (animation in progress)
   }, [boxState]);
+
+  // Keep refs in sync for postMessage handler (avoids stale closures)
+  handleDrawerClickRef.current = handleDrawerClick;
+  handleDrawerMouseEnterRef.current = handleDrawerMouseEnter;
+  handleDrawerMouseLeaveRef.current = handleDrawerMouseLeave;
 
   // Click on canvas — open pending link or close drawer
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
