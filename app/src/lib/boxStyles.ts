@@ -43,25 +43,76 @@ export const STYLE_BASES: Record<DrawerStylePreset, StyleDefinition> = {
 
 const ANGLE_MAP: Record<DrawerAngle, {
   ANGLE_SUBJECT: string;
-  PERSPECTIVE_RULE: string;
+  CAMERA_LOCK: string;
+  IMAGE_PLANE_LOCK: string;
   MOTION_DIRECTION: string;
 }> = {
   front: {
     ANGLE_SUBJECT: 'front-facing',
-    PERSPECTIVE_RULE:
-      'orthographic flat front view only, 0% tilt, 0% rotation, no perspective skew, no three-quarter view, no side reveal.',
-    MOTION_DIRECTION: 'forward toward the camera',
+    CAMERA_LOCK: `Use one single orthographic flat front camera only.
+The cabinet must face directly forward, perfectly square to the viewer.
+Dead center.
+Eye level.
+Straight on.
+0% tilt.
+0% rotation.
+0% yaw drift.
+0% pitch drift.
+0% roll drift.
+No perspective skew.
+No lens shift.
+No three quarter view.
+No side reveal.
+No top reveal.
+Do not show the left exterior side.
+Do not show the right exterior side.
+Do not show the top exterior surface.
+The front face must read as a perfect straight rectangle, not an angled plane.`,
+    IMAGE_PLANE_LOCK: `The cabinet front must stay parallel to the image plane.
+The drawer front must stay parallel to the image plane.
+The front face must not become trapezoidal.
+The front face must not angle away from the viewer.
+The front face must stay centered and rectangular in every frame.`,
+    MOTION_DIRECTION: 'straight forward toward the camera',
   },
   'left-45': {
     ANGLE_SUBJECT: 'left 45 degree',
-    PERSPECTIVE_RULE:
-      'fixed 45 degree left front view only. Same camera angle, same horizon, same vanishing direction, same scale, same centering, and no camera drift across all 5 states. Do not rotate the cabinet between states.',
+    CAMERA_LOCK: `Use one single fixed left 45 degree front view only.
+The cabinet must be viewed from the same exact left front angle in all 5 frames.
+Show a consistent left side reveal.
+Do not switch toward flatter front view.
+Do not switch toward stronger side view.
+Do not show top down reveal.
+Do not change horizon.
+Do not change vanishing direction.
+Do not change field of view.
+Do not rotate the cabinet between states.
+Do not move the camera between states.
+Do not zoom in or out.
+The same exact camera must be reused for all 5 frames.
+Only the drawer moves.
+The cabinet shell, angle, scale, and framing remain unchanged.`,
+    IMAGE_PLANE_LOCK: '',
     MOTION_DIRECTION: 'outward along the drawer axis toward the left front camera view',
   },
   'right-45': {
     ANGLE_SUBJECT: 'right 45 degree',
-    PERSPECTIVE_RULE:
-      'fixed 45 degree right front view only. Same camera angle, same horizon, same vanishing direction, same scale, same centering, and no camera drift across all 5 states. Do not rotate the cabinet between states.',
+    CAMERA_LOCK: `Use one single fixed right 45 degree front view only.
+The cabinet must be viewed from the same exact right front angle in all 5 frames.
+Show a consistent right side reveal.
+Do not switch toward flatter front view.
+Do not switch toward stronger side view.
+Do not show top down reveal.
+Do not change horizon.
+Do not change vanishing direction.
+Do not change field of view.
+Do not rotate the cabinet between states.
+Do not move the camera between states.
+Do not zoom in or out.
+The same exact camera must be reused for all 5 frames.
+Only the drawer moves.
+The cabinet shell, angle, scale, and framing remain unchanged.`,
+    IMAGE_PLANE_LOCK: '',
     MOTION_DIRECTION: 'outward along the drawer axis toward the right front camera view',
   },
 } as const;
@@ -250,24 +301,39 @@ Each sprite state must stay fully inside its own cell.
 No pixels, shadows, highlights, handles, drawer edges, or decorative details may cross into a neighboring cell.
 No remnants of one state may appear inside another cell.
 
+OBJECT COUNT LOCK:
+Generate exactly one cabinet total.
+Generate exactly one drawer total.
+Show exactly one standalone cabinet containing exactly one drawer.
+Do not generate multiple cabinets.
+Do not generate multiple drawers.
+Do not generate stacked drawers.
+Do not generate side-by-side cabinets.
+Do not generate repeated furniture.
+Do not generate background furniture.
+Do not generate extra compartments, doors, shelves, or secondary units.
+Do not interpret the 5 frames as 5 separate cabinets. They are 5 states of the same single cabinet.
+
+CAMERA LOCK:
+${angle.CAMERA_LOCK}
+The camera is locked and identical across all 5 frames.
+${angle.IMAGE_PLANE_LOCK ? `\nIMAGE PLANE LOCK:\n${angle.IMAGE_PLANE_LOCK}\n` : ''}
+ANTI DRIFT RULE:
+Across all 5 frames, keep the exact same camera, exact same object position, exact same scale, exact same framing, exact same horizon, exact same lighting, and exact same cabinet silhouette.
+Do not move the camera.
+Do not rotate the cabinet.
+Do not zoom in.
+Do not zoom out.
+Do not pan left or right.
+Do not pan up or down.
+Do not recompose the shot.
+Do not reinterpret the object from a different angle in later frames.
+The 5 frames must look like the same cabinet copied 5 times under one locked camera, with only drawer depth changing.
+
 SUBJECT:
 A single ${angle.ANGLE_SUBJECT} one-drawer cabinet, ${stylePreset} style, ${materialDesc}, colored ${colorDesc}, with ${handleDesc}, ${cornerDesc}, ${rivetDesc}, and ${keyholeDesc}. Attached surface decor only: ${decorDesc}. Extra visual details: ${additionalDesc}.
 
 ART DIRECTION: ${artStyleDesc}
-
-CAMERA: ${angle.PERSPECTIVE_RULE}
-
-OBJECT LOCK:
-The cabinet shell must remain the same exact object in all 5 frames.
-Same outer silhouette.
-Same size.
-Same position.
-Same scale.
-Same lighting.
-Same handle placement.
-Same hardware placement.
-Same decorative placement.
-Do not resize, stretch, squash, narrow, widen, crop, zoom, or redesign the cabinet shell.
 
 DRAWER SHAPE:
 ${drawerFaceRatio}
@@ -281,6 +347,15 @@ Only the drawer slides directly ${angle.MOTION_DIRECTION}.
 The drawer front remains the same object in every frame.
 Only drawer depth changes.
 Drawer width and drawer face height remain constant during motion.
+
+MOTION LOCK:
+The cabinet shell is completely static.
+The cabinet shell does not move.
+The cabinet shell does not rotate.
+The cabinet shell does not resize.
+The cabinet shell does not shift position.
+Only the drawer translates outward along its own opening axis.
+No other part of the furniture moves.
 
 CONTAINMENT:
 Even at 100% open, the entire cabinet and drawer must remain fully contained inside frame 5.
@@ -299,7 +374,10 @@ NEGATIVE CONSTRAINTS:
 No shadows. No floor shadows. No contact shadows. No glow. No halo.
 No text. No numbers. No labels. No logo. No watermark.
 No divider lines. No vertical lines. No panel borders.
-No extra drawers. No extra compartments. No cabinet doors. No chest lids. No safes.
+No multiple cabinets. No multiple drawers. No stacked drawers.
+No repeated furniture. No background furniture.
+No extra compartments. No cabinet doors. No shelves. No chest lids. No safes.
+No second unit of any kind.
 No props. No objects inside the drawer.
 
 INTERIOR:
@@ -313,9 +391,10 @@ ${d.hasKeyhole ? '' : 'Do not show a keyhole regardless of decor. '}${d.hasRivet
 PRIORITY ORDER:
 1. Exact 5:1 sprite sheet layout
 2. Exactly 5 equal frames
-3. No cross frame spill
-4. Fixed camera and fixed cabinet shell
-5. Only drawer depth changes
-6. Clean programmatic slicing boundaries
-7. Style and material fidelity`;
+3. Exactly one cabinet and exactly one drawer total
+4. No cross frame spill
+5. Fixed camera and fixed cabinet shell
+6. Only drawer depth changes
+7. Clean programmatic slicing boundaries
+8. Style and material fidelity`;
 }
