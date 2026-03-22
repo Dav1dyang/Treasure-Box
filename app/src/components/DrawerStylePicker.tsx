@@ -31,7 +31,7 @@ const ALL_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CL
 
 // ── Shared styles ────────────────────────────────────────────────
 const sectionLabel: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: 12,
   color: 'var(--tb-fg-faint)',
   textTransform: 'uppercase',
   letterSpacing: '0.08em',
@@ -40,8 +40,8 @@ const sectionLabel: React.CSSProperties = {
 };
 
 const pillBtn = (active: boolean, disabled: boolean): React.CSSProperties => ({
-  fontSize: 11,
-  padding: '4px 10px',
+  fontSize: 14,
+  padding: '8px 16px',
   border: `1px solid ${active ? 'var(--tb-accent)' : 'var(--tb-border-subtle)'}`,
   borderRadius: 3,
   color: active ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
@@ -52,8 +52,8 @@ const pillBtn = (active: boolean, disabled: boolean): React.CSSProperties => ({
 });
 
 const colorSwatch = (hex: string, active: boolean, disabled: boolean): React.CSSProperties => ({
-  width: 22,
-  height: 22,
+  width: 32,
+  height: 32,
   borderRadius: 3,
   border: `2px solid ${active ? 'var(--tb-accent)' : 'var(--tb-fg-ghost, #333)'}`,
   background: hex,
@@ -299,8 +299,8 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
               disabled={generating}
               placeholder="#hex"
               style={{
-                background: 'transparent', fontSize: 11, padding: '3px 6px',
-                width: 68, outline: 'none', borderRadius: 3,
+                background: 'transparent', fontSize: 14, padding: '4px 8px',
+                width: 80, outline: 'none', borderRadius: 3,
                 border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-muted)',
                 opacity: generating ? 0.5 : 1,
               }}
@@ -332,8 +332,8 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
               disabled={generating}
               placeholder="#hex"
               style={{
-                background: 'transparent', fontSize: 11, padding: '3px 6px',
-                width: 68, outline: 'none', borderRadius: 3,
+                background: 'transparent', fontSize: 14, padding: '4px 8px',
+                width: 80, outline: 'none', borderRadius: 3,
                 border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-muted)',
                 opacity: generating ? 0.5 : 1,
               }}
@@ -381,8 +381,8 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
           placeholder="up to 3 keywords — e.g. dragon, gemstones, filigree"
           maxLength={60}
           style={{
-            width: '100%', background: 'transparent', fontSize: 11,
-            padding: '5px 8px', outline: 'none', borderRadius: 3,
+            width: '100%', background: 'transparent', fontSize: 14,
+            padding: '8px 10px', outline: 'none', borderRadius: 3,
             border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-muted)',
             opacity: generating ? 0.5 : 1,
           }}
@@ -395,8 +395,8 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
           <label style={sectionLabel}>drawer size</label>
           <div style={{ marginBottom: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-              <span style={{ fontSize: 10, color: 'var(--tb-fg-faint)' }}>width</span>
-              <span style={{ fontSize: 10, color: 'var(--tb-fg-muted)' }}>{drawerWidth}</span>
+              <span style={{ fontSize: 14, color: 'var(--tb-fg-faint)' }}>width</span>
+              <span style={{ fontSize: 14, color: 'var(--tb-fg-muted)' }}>{drawerWidth}</span>
             </div>
             <input
               type="range" min={1} max={5} step={1}
@@ -408,8 +408,8 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
           </div>
           <div style={{ marginBottom: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-              <span style={{ fontSize: 10, color: 'var(--tb-fg-faint)' }}>height</span>
-              <span style={{ fontSize: 10, color: 'var(--tb-fg-muted)' }}>{drawerHeight}</span>
+              <span style={{ fontSize: 14, color: 'var(--tb-fg-faint)' }}>height</span>
+              <span style={{ fontSize: 14, color: 'var(--tb-fg-muted)' }}>{drawerHeight}</span>
             </div>
             <input
               type="range" min={1} max={5} step={1}
@@ -440,13 +440,13 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
           <label style={sectionLabel}>preview</label>
           <pre
             style={{
-              fontSize: 10, lineHeight: 1.2,
+              fontSize: 12, lineHeight: 1.2,
               color: 'var(--tb-accent)',
               background: 'var(--tb-bg-muted, #111)',
               border: '1px solid var(--tb-border-subtle)',
               borderRadius: 3,
               padding: '12px 16px',
-              fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
+              fontFamily: "'Inconsolata', monospace",
               whiteSpace: 'pre',
               overflow: 'auto',
               margin: 0,
@@ -454,7 +454,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
           >
             {asciiPreview}
           </pre>
-          <span style={{ fontSize: 9, color: 'var(--tb-fg-ghost)', marginTop: 4, display: 'block' }}>
+          <span style={{ fontSize: 11, color: 'var(--tb-fg-ghost)', marginTop: 4, display: 'block' }}>
             {drawerWidth}:{drawerHeight} ratio · {ANGLE_OPTIONS.find(a => a.id === angle)?.label}
           </span>
         </div>
@@ -465,10 +465,10 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
         <button
           onClick={handleGenerate}
           disabled={generating}
+          className="tb-btn"
           style={{
-            fontSize: 11, padding: '6px 20px', borderRadius: 3,
-            border: '1px solid var(--tb-border)', color: 'var(--tb-accent)',
-            background: 'transparent',
+            fontSize: 14, padding: '10px 24px', borderRadius: 3,
+            borderColor: 'var(--tb-border)', color: 'var(--tb-accent)',
             cursor: generating ? 'not-allowed' : 'pointer',
             opacity: generating ? 0.5 : 1,
           }}
@@ -478,7 +478,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
         {currentImages && !generating && (
           <button
             onClick={onReset}
-            style={{ fontSize: 11, color: 'var(--tb-fg-faint)', background: 'none', border: 'none', cursor: 'pointer' }}
+            style={{ fontSize: 14, color: 'var(--tb-fg-faint)', background: 'none', border: 'none', cursor: 'pointer' }}
           >
             reset to ASCII
           </button>
@@ -486,14 +486,14 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
       </div>
 
       {generating && (
-        <div style={{ fontSize: 11, color: 'var(--tb-highlight, var(--tb-accent))' }}>
+        <div style={{ fontSize: 14, color: 'var(--tb-highlight, var(--tb-accent))' }}>
           generating all 5 states — 30-60 seconds...
         </div>
       )}
 
       {error && (
         <div style={{
-          fontSize: 11, color: '#f87171',
+          fontSize: 14, color: '#f87171',
           background: 'rgba(248,113,113,0.1)',
           border: '1px solid rgba(248,113,113,0.2)',
           padding: 10, borderRadius: 3,
@@ -535,10 +535,10 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
                       {url ? (
                         <img src={url} alt={state} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                       ) : (
-                        <span style={{ fontSize: 9, color: 'var(--tb-fg-faint)' }}>...</span>
+                        <span style={{ fontSize: 11, color: 'var(--tb-fg-faint)' }}>...</span>
                       )}
                     </div>
-                    <span style={{ fontSize: 8, color: 'var(--tb-fg-faint)', marginTop: 2, display: 'block' }}>
+                    <span style={{ fontSize: 11, color: 'var(--tb-fg-faint)', marginTop: 2, display: 'block' }}>
                       {state.toLowerCase().replace('_', ' ')}
                     </span>
                   </div>
@@ -555,7 +555,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
           <button
             onClick={() => setDebugOpen(!debugOpen)}
             style={{
-              fontSize: 10, color: 'var(--tb-fg-faint)', background: 'none',
+              fontSize: 12, color: 'var(--tb-fg-faint)', background: 'none',
               border: 'none', cursor: 'pointer', letterSpacing: '0.08em',
               textTransform: 'uppercase' as const,
             }}
@@ -567,7 +567,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
               <div>
                 <label style={sectionLabel}>prompt sent to gemini</label>
                 <pre style={{
-                  fontSize: 9, lineHeight: 1.4, padding: 10, borderRadius: 3,
+                  fontSize: 12, lineHeight: 1.4, padding: 10, borderRadius: 3,
                   background: 'var(--tb-bg-muted)', color: 'var(--tb-fg-muted)',
                   border: '1px solid var(--tb-border-subtle)',
                   whiteSpace: 'pre-wrap', wordBreak: 'break-word',
@@ -579,7 +579,7 @@ export default function DrawerStylePicker({ userId, currentImages, onComplete, o
               {debugMeta?.spriteSize && (
                 <div>
                   <label style={sectionLabel}>sprite sheet</label>
-                  <span style={{ fontSize: 10, color: 'var(--tb-fg-muted)' }}>
+                  <span style={{ fontSize: 14, color: 'var(--tb-fg-muted)' }}>
                     {debugMeta.spriteSize.width} × {debugMeta.spriteSize.height}px — {debugMeta.spriteSize.frameCount} frames
                   </span>
                 </div>

@@ -105,7 +105,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
     <div className="space-y-5">
       {/* Mode Selector */}
       <div>
-        <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>embed mode</label>
+        <label className="text-[12px] block mb-2 tracking-[0.12em]" style={S.faint}>embed mode</label>
         <div className="grid grid-cols-3 gap-2">
           {MODES.map(m => (
             <button
@@ -118,8 +118,8 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
               }}
             >
               <div className="text-[14px] mb-1">{m.icon}</div>
-              <div className="text-[10px] tracking-[0.08em]" style={settings.mode === m.mode ? S.accent : S.faint}>{m.label}</div>
-              <div className="text-[8px] mt-[2px]" style={S.ghost}>{m.desc}</div>
+              <div className="text-[14px] tracking-[0.08em]" style={settings.mode === m.mode ? S.accent : S.faint}>{m.label}</div>
+              <div className="text-[11px] mt-[2px]" style={S.ghost}>{m.desc}</div>
             </button>
           ))}
         </div>
@@ -128,7 +128,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
       {/* Size Controls */}
       {showSizeControls && (
         <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-          <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>size</label>
+          <label className="text-[12px] block mb-2 tracking-[0.12em]" style={S.faint}>size</label>
 
           {/* Presets */}
           <div className="flex gap-0 mb-3">
@@ -141,7 +141,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
                     update({ width: p.width, height: p.height });
                     setAspectRatio(p.width / p.height);
                   }}
-                  className="text-[10px] px-[14px] py-[6px] border cursor-pointer transition-all"
+                  className="text-[14px] px-4 py-2 border cursor-pointer transition-all"
                   style={{
                     borderColor: active ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
                     color: active ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
@@ -157,7 +157,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
 
           {/* Width Slider */}
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[9px] w-5 shrink-0" style={S.ghost}>W</span>
+            <span className="text-[12px] w-5 shrink-0" style={S.ghost}>W</span>
             <input
               type="range" min={200} max={1200} step={10}
               value={settings.width}
@@ -169,15 +169,15 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
               type="number" min={200} max={1200} step={10}
               value={settings.width}
               onChange={e => setWidth(Number(e.target.value))}
-              className="w-16 bg-transparent text-[10px] p-1 text-right outline-none"
+              className="w-16 bg-transparent text-[14px] p-1 text-right outline-none"
               style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-accent)' }}
             />
-            <span className="text-[9px]" style={S.ghost}>px</span>
+            <span className="text-[12px]" style={S.ghost}>px</span>
           </div>
 
           {/* Height Slider */}
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[9px] w-5 shrink-0" style={S.ghost}>H</span>
+            <span className="text-[12px] w-5 shrink-0" style={S.ghost}>H</span>
             <input
               type="range" min={200} max={1200} step={10}
               value={settings.height}
@@ -189,10 +189,10 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
               type="number" min={200} max={1200} step={10}
               value={settings.height}
               onChange={e => setHeight(Number(e.target.value))}
-              className="w-16 bg-transparent text-[10px] p-1 text-right outline-none"
+              className="w-16 bg-transparent text-[14px] p-1 text-right outline-none"
               style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-accent)' }}
             />
-            <span className="text-[9px]" style={S.ghost}>px</span>
+            <span className="text-[12px]" style={S.ghost}>px</span>
           </div>
 
           {/* Aspect Lock */}
@@ -201,7 +201,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
               if (!aspectLocked) setAspectRatio(settings.width / settings.height);
               setAspectLocked(!aspectLocked);
             }}
-            className="flex items-center gap-[6px] cursor-pointer text-[9px] mt-1"
+            className="flex items-center gap-2 cursor-pointer text-[12px] mt-1"
             style={aspectLocked ? S.accent : S.ghost}
           >
             <span>{aspectLocked ? '🔗' : '⛓️‍💥'}</span>
@@ -213,7 +213,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
       {/* Position Controls */}
       {showPositionControls && (
         <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-          <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>
+          <label className="text-[12px] block mb-2 tracking-[0.12em]" style={S.faint}>
             {settings.mode === 'floating' ? 'position' : 'pin position'}
           </label>
 
@@ -233,14 +233,14 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
                 {c.label}
               </button>
             ))}
-            <div className="absolute inset-0 flex items-center justify-center text-[8px]" style={S.ghost}>
+            <div className="absolute inset-0 flex items-center justify-center text-[11px]" style={S.ghost}>
               click corner
             </div>
           </div>
 
           {/* Offset Sliders */}
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[9px] w-5 shrink-0" style={S.ghost}>X</span>
+            <span className="text-[12px] w-5 shrink-0" style={S.ghost}>X</span>
             <input
               type="range" min={0} max={50} step={1}
               value={settings.position.xPercent}
@@ -248,10 +248,10 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
               className="flex-1"
               style={{ accentColor: 'var(--tb-accent)' }}
             />
-            <span className="text-[10px] min-w-[28px] text-right" style={S.faint}>{settings.position.xPercent}%</span>
+            <span className="text-[14px] min-w-[32px] text-right" style={S.faint}>{settings.position.xPercent}%</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[9px] w-5 shrink-0" style={S.ghost}>Y</span>
+            <span className="text-[12px] w-5 shrink-0" style={S.ghost}>Y</span>
             <input
               type="range" min={0} max={50} step={1}
               value={settings.position.yPercent}
@@ -259,9 +259,9 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
               className="flex-1"
               style={{ accentColor: 'var(--tb-accent)' }}
             />
-            <span className="text-[10px] min-w-[28px] text-right" style={S.faint}>{settings.position.yPercent}%</span>
+            <span className="text-[14px] min-w-[32px] text-right" style={S.faint}>{settings.position.yPercent}%</span>
           </div>
-          <p className="text-[8px] mt-2" style={S.ghost}>
+          <p className="text-[11px] mt-2" style={S.ghost}>
             offset from {settings.position.anchor} corner — adapts to window size
           </p>
         </div>
@@ -270,7 +270,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
       {/* Website Preview (Full-page mode) */}
       {showWebsitePreview && (
         <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-          <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>website preview — click to pin</label>
+          <label className="text-[12px] block mb-2 tracking-[0.12em]" style={S.faint}>website preview — click to pin</label>
           <WebsitePreview
             url={settings.previewUrl || ''}
             onUrlChange={url => update({ previewUrl: url })}
@@ -289,7 +289,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
                 <button
                   key={p.label}
                   onClick={() => update({ width: p.width, height: p.height })}
-                  className="text-[10px] px-[14px] py-[6px] border cursor-pointer transition-all"
+                  className="text-[14px] px-4 py-2 border cursor-pointer transition-all"
                   style={{
                     borderColor: active ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
                     color: active ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
@@ -319,14 +319,14 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange }: 
           {settings.mode === 'contained' ? 'iframe embed code' : 'script embed code'}
         </label>
         <pre
-          className="p-3 text-[9px] overflow-x-auto whitespace-pre-wrap break-all leading-relaxed"
+          className="p-3 text-[12px] overflow-x-auto whitespace-pre-wrap break-all leading-relaxed"
           style={{ background: 'var(--tb-bg-muted)', color: 'var(--tb-fg-muted)' }}
         >
           {getEmbedCode()}
         </pre>
         <button
           onClick={handleCopy}
-          className="mt-[6px] text-[9px] px-3 py-1 cursor-pointer transition-colors"
+          className="mt-[6px] text-[12px] px-4 py-2 cursor-pointer transition-colors"
           style={{
             border: '1px solid var(--tb-border)',
             color: copied === 'embed' ? 'var(--tb-accent)' : 'var(--tb-fg-muted)',

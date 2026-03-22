@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import type { TreasureItem } from '@/lib/types';
 
 interface Props {
@@ -15,14 +16,26 @@ export default function StoryCard({ item, onClose, isLight }: Props) {
   const fg = isLight ? '#4a4a40' : '#8a8a7a';
   const rust = isLight ? '#8a5a30' : '#8a6a4a';
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
     <div
       className="fixed inset-0 z-[300] flex items-center justify-center cursor-pointer"
       style={{ background: 'rgba(0,0,0,0.88)' }}
       onClick={onClose}
+      aria-label="Close story"
     >
       <div
         className="font-mono rounded-sm max-w-[400px] w-full mx-4"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Story: ${item.label}`}
         style={{
           background: bg,
           border: `1px solid ${border}`,
@@ -44,7 +57,7 @@ export default function StoryCard({ item, onClose, isLight }: Props) {
 
         {/* Label */}
         <div
-          className="text-center text-[14px] font-medium mb-2"
+          className="text-center text-[16px] font-medium mb-2"
           style={{ color: accent }}
         >
           {item.label}
@@ -53,7 +66,7 @@ export default function StoryCard({ item, onClose, isLight }: Props) {
         {/* Story text */}
         {item.story && (
           <div
-            className="text-center text-[12px] leading-[1.7] mb-4"
+            className="text-center text-[14px] leading-[1.7] mb-4"
             style={{ color: fg }}
           >
             &ldquo;{item.story}&rdquo;
@@ -70,7 +83,7 @@ export default function StoryCard({ item, onClose, isLight }: Props) {
               href={item.link}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[11px] no-underline transition-colors hover:opacity-80"
+              className="text-[12px] no-underline transition-colors hover:opacity-80"
               style={{ color: rust }}
             >
               → visit link
@@ -79,8 +92,8 @@ export default function StoryCard({ item, onClose, isLight }: Props) {
         )}
 
         {/* Close hint */}
-        <div className="text-center mt-4 text-[9px] opacity-30">
-          click anywhere to close
+        <div className="text-center mt-4 text-[11px] opacity-30">
+          click anywhere or press Esc to close
         </div>
       </div>
     </div>

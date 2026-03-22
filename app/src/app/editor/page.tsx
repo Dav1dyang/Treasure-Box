@@ -15,6 +15,7 @@ import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
 import { extractContourFromImage } from '@/lib/contour';
 import EmbedConfigurator from '@/components/EmbedConfigurator';
+import EditorWizard from '@/components/EditorWizard';
 
 const DEFAULT_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'> = {
   title: 'My Treasure Box',
@@ -31,23 +32,36 @@ const SOUND_PRESETS: SoundPreset[] = ['metallic', 'wooden', 'glass', 'paper', 's
 function VolumeBar({ volume, onChange }: { volume: number; onChange: (v: number) => void }) {
   const steps = 10;
   const filled = Math.round(volume * steps);
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      onChange(Math.min(1, volume + 0.1));
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      onChange(Math.max(0, volume - 0.1));
+    }
+  };
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2" role="slider" aria-label="Volume"
+      aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(volume * 100)}
+      tabIndex={0} onKeyDown={onKeyDown}>
       <div className="flex gap-[3px] items-end">
         {Array.from({ length: steps }, (_, i) => (
           <button
             key={i}
             onClick={() => onChange((i + 1) / steps)}
             className="cursor-pointer border transition-all"
+            tabIndex={-1}
+            aria-label={`Set volume to ${(i + 1) * 10}%`}
             style={{
-              width: 14, height: 6 + i * 2,
+              width: 18, height: 8 + i * 2,
               background: i < filled ? 'var(--tb-accent)' : 'var(--tb-bg-muted)',
               borderColor: i < filled ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
             }}
           />
         ))}
       </div>
-      <span className="text-[10px] min-w-[28px]" style={{ color: 'var(--tb-fg-faint)' }}>
+      <span className="text-[14px] min-w-[36px]" style={{ color: 'var(--tb-fg-faint)' }}>
         {Math.round(volume * 100)}%
       </span>
     </div>
@@ -70,7 +84,7 @@ function Dial({ value, min, max, step, label, format, onChange, snap }: {
   const sweep = 270;
   const angle = startAngle + normalized * sweep;
 
-  const r = 18; const cx = 22; const cy = 22;
+  const r = 23; const cx = 28; const cy = 28;
   const toXY = (deg: number) => ({
     x: cx + r * Math.cos((deg * Math.PI) / 180),
     y: cy + r * Math.sin((deg * Math.PI) / 180),
@@ -118,10 +132,24 @@ function Dial({ value, min, max, step, label, format, onChange, snap }: {
     draggingRef.current = false;
   }, []);
 
+  const onKeyDown = useCallback((e: React.KeyboardEvent) => {
+    let newVal = value;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      newVal = Math.min(max, value + step);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      newVal = Math.max(min, value - step);
+    } else return;
+    e.preventDefault();
+    onChange(snap ? snap(newVal) : newVal);
+  }, [value, min, max, step, onChange, snap]);
+
   return (
     <div className="flex flex-col items-center gap-0">
-      <svg ref={dialRef} width={44} height={44} className="cursor-pointer"
+      <svg ref={dialRef} width={56} height={56} className="cursor-pointer"
+        tabIndex={0} role="slider" aria-label={label}
+        aria-valuemin={min} aria-valuemax={max} aria-valuenow={value}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+        onKeyDown={onKeyDown}
         style={{ touchAction: 'none' }}>
         {/* Track */}
         <path d={arcPath(trackStart, trackEnd, sweep)} fill="none"
@@ -135,11 +163,11 @@ function Dial({ value, min, max, step, label, format, onChange, snap }: {
         <circle cx={valPos.x} cy={valPos.y} r={3.5} fill="var(--tb-accent)" />
         {/* Center label */}
         <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle"
-          fill="var(--tb-fg-faint)" fontSize={8} fontFamily="'IBM Plex Mono', monospace">
+          fill="var(--tb-fg-faint)" fontSize={9} fontFamily="'Inconsolata', monospace">
           {format(value)}
         </text>
       </svg>
-      <span className="text-[8px] mt-[-2px]" style={{ color: 'var(--tb-fg-ghost)' }}>{label}</span>
+      <span className="text-[11px] mt-[-2px]" style={{ color: 'var(--tb-fg-ghost)' }}>{label}</span>
     </div>
   );
 }
@@ -150,7 +178,8 @@ export default function EditorPage() {
   const [config, setConfig] = useState<BoxConfig | null>(null);
   const [items, setItems] = useState<TreasureItem[]>([]);
   const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState<'items' | 'config' | 'embed'>('items');
+  const [tab, setTab] = useState<'box' | 'items' | 'config' | 'embed'>('box');
+  const [isFirstTime, setIsFirstTime] = useState<boolean | null>(null);
   const [removingBg, setRemovingBg] = useState<string | null>(null);
   const [bgError, setBgError] = useState<string | null>(null);
   const [isTransparentBg, setIsTransparentBg] = useState(true);
@@ -168,13 +197,16 @@ export default function EditorPage() {
     configLoadedRef.current = false;
     (async () => {
       let box = await getBoxConfig(user.uid);
+      const wasNew = !box;
       if (!box) {
         box = { ...DEFAULT_CONFIG, id: user.uid, ownerId: user.uid, createdAt: Date.now(), updatedAt: Date.now() };
         await saveBoxConfig(box);
       }
       setConfig(box);
       setIsTransparentBg(box.backgroundColor === 'transparent');
-      setItems(await getItems(user.uid));
+      const loadedItems = await getItems(user.uid);
+      setItems(loadedItems);
+      setIsFirstTime(wasNew || (!box.drawerImages && loadedItems.length === 0));
       // Mark loaded so auto-save doesn't fire on initial load
       setTimeout(() => { configLoadedRef.current = true; }, 100);
     })();
@@ -278,7 +310,7 @@ export default function EditorPage() {
     return (
       <div className="min-h-screen flex items-center justify-center font-mono" style={{ background: 'var(--tb-bg)' }}>
         <div className="text-center">
-          <pre className="text-[9px] mb-8 leading-relaxed" style={{ color: 'var(--tb-fg-faint)' }}>
+          <pre className="text-[12px] mb-8 leading-relaxed" style={{ color: 'var(--tb-fg-faint)' }}>
 {`╔════════════════════════╗
 ║   T R E A S U R E      ║
 ║       B O X            ║
@@ -288,7 +320,7 @@ export default function EditorPage() {
           </pre>
           <button
             onClick={signIn}
-            className="font-mono text-[10px] px-8 py-3 transition-colors cursor-pointer tracking-[0.12em]"
+            className="font-mono text-[14px] px-8 py-3 transition-colors cursor-pointer tracking-[0.12em]"
             style={{ border: '1px solid var(--tb-border)', color: 'var(--tb-accent)' }}
           >
             sign in with Google →
@@ -306,21 +338,56 @@ export default function EditorPage() {
     muted: { color: 'var(--tb-fg-muted)' },
   };
 
+  // Wizard mode for first-time users
+  if (isFirstTime === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center font-mono" style={{ background: 'var(--tb-bg)' }}>
+        <div className="text-sm animate-pulse" style={{ color: 'var(--tb-fg-faint)' }}>loading editor...</div>
+      </div>
+    );
+  }
+
+  if (isFirstTime && config) {
+    return (
+      <div className="h-screen font-mono flex flex-col overflow-hidden" style={{ background: 'var(--tb-bg)', color: 'var(--tb-fg)' }}>
+        <header className="px-5 h-12 flex items-center justify-between text-[14px] shrink-0" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
+          <Link href="/" className="uppercase tracking-[0.12em] no-underline" style={{ color: 'var(--tb-accent)' }}>treasure box</Link>
+          <div className="flex items-center gap-4">
+            <button onClick={() => setIsFirstTime(false)} className="cursor-pointer text-[12px]" style={{ color: 'var(--tb-fg-faint)' }}>
+              skip wizard
+            </button>
+            <button onClick={toggleTheme} className="cursor-pointer" style={{ color: 'var(--tb-fg-faint)' }} aria-label="Toggle theme">
+              {theme === 'dark' ? '○' : '●'}
+            </button>
+          </div>
+        </header>
+        <EditorWizard
+          userId={user.uid}
+          config={config}
+          items={items}
+          onConfigChange={c => setConfig(c)}
+          onItemsChange={i => setItems(i)}
+          onComplete={() => setIsFirstTime(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen font-mono flex flex-col overflow-hidden" style={{ background: 'var(--tb-bg)', color: 'var(--tb-fg)' }}>
       {/* Header */}
-      <header className="px-5 h-11 flex items-center justify-between text-[10px] shrink-0" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
+      <header className="px-5 h-12 flex items-center justify-between text-[14px] shrink-0" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
         <div className="flex items-center gap-3">
           <Link href="/" className="uppercase tracking-[0.12em] no-underline" style={S.accent}>treasure box</Link>
           <span className="hidden sm:inline" style={S.ghost}>|</span>
           <span className="hidden sm:inline" style={S.faint}>{user.email}</span>
         </div>
         <div className="flex items-center gap-4">
-          <button onClick={toggleTheme} className="cursor-pointer" style={S.faint} title="Toggle theme">
+          <button onClick={toggleTheme} className="cursor-pointer" style={S.faint} title="Toggle theme" aria-label="Toggle theme">
             {theme === 'dark' ? '○' : '●'}
           </button>
           <Link href="/" className="no-underline" style={S.accent}>back to home</Link>
-          <button onClick={logOut} className="cursor-pointer" style={S.faint}>sign out</button>
+          <button onClick={logOut} className="cursor-pointer" style={S.faint} aria-label="Sign out">sign out</button>
         </div>
       </header>
 
@@ -328,11 +395,11 @@ export default function EditorPage() {
         {/* LEFT: Edit Panel */}
         <div className="flex flex-col min-h-0 overflow-hidden" style={{ borderRight: '1px solid var(--tb-border-subtle)' }}>
           <nav className="flex shrink-0" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-            {(['items', 'config', 'embed'] as const).map(t => (
+            {(['box', 'items', 'config', 'embed'] as const).map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className="px-4 py-[10px] text-[10px] tracking-[0.12em] border-b-2 transition-colors cursor-pointer"
+                className="px-5 py-3 text-[14px] tracking-[0.12em] border-b-2 transition-colors cursor-pointer"
                 style={{
                   borderBottomColor: tab === t ? 'var(--tb-accent)' : 'transparent',
                   color: tab === t ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
@@ -345,23 +412,38 @@ export default function EditorPage() {
           </nav>
 
           <div className="flex-1 overflow-y-auto min-h-0 p-4">
+            {/* BOX (Drawer Appearance) */}
+            {tab === 'box' && config && user && (
+              <div>
+                <h2 className="text-[14px] tracking-[0.12em] uppercase mb-4" style={{ color: 'var(--tb-accent)' }}>
+                  drawer appearance (AI generated)
+                </h2>
+                <DrawerStylePicker
+                  userId={user.uid}
+                  currentImages={config.drawerImages || undefined}
+                  onComplete={(images: DrawerImages) => { skipAutoSaveRef.current = true; setConfig({ ...config, drawerImages: images }); }}
+                  onReset={async () => { await clearDrawerImages(user.uid); setConfig({ ...config, drawerImages: undefined }); }}
+                />
+              </div>
+            )}
+
             {/* ITEMS */}
             {tab === 'items' && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-[11px] tracking-[0.12em] uppercase" style={S.accent}>items ({items.length}/{config?.maxItems || 15})</h2>
+                  <h2 className="text-[14px] tracking-[0.12em] uppercase" style={S.accent}>items ({items.length}/{config?.maxItems || 15})</h2>
                   {items.length >= (config?.maxItems || 15) ? (
-                    <span className="text-[10px] px-[14px] py-[6px] tracking-[0.12em]" style={S.faint}>max reached</span>
+                    <span className="text-[14px] px-4 py-2 tracking-[0.12em]" style={S.faint}>max reached</span>
                   ) : (
-                    <label className="text-[10px] px-[14px] py-[6px] cursor-pointer tracking-[0.12em] transition-colors"
+                    <label className="text-[14px] px-4 py-2 cursor-pointer tracking-[0.12em] transition-colors"
                       style={{ border: '1px solid var(--tb-border)', ...S.accent }}>
                       + upload
                       <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUpload} className="hidden" />
                     </label>
                   )}
                 </div>
-                {removingBg && <div className="text-[10px] mb-3 animate-pulse" style={{ color: 'var(--tb-highlight)' }}>removing background...</div>}
-                {bgError && <div className="text-[10px] mb-3" style={{ color: '#c44' }}>bg removal failed: {bgError}</div>}
+                {removingBg && <div className="text-[14px] mb-3 animate-pulse" style={{ color: 'var(--tb-highlight)' }}>removing background...</div>}
+                {bgError && <div className="text-[14px] mb-3" style={{ color: '#c44' }}>bg removal failed: {bgError}</div>}
                 <div className="space-y-2">
                   {items.map(item => (
                     <div key={item.id} className="p-3 transition-colors" style={{ border: '1px solid var(--tb-border-subtle)' }}>
@@ -371,11 +453,11 @@ export default function EditorPage() {
                         </div>
                         <div className="flex flex-col gap-[6px] min-w-0">
                           <input value={item.label} onChange={e => handleUpdateItem(item.id, { label: e.target.value })} placeholder="label"
-                            className="w-full bg-transparent text-[11px] pb-[2px] outline-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', ...S.accent }} />
+                            className="w-full bg-transparent text-[14px] pb-[2px] outline-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', ...S.accent }} />
                           <input value={item.link || ''} onChange={e => handleUpdateItem(item.id, { link: e.target.value })} placeholder="link (https://...)"
-                            className="w-full bg-transparent text-[10px] pb-[2px] outline-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
+                            className="w-full bg-transparent text-[14px] pb-[2px] outline-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
                           <textarea value={item.story || ''} onChange={e => handleUpdateItem(item.id, { story: e.target.value })} placeholder="story (shown on long-press)" rows={2}
-                            className="w-full bg-transparent text-[10px] pb-[2px] outline-none resize-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
+                            className="w-full bg-transparent text-[14px] pb-[2px] outline-none resize-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
                         </div>
                         <div className="flex flex-col items-center justify-center gap-1">
                           <Dial value={item.rotation ?? 0} min={0} max={360} step={1}
@@ -390,7 +472,7 @@ export default function EditorPage() {
                       </div>
                     </div>
                   ))}
-                  {items.length === 0 && <div className="text-center py-12 text-[10px]" style={S.faint}>no items yet — upload your first treasure</div>}
+                  {items.length === 0 && <div className="text-center py-12 text-[14px]" style={S.faint}>no items yet — upload your first treasure</div>}
                 </div>
               </div>
             )}
@@ -410,7 +492,7 @@ export default function EditorPage() {
                 <CfgSection>
                   <CfgLabel>owner name (optional)</CfgLabel>
                   <input type="text" value={config.ownerName || ''} onChange={e => setConfig({ ...config, ownerName: e.target.value })}
-                    placeholder="displayed on your box" className="w-full bg-transparent text-[10px] p-2 outline-none"
+                    placeholder="displayed on your box" className="w-full bg-transparent text-[14px] p-2 outline-none"
                     style={{ border: '1px solid var(--tb-border-subtle)', ...S.accent }} />
                   <CfgHint>shown at the bottom corner of your treasure box</CfgHint>
                 </CfgSection>
@@ -418,19 +500,19 @@ export default function EditorPage() {
                 <CfgSection>
                   <CfgLabel>drawer label</CfgLabel>
                   <input type="text" value={config.drawerLabel} onChange={e => setConfig({ ...config, drawerLabel: e.target.value })}
-                    className="w-full bg-transparent text-[10px] p-2 outline-none"
+                    className="w-full bg-transparent text-[14px] p-2 outline-none"
                     style={{ border: '1px solid var(--tb-border-subtle)', ...S.accent }} />
                 </CfgSection>
 
                 <CfgSection>
                   <CfgLabel>background</CfgLabel>
-                  <label className="flex items-center gap-[6px] mb-[10px] cursor-pointer">
+                  <label className="flex items-center gap-2 mb-[10px] cursor-pointer">
                     <div onClick={() => { const n = !isTransparentBg; setIsTransparentBg(n); setConfig({ ...config, backgroundColor: n ? 'transparent' : '#0e0e0e' }); }}
-                      className="w-[14px] h-[14px] flex items-center justify-center text-[10px] shrink-0"
+                      className="w-[18px] h-[18px] flex items-center justify-center text-[12px] shrink-0"
                       style={{ border: '1px solid var(--tb-border)', ...S.accent, background: isTransparentBg ? 'var(--tb-bg-muted)' : 'transparent' }}>
                       {isTransparentBg ? '\u2713' : ''}
                     </div>
-                    <span className="text-[10px]" style={S.muted}>transparent (default)</span>
+                    <span className="text-[14px]" style={S.muted}>transparent (default)</span>
                   </label>
                   <div className="flex items-center gap-3">
                     <input type="color" value={config.backgroundColor === 'transparent' ? '#0e0e0e' : config.backgroundColor}
@@ -438,7 +520,7 @@ export default function EditorPage() {
                       className="w-11 h-11 bg-transparent cursor-pointer p-0" style={{ border: '1px solid var(--tb-border)' }} />
                     <input type="text" value={config.backgroundColor}
                       onChange={e => { setIsTransparentBg(e.target.value === 'transparent'); setConfig({ ...config, backgroundColor: e.target.value }); }}
-                      className="w-20 bg-transparent text-[10px] p-2 outline-none" style={{ border: '1px solid var(--tb-border-subtle)', ...S.accent }} placeholder="#hex" />
+                      className="w-24 bg-transparent text-[14px] p-2 outline-none" style={{ border: '1px solid var(--tb-border-subtle)', ...S.accent }} placeholder="#hex" />
                   </div>
                   <CfgHint>transparent inherits the background of the page it&apos;s embedded on</CfgHint>
                 </CfgSection>
@@ -470,13 +552,13 @@ export default function EditorPage() {
                       className="flex-1"
                       style={{ accentColor: 'var(--tb-accent)' }}
                     />
-                    <span className="text-[10px] min-w-[32px] text-right font-mono" style={S.accent}>
+                    <span className="text-[14px] min-w-[40px] text-right font-mono" style={S.accent}>
                       {(config.contentScale ?? 1).toFixed(2)}&times;
                     </span>
                     {(config.contentScale ?? 1) !== 1 && (
                       <button
                         onClick={() => setConfig({ ...config, contentScale: 1 })}
-                        className="text-[9px] px-2 py-[2px] cursor-pointer"
+                        className="text-[12px] px-3 py-1 cursor-pointer"
                         style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)' }}
                       >
                         reset
@@ -486,25 +568,25 @@ export default function EditorPage() {
                   <CfgHint>scales drawer, items, and physics walls (0.5× – 2.0×) — reopen drawer to see effect</CfgHint>
                 </CfgSection>
 
-                <div className="text-[10px] tracking-[0.12em] mb-6 h-6 flex items-center" style={S.faint}>
+                <div className="text-[14px] tracking-[0.12em] mb-6 h-6 flex items-center" style={S.faint}>
                   {configStatus === 'saving' && <span className="animate-pulse">saving...</span>}
                   {configStatus === 'saved' && <span style={S.accent}>saved &#10003;</span>}
                   {configStatus === 'idle' && <span style={S.ghost}>auto-saves on change</span>}
                 </div>
 
                 <div className="pt-6 mt-2" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
-                  <h3 className="text-[11px] mb-4 tracking-[0.12em] uppercase" style={S.accent}>danger zone</h3>
+                  <h3 className="text-[14px] mb-4 tracking-[0.12em] uppercase" style={S.accent}>danger zone</h3>
                   {!showDeleteConfirm ? (
                     <button
                       onClick={() => setShowDeleteConfirm(true)}
-                      className="text-[10px] px-[14px] py-[6px] cursor-pointer tracking-[0.12em] transition-colors"
+                      className="text-[14px] px-4 py-2 cursor-pointer tracking-[0.12em] transition-colors"
                       style={{ border: '1px solid #c44', color: '#c44', background: 'transparent' }}
                     >
                       delete my box
                     </button>
                   ) : (
                     <div className="p-3" style={{ border: '1px solid #c44' }}>
-                      <p className="text-[10px] mb-3" style={{ color: '#c44' }}>
+                      <p className="text-[14px] mb-3" style={{ color: '#c44' }}>
                         This will permanently delete your box, all items, and all images. This cannot be undone.
                       </p>
                       <div className="flex gap-2">
@@ -519,14 +601,14 @@ export default function EditorPage() {
                             window.location.href = '/';
                           }}
                           disabled={deleting}
-                          className="text-[10px] px-[14px] py-[6px] cursor-pointer tracking-[0.12em]"
+                          className="text-[14px] px-4 py-2 cursor-pointer tracking-[0.12em]"
                           style={{ border: '1px solid #c44', color: '#fff', background: '#c44', opacity: deleting ? 0.5 : 1 }}
                         >
                           {deleting ? 'deleting...' : 'confirm delete'}
                         </button>
                         <button
                           onClick={() => setShowDeleteConfirm(false)}
-                          className="text-[10px] px-[14px] py-[6px] cursor-pointer tracking-[0.12em]"
+                          className="text-[14px] px-4 py-2 cursor-pointer tracking-[0.12em]"
                           style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)', background: 'transparent' }}
                         >
                           cancel
@@ -536,15 +618,6 @@ export default function EditorPage() {
                   )}
                 </div>
 
-                <div className="pt-6 mt-2" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
-                  <h3 className="text-[11px] mb-4 tracking-[0.12em] uppercase" style={S.accent}>drawer appearance (AI generated)</h3>
-                  <DrawerStylePicker
-                    userId={user.uid}
-                    currentImages={config.drawerImages || undefined}
-                    onComplete={(images: DrawerImages) => { skipAutoSaveRef.current = true; setConfig({ ...config, drawerImages: images }); }}
-                    onReset={async () => { await clearDrawerImages(user.uid); setConfig({ ...config, drawerImages: undefined }); }}
-                  />
-                </div>
               </div>
             )}
 
@@ -562,8 +635,8 @@ export default function EditorPage() {
         {/* RIGHT: Live Preview */}
         <div className="flex flex-col overflow-hidden" style={{ background: 'var(--tb-bg-subtle)' }}>
           <div className="flex items-center justify-between px-4 py-[10px] shrink-0" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-            <span className="text-[10px] tracking-[0.12em]" style={S.faint}>live preview</span>
-            <span className="text-[9px] px-2 py-[2px] tracking-widest uppercase" style={{ ...S.ghost, border: '1px solid var(--tb-border-subtle)' }}>live</span>
+            <span className="text-[14px] tracking-[0.12em]" style={S.faint}>live preview</span>
+            <span className="text-[11px] px-2 py-[2px] tracking-widest uppercase" style={{ ...S.ghost, border: '1px solid var(--tb-border-subtle)' }}>live</span>
           </div>
           <div className="flex-1 flex items-center justify-center relative overflow-hidden"
             style={{
@@ -603,7 +676,7 @@ export default function EditorPage() {
                     >
                       <TreasureBox items={items} config={config} />
                     </div>
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[8px] px-2 py-1" style={{ ...S.ghost, background: 'var(--tb-bg)', border: '1px solid var(--tb-border-subtle)' }}>
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[11px] px-2 py-1" style={{ ...S.ghost, background: 'var(--tb-bg)', border: '1px solid var(--tb-border-subtle)' }}>
                       items will fly across the host page
                     </div>
                   </>
@@ -634,7 +707,7 @@ export default function EditorPage() {
                     <TreasureBox items={items} config={config} />
                   </div>
                 )}
-                {config?.ownerName && <div className="absolute bottom-2 left-3 text-[8px] tracking-wider" style={S.faint}>{config.ownerName}</div>}
+                {config?.ownerName && <div className="absolute bottom-2 left-3 text-[11px] tracking-wider" style={S.faint}>{config.ownerName}</div>}
               </>
             )}
           </div>
@@ -648,14 +721,14 @@ function CfgSection({ children }: { children: React.ReactNode }) {
   return <div className="mb-5 pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>{children}</div>;
 }
 function CfgLabel({ children }: { children: React.ReactNode }) {
-  return <label className="text-[10px] block mb-2 tracking-[0.12em]" style={{ color: 'var(--tb-fg-faint)' }}>{children}</label>;
+  return <label className="text-[12px] block mb-2 tracking-[0.12em]" style={{ color: 'var(--tb-fg-faint)' }}>{children}</label>;
 }
 function CfgHint({ children }: { children: React.ReactNode }) {
-  return <p className="text-[9px] mt-[6px]" style={{ color: 'var(--tb-fg-ghost)' }}>{children}</p>;
+  return <p className="text-[11px] mt-[6px]" style={{ color: 'var(--tb-fg-ghost)' }}>{children}</p>;
 }
 function CfgToggle({ active, first, children, onClick }: { active: boolean; first?: boolean; children: React.ReactNode; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="text-[10px] px-[14px] py-[6px] border cursor-pointer transition-all"
+    <button onClick={onClick} className="text-[14px] px-4 py-2 border cursor-pointer transition-all"
       style={{
         borderColor: active ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
         color: active ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',

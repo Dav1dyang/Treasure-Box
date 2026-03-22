@@ -43,7 +43,7 @@ export default function BoxDimensionEditor({ dimensions, onChange }: Props) {
           <div className="flex gap-4 overflow-x-auto pb-2">
             {STATE_ORDER.map(state => (
               <div key={state} className="flex-shrink-0">
-                <div className="text-[9px] mb-1 text-center" style={{ color: 'var(--tb-fg-faint)' }}>{state}</div>
+                <div className="text-[11px] mb-1 text-center" style={{ color: 'var(--tb-fg-faint)' }}>{state}</div>
                 <ASCIIPreview dimensions={dimensions} state={state} compact />
               </div>
             ))}
@@ -61,7 +61,7 @@ export default function BoxDimensionEditor({ dimensions, onChange }: Props) {
           <label className="text-xs" style={{ color: 'var(--tb-fg-faint)' }}>preview state</label>
           <button
             onClick={() => setShowAllStates(!showAllStates)}
-            className="text-[10px] cursor-pointer"
+            className="text-[14px] cursor-pointer"
             style={{ color: 'var(--tb-highlight, var(--tb-accent))' }}
           >
             {showAllStates ? 'single view' : 'show all 5 states'}
@@ -73,7 +73,7 @@ export default function BoxDimensionEditor({ dimensions, onChange }: Props) {
               <button
                 key={state}
                 onClick={() => setPreviewState(state)}
-                className="text-[10px] px-2 py-1 border rounded-sm cursor-pointer transition-colors"
+                className="text-[14px] px-3 py-2 border rounded-sm cursor-pointer transition-colors"
                 style={{
                   borderColor: previewState === state ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
                   color: previewState === state ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
@@ -118,7 +118,7 @@ export default function BoxDimensionEditor({ dimensions, onChange }: Props) {
         <div className="space-y-2">
           {STATE_ORDER.map(state => (
             <div key={state} className="flex items-center gap-3">
-              <span className="text-[10px] w-24 flex-shrink-0" style={{ color: 'var(--tb-fg-faint)' }}>{STATE_LABELS[state]}</span>
+              <span className="text-[14px] w-28 flex-shrink-0" style={{ color: 'var(--tb-fg-faint)' }}>{STATE_LABELS[state]}</span>
               <input
                 type="range"
                 min="0"
@@ -128,7 +128,7 @@ export default function BoxDimensionEditor({ dimensions, onChange }: Props) {
                 className="flex-1 h-1"
                 style={{ accentColor: 'var(--tb-accent)' }}
               />
-              <span className="text-[10px] w-8 text-right" style={{ color: 'var(--tb-fg-muted)' }}>
+              <span className="text-[14px] w-10 text-right" style={{ color: 'var(--tb-fg-muted)' }}>
                 {dimensions.drawerPullout[state]}%
               </span>
             </div>
@@ -145,7 +145,7 @@ export default function BoxDimensionEditor({ dimensions, onChange }: Props) {
               <button
                 key={style}
                 onClick={() => update({ handleStyle: style })}
-                className="text-[10px] px-2 py-1 border rounded-sm cursor-pointer"
+                className="text-[14px] px-3 py-2 border rounded-sm cursor-pointer"
                 style={{
                   borderColor: dimensions.handleStyle === style ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
                   color: dimensions.handleStyle === style ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
@@ -163,7 +163,7 @@ export default function BoxDimensionEditor({ dimensions, onChange }: Props) {
               <button
                 key={style}
                 onClick={() => update({ cornerStyle: style })}
-                className="text-[10px] px-2 py-1 border rounded-sm cursor-pointer"
+                className="text-[14px] px-3 py-2 border rounded-sm cursor-pointer"
                 style={{
                   borderColor: dimensions.cornerStyle === style ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
                   color: dimensions.cornerStyle === style ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
@@ -185,7 +185,7 @@ export default function BoxDimensionEditor({ dimensions, onChange }: Props) {
             onChange={e => update({ hasRivets: e.target.checked })}
             style={{ accentColor: 'var(--tb-accent)' }}
           />
-          <span className="text-[10px]" style={{ color: 'var(--tb-fg-muted)' }}>rivets / bolts</span>
+          <span className="text-[14px]" style={{ color: 'var(--tb-fg-muted)' }}>rivets / bolts</span>
         </label>
         <label className="flex items-center gap-2 cursor-pointer">
           <input
@@ -194,14 +194,14 @@ export default function BoxDimensionEditor({ dimensions, onChange }: Props) {
             onChange={e => update({ hasKeyhole: e.target.checked })}
             style={{ accentColor: 'var(--tb-accent)' }}
           />
-          <span className="text-[10px]" style={{ color: 'var(--tb-fg-muted)' }}>keyhole</span>
+          <span className="text-[14px]" style={{ color: 'var(--tb-fg-muted)' }}>keyhole</span>
         </label>
       </div>
 
       {/* Reset */}
       <button
         onClick={() => onChange(DEFAULT_BOX_DIMENSIONS)}
-        className="text-[10px] cursor-pointer"
+        className="text-[14px] cursor-pointer"
         style={{ color: 'var(--tb-fg-faint)' }}
       >
         reset to defaults
@@ -228,8 +228,8 @@ function SliderControl({
   return (
     <div>
       <div className="flex justify-between mb-1">
-        <label className="text-[10px]" style={{ color: 'var(--tb-fg-faint)' }}>{label}</label>
-        <span className="text-[10px]" style={{ color: 'var(--tb-fg-muted)' }}>{value}</span>
+        <label className="text-[14px]" style={{ color: 'var(--tb-fg-faint)' }}>{label}</label>
+        <span className="text-[14px]" style={{ color: 'var(--tb-fg-muted)' }}>{value}</span>
       </div>
       <input
         type="range"
@@ -262,7 +262,7 @@ function ASCIIPreview({
 
   return (
     <pre
-      className={`font-mono leading-[1.25] select-all ${compact ? 'text-[7px]' : 'text-[10px]'}`}
+      className={`font-mono leading-[1.25] select-all ${compact ? 'text-[9px]' : 'text-[12px]'}`}
       style={{ color: 'var(--tb-fg)', whiteSpace: 'pre' }}
       dangerouslySetInnerHTML={{ __html: ascii }}
     />

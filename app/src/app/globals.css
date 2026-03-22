@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --font-mono: "IBM Plex Mono", monospace;
+  --font-mono: "Inconsolata", monospace;
   --color-rust: #8a6a4a;
   --color-patina: #3a3a32;
   --color-accent: #b0a080;
@@ -24,6 +24,21 @@
   --tb-accent: #d0b888;
   --tb-accent-hover: #e0c898;
   --tb-highlight: #9a7a5a;
+
+  /* Typography scale */
+  --tb-text-xs: 11px;
+  --tb-text-sm: 12px;
+  --tb-text-base: 14px;
+  --tb-text-md: 16px;
+  --tb-text-lg: 20px;
+  --tb-text-xl: 24px;
+  --tb-text-2xl: 28px;
+
+  /* Control tokens */
+  --tb-control-min: 44px;
+  --tb-swatch-size: 32px;
+  --tb-pill-px: 16px;
+  --tb-pill-py: 10px;
 }
 
 /* ═══ LIGHT MODE ═══ */
@@ -49,4 +64,39 @@
     color: var(--tb-fg);
     transition: background-color 0.2s, color 0.2s;
   }
+
+  /* Global focus ring */
+  *:focus-visible {
+    outline: 2px solid var(--tb-accent);
+    outline-offset: 2px;
+  }
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+/* ═══ TACTILE CONTROLS ═══ */
+.tb-btn {
+  border: 1px solid var(--tb-border);
+  background: linear-gradient(to bottom, var(--tb-bg-subtle), var(--tb-bg));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  min-height: var(--tb-control-min);
+  padding: var(--tb-pill-py) var(--tb-pill-px);
+  font-size: var(--tb-text-sm);
+  font-family: var(--font-mono);
+  color: var(--tb-fg);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.tb-btn:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.tb-btn:active {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+  transform: translateY(0.5px);
+}
+.tb-btn--active {
+  border-color: var(--tb-accent);
+  color: var(--tb-accent);
+  background: var(--tb-bg-muted);
 }
