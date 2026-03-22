@@ -45,15 +45,17 @@ const ANGLE_MAP: Record<DrawerAngle, {
   ANGLE_SUBJECT: string;
   CAMERA_LOCK: string;
   IMAGE_PLANE_LOCK: string;
+  MOTION_AXIS_LOCK: string;
+  DEPTH_RULE: string;
   MOTION_DIRECTION: string;
 }> = {
   front: {
     ANGLE_SUBJECT: 'front-facing',
-    CAMERA_LOCK: `Use one single orthographic flat front camera only.
-The cabinet must face directly forward, perfectly square to the viewer.
+    CAMERA_LOCK: `Use one single flat front-facing camera only.
 Dead center.
 Eye level.
 Straight on.
+Front face parallel to the image plane.
 0% tilt.
 0% rotation.
 0% yaw drift.
@@ -62,18 +64,47 @@ Straight on.
 No perspective skew.
 No lens shift.
 No three quarter view.
-No side reveal.
-No top reveal.
 Do not show the left exterior side.
 Do not show the right exterior side.
 Do not show the top exterior surface.
-The front face must read as a perfect straight rectangle, not an angled plane.`,
+The camera is locked and identical across all 5 frames.
+Do not move the camera.
+Do not rotate the cabinet.
+Do not zoom in.
+Do not zoom out.
+Do not change framing.`,
     IMAGE_PLANE_LOCK: `The cabinet front must stay parallel to the image plane.
 The drawer front must stay parallel to the image plane.
 The front face must not become trapezoidal.
 The front face must not angle away from the viewer.
 The front face must stay centered and rectangular in every frame.`,
-    MOTION_DIRECTION: 'straight forward toward the camera',
+    MOTION_AXIS_LOCK: `Treat the image as having three axes:
+X = horizontal left to right.
+Y = vertical top to bottom.
+Z = depth toward the viewer.
+The drawer moves only along the positive Z axis.
+The drawer must not move along X.
+The drawer must not move along Y.
+No horizontal translation.
+No vertical translation.
+No diagonal translation.
+No sideways sliding.
+No drifting left.
+No drifting right.
+No drifting up.
+No drifting down.
+The center point of the drawer front must stay at the exact same X and Y coordinates in all 5 frames.
+Only its depth changes.
+The drawer must emerge from the same single centered opening in the cabinet shell.
+Do not open from a side bay.
+Do not open from a top compartment.
+Do not open from a middle compartment.
+There is only one cabinet and only one drawer.`,
+    DEPTH_RULE: `Keep the cabinet front-facing and flat to camera, but allow a small centered symmetric cavity reveal to show the drawer moving outward in depth.
+This depth reveal must stay centered.
+It must not turn into a side-opening motion.
+It must not turn into a three-quarter view.`,
+    MOTION_DIRECTION: 'outward on the Z axis toward the viewer',
   },
   'left-45': {
     ANGLE_SUBJECT: 'left 45 degree',
@@ -90,9 +121,16 @@ Do not rotate the cabinet between states.
 Do not move the camera between states.
 Do not zoom in or out.
 The same exact camera must be reused for all 5 frames.
-Only the drawer moves.
 The cabinet shell, angle, scale, and framing remain unchanged.`,
     IMAGE_PLANE_LOCK: '',
+    MOTION_AXIS_LOCK: `The drawer moves only along its own depth axis, outward toward the left front camera view.
+The drawer must not slide sideways.
+The drawer must not drift vertically.
+The center point of the drawer front must stay aligned with the same single opening in all 5 frames.
+Only depth changes.
+The drawer must emerge from the same single opening in the cabinet shell.
+There is only one cabinet and only one drawer.`,
+    DEPTH_RULE: '',
     MOTION_DIRECTION: 'outward along the drawer axis toward the left front camera view',
   },
   'right-45': {
@@ -110,9 +148,16 @@ Do not rotate the cabinet between states.
 Do not move the camera between states.
 Do not zoom in or out.
 The same exact camera must be reused for all 5 frames.
-Only the drawer moves.
 The cabinet shell, angle, scale, and framing remain unchanged.`,
     IMAGE_PLANE_LOCK: '',
+    MOTION_AXIS_LOCK: `The drawer moves only along its own depth axis, outward toward the right front camera view.
+The drawer must not slide sideways.
+The drawer must not drift vertically.
+The center point of the drawer front must stay aligned with the same single opening in all 5 frames.
+Only depth changes.
+The drawer must emerge from the same single opening in the cabinet shell.
+There is only one cabinet and only one drawer.`,
+    DEPTH_RULE: '',
     MOTION_DIRECTION: 'outward along the drawer axis toward the right front camera view',
   },
 } as const;
@@ -316,24 +361,23 @@ Do not interpret the 5 frames as 5 separate cabinets. They are 5 states of the s
 
 CAMERA LOCK:
 ${angle.CAMERA_LOCK}
-The camera is locked and identical across all 5 frames.
 ${angle.IMAGE_PLANE_LOCK ? `\nIMAGE PLANE LOCK:\n${angle.IMAGE_PLANE_LOCK}\n` : ''}
-ANTI DRIFT RULE:
-Across all 5 frames, keep the exact same camera, exact same object position, exact same scale, exact same framing, exact same horizon, exact same lighting, and exact same cabinet silhouette.
-Do not move the camera.
-Do not rotate the cabinet.
-Do not zoom in.
-Do not zoom out.
-Do not pan left or right.
-Do not pan up or down.
-Do not recompose the shot.
-Do not reinterpret the object from a different angle in later frames.
-The 5 frames must look like the same cabinet copied 5 times under one locked camera, with only drawer depth changing.
-
 SUBJECT:
 A single ${angle.ANGLE_SUBJECT} one-drawer cabinet, ${stylePreset} style, ${materialDesc}, colored ${colorDesc}, with ${handleDesc}, ${cornerDesc}, ${rivetDesc}, and ${keyholeDesc}. Attached surface decor only: ${decorDesc}. Extra visual details: ${additionalDesc}.
 
 ART DIRECTION: ${artStyleDesc}
+
+OBJECT LOCK:
+The cabinet shell must remain the same exact object in all 5 frames.
+Same outer silhouette.
+Same front ratio.
+Same position.
+Same scale.
+Same lighting.
+Same handle placement.
+Same hardware placement.
+Same decorative placement.
+Do not resize, stretch, squash, narrow, widen, crop, zoom, or redesign the cabinet shell.
 
 FRONT SHAPE RATIO:
 The cabinet front silhouette and the drawer front panel must follow the same configurable width to height ratio: ${frontRatio}.
@@ -341,20 +385,34 @@ The drawer front is inset inside the cabinet shell and follows the same proporti
 This ratio applies only to the front-facing object shape inside each sprite cell.
 Do not reinterpret it as the frame ratio, sprite sheet ratio, canvas ratio, or motion depth.
 
-SHAPE LOCK:
-The cabinet front silhouette and the drawer front panel must share the same overall width to height ratio.
-The drawer front must look like a smaller inset version of the cabinet front shape.
-Do not change this ratio across the 5 frames.
-Do not reinterpret this ratio as the canvas ratio or sprite sheet ratio.
-Only drawer depth changes during motion.
+MOTION AXIS LOCK:
+${angle.MOTION_AXIS_LOCK}
 
+OPENING ORIGIN LOCK:
+The cabinet has exactly one drawer opening.
+The drawer starts fully closed and flush inside that one opening.
+In every frame, the drawer must stay perfectly aligned with that same opening.
+The opening must remain centered.
+The drawer front must remain centered within the cabinet front.
+Do not offset the drawer opening to the left or right.
+Do not reinterpret the object as a multi-drawer cabinet.
+Do not create stacked drawer sections.
+Do not create extra front panels that look like other drawers.
+
+SYMMETRY LOCK:
+The cabinet front is symmetric around its vertical centerline.
+The drawer front is symmetric around its vertical centerline.
+As the drawer opens, the visible gap around it must remain centered and symmetric.
+The left and right margins must stay balanced.
+The drawer must not lean, skew, or bias to one side.
+${angle.DEPTH_RULE ? `\nDEPTH VISIBILITY RULE:\n${angle.DEPTH_RULE}\n` : ''}
 MOTION:
 Show progressive linear mechanical movement of the same drawer across 5 states: ${states[0]}%, ${states[1]}%, ${states[2]}%, ${states[3]}%, ${states[4]}% open.
 The cabinet shell remains static and centered.
-Only the drawer slides directly ${angle.MOTION_DIRECTION}.
-The drawer front remains the same object in every frame.
-The front silhouette ratio remains unchanged.
+Only the drawer translates ${angle.MOTION_DIRECTION}.
 Only drawer depth changes.
+The drawer front must remain the same size, same position, and same centered alignment in all 5 frames.
+The front silhouette ratio remains unchanged.
 
 MOTION LOCK:
 The cabinet shell is completely static.
@@ -398,11 +456,11 @@ ${d.hasKeyhole ? '' : 'Do not show a keyhole regardless of decor. '}${d.hasRivet
 
 PRIORITY ORDER:
 1. Exact 5:1 sprite sheet layout
-2. Exactly 5 equal frames
-3. Exactly one cabinet and exactly one drawer total
-4. No cross frame spill
-5. Fixed camera and fixed cabinet shell
-6. Only drawer depth changes
-7. Clean programmatic slicing boundaries
-8. Style and material fidelity`;
+2. Exactly 5 equal cells
+3. Exactly one cabinet and exactly one drawer
+4. Centered front-facing camera stays locked
+5. Drawer moves only on depth axis
+6. Drawer remains centered in the same opening
+7. No cross-frame spill
+8. Style fidelity`;
 }
