@@ -13,27 +13,27 @@ interface StyleDefinition {
 export const STYLE_BASES: Record<DrawerStylePreset, StyleDefinition> = {
   clay: {
     material: 'clay material with visible fingerprint textures',
-    artStyle: 'claymation stop-motion style with soft rounded forms and handmade charm',
+    artStyle: 'clean stylized claymation game asset with soft rounded forms and handmade charm, but structural accuracy and flat projection are higher priority than dramatic rendering',
   },
   metal: {
     material: 'metal material with brass accents and aged patina',
-    artStyle: 'stylized steampunk game art with detailed metalwork and weathering',
+    artStyle: 'clean stylized game asset with decorative metal trim and weathering, but structural accuracy and flat projection are higher priority than dramatic rendering',
   },
   wood: {
     material: 'wood material with polished grain and warm lacquer',
-    artStyle: 'stylized game art with clean readable shapes and polished hand-painted detail',
+    artStyle: 'clean stylized game asset with readable shapes and polished hand-painted detail, but structural accuracy and flat projection are higher priority than dramatic rendering',
   },
   pixel: {
     material: 'pixel-art inspired surface treatment',
-    artStyle: '16-bit pixel art with crisp edges, limited colors, and no anti-aliasing',
+    artStyle: '16-bit pixel art game asset with crisp edges, limited colors, and no anti-aliasing, but structural accuracy and flat projection are higher priority than dramatic rendering',
   },
   paper: {
     material: 'paper-crafted material with visible fold lines and creases',
-    artStyle: 'papercraft illustration with visible creases, folds, and layered paper depth',
+    artStyle: 'clean stylized papercraft game asset with visible creases and folds, but structural accuracy and flat projection are higher priority than dramatic rendering',
   },
   glass: {
     material: 'glass material with soft refractions and iridescent edges',
-    artStyle: 'ethereal glasswork illustration with soft light refractions and translucency',
+    artStyle: 'clean stylized glasswork game asset with soft light refractions, but structural accuracy and flat projection are higher priority than dramatic rendering',
   },
 };
 
@@ -43,41 +43,46 @@ export const STYLE_BASES: Record<DrawerStylePreset, StyleDefinition> = {
 
 const ANGLE_MAP: Record<DrawerAngle, {
   ANGLE_SUBJECT: string;
+  PROJECTION_LOCK: string;
   CAMERA_LOCK: string;
-  IMAGE_PLANE_LOCK: string;
   MOTION_AXIS_LOCK: string;
   DEPTH_RULE: string;
   MOTION_DIRECTION: string;
 }> = {
   front: {
     ANGLE_SUBJECT: 'front-facing',
-    CAMERA_LOCK: `Use one single flat front-facing camera only.
-Dead center.
-Eye level.
+    PROJECTION_LOCK: `Use a flat front elevation view only.
+The cabinet front plane must be perfectly parallel to the image plane.
+The front face must read as a straight rectangle, not an angled plane.
+No three-quarter view.
+No perspective showcase angle.
+No product-photo angle.
+No left side plane visible.
+No right side plane visible.
+No top plane visible.
+No bottom plane visible.
+No corner depth reveal on the cabinet shell.
+Vertical front edges must stay perfectly vertical and parallel.
+Horizontal front edges must stay perfectly horizontal and parallel.
+Do not use an off-center vanishing point.
+Do not use a vanishing point above the cabinet.
+Do not use a vanishing point below the cabinet.`,
+    CAMERA_LOCK: `Dead center.
 Straight on.
-Front face parallel to the image plane.
+Eye level.
 0% tilt.
 0% rotation.
 0% yaw drift.
 0% pitch drift.
 0% roll drift.
-No perspective skew.
 No lens shift.
-No three quarter view.
-Do not show the left exterior side.
-Do not show the right exterior side.
-Do not show the top exterior surface.
-The camera is locked and identical across all 5 frames.
+No perspective skew.
+The exact same camera must be reused for all 5 frames.
 Do not move the camera.
 Do not rotate the cabinet.
 Do not zoom in.
 Do not zoom out.
 Do not change framing.`,
-    IMAGE_PLANE_LOCK: `The cabinet front must stay parallel to the image plane.
-The drawer front must stay parallel to the image plane.
-The front face must not become trapezoidal.
-The front face must not angle away from the viewer.
-The front face must stay centered and rectangular in every frame.`,
     MOTION_AXIS_LOCK: `Treat the image as having three axes:
 X = horizontal left to right.
 Y = vertical top to bottom.
@@ -94,26 +99,21 @@ No drifting right.
 No drifting up.
 No drifting down.
 The center point of the drawer front must stay at the exact same X and Y coordinates in all 5 frames.
-Only its depth changes.
-The drawer must emerge from the same single centered opening in the cabinet shell.
-Do not open from a side bay.
-Do not open from a top compartment.
-Do not open from a middle compartment.
-There is only one cabinet and only one drawer.`,
-    DEPTH_RULE: `Keep the cabinet front-facing and flat to camera, but allow a small centered symmetric cavity reveal to show the drawer moving outward in depth.
-This depth reveal must stay centered.
-It must not turn into a side-opening motion.
-It must not turn into a three-quarter view.`,
+Only its depth changes.`,
+    DEPTH_RULE: `Because the drawer is opening toward the viewer, show depth only as a centered symmetric cavity reveal and a centered symmetric drawer box.
+Do not show the cabinet shell from the side.
+Do not turn the cabinet into a perspective object.
+The drawer box may show minimal symmetric side walls only if needed to communicate forward motion, but the overall camera must still read as flat front elevation.`,
     MOTION_DIRECTION: 'outward on the Z axis toward the viewer',
   },
   'left-45': {
     ANGLE_SUBJECT: 'left 45 degree',
-    CAMERA_LOCK: `Use one single fixed left 45 degree front view only.
-The cabinet must be viewed from the same exact left front angle in all 5 frames.
+    PROJECTION_LOCK: `Use a fixed left 45 degree front view only.
 Show a consistent left side reveal.
 Do not switch toward flatter front view.
 Do not switch toward stronger side view.
-Do not show top down reveal.
+Do not show top down reveal.`,
+    CAMERA_LOCK: `The cabinet must be viewed from the same exact left front angle in all 5 frames.
 Do not change horizon.
 Do not change vanishing direction.
 Do not change field of view.
@@ -122,25 +122,22 @@ Do not move the camera between states.
 Do not zoom in or out.
 The same exact camera must be reused for all 5 frames.
 The cabinet shell, angle, scale, and framing remain unchanged.`,
-    IMAGE_PLANE_LOCK: '',
     MOTION_AXIS_LOCK: `The drawer moves only along its own depth axis, outward toward the left front camera view.
 The drawer must not slide sideways.
 The drawer must not drift vertically.
 The center point of the drawer front must stay aligned with the same single opening in all 5 frames.
-Only depth changes.
-The drawer must emerge from the same single opening in the cabinet shell.
-There is only one cabinet and only one drawer.`,
+Only depth changes.`,
     DEPTH_RULE: '',
     MOTION_DIRECTION: 'outward along the drawer axis toward the left front camera view',
   },
   'right-45': {
     ANGLE_SUBJECT: 'right 45 degree',
-    CAMERA_LOCK: `Use one single fixed right 45 degree front view only.
-The cabinet must be viewed from the same exact right front angle in all 5 frames.
+    PROJECTION_LOCK: `Use a fixed right 45 degree front view only.
 Show a consistent right side reveal.
 Do not switch toward flatter front view.
 Do not switch toward stronger side view.
-Do not show top down reveal.
+Do not show top down reveal.`,
+    CAMERA_LOCK: `The cabinet must be viewed from the same exact right front angle in all 5 frames.
 Do not change horizon.
 Do not change vanishing direction.
 Do not change field of view.
@@ -149,14 +146,11 @@ Do not move the camera between states.
 Do not zoom in or out.
 The same exact camera must be reused for all 5 frames.
 The cabinet shell, angle, scale, and framing remain unchanged.`,
-    IMAGE_PLANE_LOCK: '',
     MOTION_AXIS_LOCK: `The drawer moves only along its own depth axis, outward toward the right front camera view.
 The drawer must not slide sideways.
 The drawer must not drift vertically.
 The center point of the drawer front must stay aligned with the same single opening in all 5 frames.
-Only depth changes.
-The drawer must emerge from the same single opening in the cabinet shell.
-There is only one cabinet and only one drawer.`,
+Only depth changes.`,
     DEPTH_RULE: '',
     MOTION_DIRECTION: 'outward along the drawer axis toward the right front camera view',
   },
@@ -356,12 +350,15 @@ Do not generate stacked drawers.
 Do not generate side-by-side cabinets.
 Do not generate repeated furniture.
 Do not generate background furniture.
-Do not generate extra compartments, doors, shelves, or secondary units.
+Do not generate extra compartments, extra front panels, doors, shelves, or secondary units.
 Do not interpret the 5 frames as 5 separate cabinets. They are 5 states of the same single cabinet.
+
+PROJECTION LOCK:
+${angle.PROJECTION_LOCK}
 
 CAMERA LOCK:
 ${angle.CAMERA_LOCK}
-${angle.IMAGE_PLANE_LOCK ? `\nIMAGE PLANE LOCK:\n${angle.IMAGE_PLANE_LOCK}\n` : ''}
+
 SUBJECT:
 A single ${angle.ANGLE_SUBJECT} one-drawer cabinet, ${stylePreset} style, ${materialDesc}, colored ${colorDesc}, with ${handleDesc}, ${cornerDesc}, ${rivetDesc}, and ${keyholeDesc}. Attached surface decor only: ${decorDesc}. Extra visual details: ${additionalDesc}.
 
@@ -388,12 +385,15 @@ Do not reinterpret it as the frame ratio, sprite sheet ratio, canvas ratio, or m
 MOTION AXIS LOCK:
 ${angle.MOTION_AXIS_LOCK}
 
-OPENING ORIGIN LOCK:
-The cabinet has exactly one drawer opening.
+SINGLE OPENING LOCK:
+The cabinet has exactly one centered drawer opening.
 The drawer starts fully closed and flush inside that one opening.
-In every frame, the drawer must stay perfectly aligned with that same opening.
-The opening must remain centered.
-The drawer front must remain centered within the cabinet front.
+The drawer opening stays centered in all 5 frames.
+The drawer front stays centered in all 5 frames.
+Do not create multiple horizontal bands that look like additional drawers.
+Do not create a top drawer.
+Do not create a bottom drawer.
+Do not create decorative seams that read as extra compartments.
 Do not offset the drawer opening to the left or right.
 Do not reinterpret the object as a multi-drawer cabinet.
 Do not create stacked drawer sections.
