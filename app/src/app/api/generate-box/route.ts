@@ -147,9 +147,11 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('Box generation error:', error);
+    const message = error?.message || error?.errorDetails?.[0]?.message || 'Generation failed';
+    const status = error?.status || error?.httpStatusCode || 500;
     return NextResponse.json(
-      { error: error.message || 'Generation failed', details: String(error), prompt: builtPrompt },
-      { status: 500 }
+      { error: message, details: String(error), prompt: builtPrompt },
+      { status: typeof status === 'number' ? status : 500 }
     );
   }
 }
