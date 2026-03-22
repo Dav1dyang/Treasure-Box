@@ -162,7 +162,9 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
   );
 
   // Debug state
-  const [debugPrompt, setDebugPrompt] = useState<string | null>(null);
+  const [debugPrompt, setDebugPrompt] = useState<string | null>(
+    currentImages?.debugPrompt ?? null
+  );
   const [debugMeta, setDebugMeta] = useState<{
     spriteSize?: { width: number; height: number; frameCount: number };
     bgRemoval?: string;
@@ -284,6 +286,7 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
         style: cleanStyle,
         generatedAt: Date.now(),
         ...(data.activeArea && { activeArea: data.activeArea }),
+        ...(data.prompt && { debugPrompt: data.prompt }),
       };
 
       await saveDrawerImages(userId, drawerImages);
@@ -611,7 +614,7 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
               whiteSpace: 'pre-wrap', wordBreak: 'break-word',
               maxHeight: 200, overflow: 'auto', margin: 0,
             }}>
-              {debugPrompt ?? (currentImages ? 'debug info available during generation session' : 'waiting for generation\u2026')}
+              {debugPrompt ?? 'waiting for generation\u2026'}
             </pre>
           </div>
           {debugMeta?.spriteSize && (

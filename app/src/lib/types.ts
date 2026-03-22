@@ -58,6 +58,7 @@ export interface DrawerImages {
   style: DrawerStyle;
   generatedAt: number;
   activeArea?: SpriteActiveArea;   // tight bounding box of actual drawer content
+  debugPrompt?: string;            // Gemini prompt used for generation (debug)
 }
 
 // ===== Items =====
