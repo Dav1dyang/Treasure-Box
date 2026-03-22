@@ -157,7 +157,9 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
   );
 
   // Sprite preview
-  const [spritePreviewUrl, setSpritePreviewUrl] = useState<string | null>(null);
+  const [spritePreviewUrl, setSpritePreviewUrl] = useState<string | null>(
+    currentImages?.spriteUrl ?? null
+  );
 
   // Debug state
   const [debugPrompt, setDebugPrompt] = useState<string | null>(null);
@@ -609,7 +611,7 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
               whiteSpace: 'pre-wrap', wordBreak: 'break-word',
               maxHeight: 200, overflow: 'auto', margin: 0,
             }}>
-              {debugPrompt ?? 'waiting for generation\u2026'}
+              {debugPrompt ?? (currentImages ? 'debug info available during generation session' : 'waiting for generation\u2026')}
             </pre>
           </div>
           {debugMeta?.spriteSize && (
