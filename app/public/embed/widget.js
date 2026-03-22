@@ -647,6 +647,7 @@
         boxContainer.style.height = neededH + 'px';
         boxIframe.height = neededH;
         boxIframe.style.height = neededH + 'px';
+        sendViewportInfo();
       }
     }
 
