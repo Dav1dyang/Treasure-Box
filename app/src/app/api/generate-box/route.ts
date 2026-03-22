@@ -6,7 +6,7 @@ import { DEFAULT_BOX_DIMENSIONS } from '@/lib/config';
 import type { BoxDimensions, DrawerStyle } from '@/lib/types';
 
 // Green chroma key fallback + raw sprite for client-side ML bg removal
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 interface GenerateBoxRequest {
   style: DrawerStyle;
@@ -36,7 +36,10 @@ export async function POST(request: NextRequest) {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview',
       contents: builtPrompt,
-      config: { responseModalities: ['TEXT', 'IMAGE'] },
+      config: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        httpOptions: { timeout: 110_000 }, // 110s — leaves 10s buffer before maxDuration
+      },
     });
 
     // Extract image from response
