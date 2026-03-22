@@ -125,11 +125,11 @@ export function buildDrawerPrompt(style: DrawerStyle, dims?: BoxDimensions): str
 
   return `Sprite sheet: 5 evenly spaced sprites on a single continuous #00FF00 green canvas, 5:1 aspect ratio. No borders, dividers, separators, panel outlines, or black lines anywhere. One unbroken flat green background.
 
-Each sprite has at least 10% empty green margin on all sides within its cell. No part of the cabinet may touch or approach cell edges. Sprites must never overlap or bleed into neighboring cells when sliced.
+Each sprite is centered within its cell with at least 10% empty green padding on all sides. No part of the cabinet may touch, approach, or cross cell boundaries. Zero bleed between cells.
 
 Subject: a single one-drawer cabinet, ${ANGLE} view, ${STYLE} style, ${MATERIAL}. ${MAIN_COLOR} body with ${ACCENT_COLOR} accents. ${HANDLE}, ${CORNERS}. ${DECOR}. Exactly one drawer, no stacked drawers, no multi-drawer, no extra compartments.
 
-Sprite 1: 0% closed flush. Sprite 2: 25% slightly ajar. Sprite 3: 50% half open. Sprite 4: 75% mostly open. Sprite 5: 100% fully extended. Cabinet shell stays identical across all 5 sprites. Same angle, scale, position, lighting. Only the drawer translates outward along depth axis. Drawer interior empty.
+Sprite 1: drawer closed (0%). Sprite 2: drawer slightly open (25%). Sprite 3: drawer half open (50%). Sprite 4: drawer mostly open (75%). Sprite 5: drawer fully open (100%). Progression is linear and mechanical. Cabinet shell stays identical across all 5 sprites. Same angle, scale, position, lighting. Only the drawer translates outward along depth axis. Drawer interior empty.
 
-No shadows, no floor, no text, no labels, no watermark. No props or objects inside drawer. Game asset style, clean edges.`;
+No shadows, no floor, no text, no labels, no watermark. No props inside drawer. Game asset style, clean edges.`;
 }
