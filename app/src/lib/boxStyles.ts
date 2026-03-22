@@ -245,11 +245,92 @@ export function buildSpriteSheetPrompt(style: DrawerStyle, dims?: BoxDimensions)
 
   const states = DEFAULT_STATES;
 
-  return `A clean production sprite sheet for a web UI, horizontal strip with exactly 5 equal frames.
-Subject: A single ${angle.ANGLE_SUBJECT} one-drawer cabinet, ${stylePreset} style, ${materialDesc}, ${colorDesc}, with ${handleDesc}, ${cornerDesc}, ${rivetDesc}, and ${keyholeDesc}. Decor details: ${decorDesc}. Extra visual details: ${additionalDesc}.
-Perspective: ${angle.PERSPECTIVE_RULE}
-Geometry: front width proportion ${d.boxWidth}, total height proportion ${d.boxHeight}, drawer face height proportion ${d.drawerHeight}. Keep the object clearly readable as exactly one cabinet shell with exactly one drawer. Do not create stacked drawers, split compartments, cabinet doors, or chest lids.
-Sequence: Frame 1 drawer ${states[0]}% open, Frame 2 drawer ${states[1]}% open, Frame 3 drawer ${states[2]}% open, Frame 4 drawer ${states[3]}% open, Frame 5 drawer ${states[4]}% open.
-The cabinet shell remains static and centered. Only the drawer slides directly ${angle.MOTION_DIRECTION}. The drawer front stays the same in every frame. Only drawer depth changes.
-Requirements: Pure #00FF00 green background, no shadows, no floor, no gradients, no transparency, no checkerboard, no text, no numbers, no labels, no watermark. Do NOT use #00FF00 anywhere on the cabinet, drawer, handle, hardware, or decor. Crisp clean silhouettes, consistent lighting, consistent scale, consistent camera, and consistent hardware placement across all frames. Each frame must be fully self-contained with no overlap, no spill into adjacent frames, and enough internal margin so the most open drawer still fits completely inside its own frame. Drawer interior is completely empty. No props, no camera, no cat, no fabric, no dust, no debris.`;
+  return `Create exactly 1 production sprite sheet for a web UI.
+Generate a single horizontal strip with exactly 5 equal frames showing the SAME exact one-drawer cabinet at 5 pullout states. This is a clean asset, not a poster, not a diagram, and not a labeled sheet.
+Hard constraints:
+• overall layout: 5 frames in 1 row, equal size, no gaps, no borders, no separators
+• every frame must be fully self contained
+• no pixels may spill into adjacent frames
+• leave enough internal margin so the 100% open drawer still fits completely inside its own frame
+• pure flat #00FF00 green background, exact #00FF00
+• no transparency, no checkerboard, no gradient, no texture
+• no text, no numbers, no labels, no logo, no watermark
+• never render any drawer label as visible text
+• no cast shadow, no floor shadow, no contact shadow, no glow, no halo
+• do NOT use #00FF00 anywhere on the cabinet, drawer, handle, hardware, or decor
+• crisp clean silhouette only
+Subject:
+Exactly one standalone cabinet shell containing exactly one sliding drawer.
+Not two drawers.
+Not stacked drawers.
+Not a cabinet door.
+Not a safe door.
+Not a treasure chest.
+Not a trunk.
+Not a hinged lid box.
+Not a crate.
+A single ${angle.ANGLE_SUBJECT} one-drawer cabinet, ${stylePreset} style, ${materialDesc}, ${colorDesc}, with ${handleDesc}, ${cornerDesc}, ${rivetDesc}, and ${keyholeDesc}. Decor details: ${decorDesc}. Extra visual details: ${additionalDesc}.
+Mechanics:
+Only the drawer moves.
+The cabinet shell stays fixed.
+The drawer slides straight ${angle.MOTION_DIRECTION}.
+No hinge motion.
+No rotation.
+No tilting.
+No morphing into another furniture type.
+Consistency across all 5 frames:
+Same camera angle
+Same scale
+Same centering
+Same lighting
+Same cabinet shape
+Same drawer front shape
+Same handle position
+Same keyhole position if present
+Same decorative placement
+No jitter
+No drift
+No zoom change
+Camera:
+${angle.PERSPECTIVE_RULE}
+Geometry:
+Use these proportions as guidance while keeping the object clearly readable as a single-drawer cabinet:
+overall width: ${d.boxWidth}
+overall height: ${d.boxHeight}
+drawer face height: ${d.drawerHeight}
+Hardware:
+handle style: ${handleDesc}
+corner style: ${cornerDesc}
+rivets: ${rivetDesc}
+keyhole: ${keyholeDesc}
+Style:
+material: ${materialDesc}
+style preset: ${stylePreset}
+decor items: ${decorDesc}
+additional feature keywords: ${additionalDesc}
+Interpretation rules:
+• style and decor may change surface design only
+• do not add extra drawers, extra compartments, doors, props, or interior objects
+• if any style choice conflicts with the single-drawer structure, preserve the single-drawer structure first
+• if keyhole is not enabled, do not show a keyhole unless explicitly required by decor
+• if rivets are enabled, keep rivets subtle and fully inside the silhouette
+Interior:
+Drawer interior must be completely empty.
+No props.
+No camera.
+No cat.
+No fabric.
+No dust.
+No debris.
+Frame sequence from left to right:
+1. closed, pullout ${states[0]}%
+2. slightly open, pullout ${states[1]}%
+3. half open, pullout ${states[2]}%
+4. mostly open, pullout ${states[3]}%
+5. fully open, pullout ${states[4]}%
+Important:
+The front drawer face must remain the same object in every frame.
+Only the drawer depth changes.
+The 100% open state must still be fully contained inside frame 5.
+No overlap, no cross-frame bleed, no remnants from neighboring states.`;
 }
