@@ -154,12 +154,91 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// ─── YCbCr Chroma Key Helpers ──────────────────────────────────────────
+// Industry-standard broadcast chroma key using Euclidean distance in CbCr
+// chroma plane (gc-films.com colorclose algorithm). Separates luminance
+// from chrominance so green detection works across all brightness levels.
+
+/** RGB → Cb (JPEG-standard coefficients) */
+function rgb2cb(r: number, g: number, b: number): number {
+  return 128 + (-0.168736 * r - 0.331264 * g + 0.5 * b);
+}
+/** RGB → Cr (JPEG-standard coefficients) */
+function rgb2cr(r: number, g: number, b: number): number {
+  return 128 + (0.5 * r - 0.418688 * g - 0.081312 * b);
+}
+
+// Pre-computed CbCr for key color #00FF00
+const KEY_CB = rgb2cb(0, 255, 0);
+const KEY_CR = rgb2cr(0, 255, 0);
+
+/**
+ * Broadcast-standard chroma key distance function.
+ * Returns 0.0 (fully green → transparent) to 1.0 (not green → opaque).
+ * tola = inner tolerance (fully keyed), tolb = outer tolerance (fully kept).
+ */
+function colorclose(r: number, g: number, b: number, tola: number, tolb: number): number {
+  const cb = rgb2cb(r, g, b);
+  const cr = rgb2cr(r, g, b);
+  const dist = Math.sqrt((KEY_CB - cb) ** 2 + (KEY_CR - cr) ** 2);
+  if (dist < tola) return 0.0;
+  if (dist < tolb) return (dist - tola) / (tolb - tola);
+  return 1.0;
+}
+
+/**
+ * Professional spill suppression: channel-limiting method.
+ * Reduces green toward avg(R, B) — stronger on semi-transparent edge pixels,
+ * gentler on fully opaque interior pixels.
+ */
+function despill(pixels: Uint8Array): void {
+  for (let i = 0; i < pixels.length; i += 4) {
+    const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2], a = pixels[i + 3];
+    if (a === 0) continue;
+    const avgRB = (r + b) / 2;
+    if (g <= avgRB) continue;
+    if (a < 240) {
+      // Semi-transparent (edge): strong suppression — clamp G to avg(R,B)
+      pixels[i + 1] = Math.round(Math.min(g, avgRB));
+    } else {
+      // Fully opaque: gentle suppression — reduce excess by 30%
+      pixels[i + 1] = Math.round(g - (g - avgRB) * 0.3);
+    }
+  }
+}
+
+/**
+ * Post-process alpha channel: morphological open (erode→dilate) to remove
+ * 1px green speck artifacts, median to smooth jagged edges, blur to feather.
+ */
+async function cleanAlpha(
+  pixels: Uint8Array, w: number, h: number,
+): Promise<void> {
+  // Extract alpha into a single-channel buffer
+  const alpha = Buffer.alloc(w * h);
+  for (let i = 0; i < w * h; i++) alpha[i] = pixels[i * 4 + 3];
+
+  // Morphological open (erode→dilate): removes isolated opaque specks
+  // Then median(3) smooths jagged edges, blur(0.8) feathers transitions
+  const cleaned = await sharp(alpha, { raw: { width: w, height: h, channels: 1 } })
+    .erode()
+    .dilate()
+    .median(3)
+    .blur(0.8)
+    .raw()
+    .toBuffer();
+
+  // Write cleaned alpha back into the RGBA pixel array
+  const out = new Uint8Array(cleaned.buffer, cleaned.byteOffset, cleaned.length);
+  for (let i = 0; i < w * h; i++) pixels[i * 4 + 3] = out[i];
+}
+
 /**
  * Remove green background using Vision API object bounds for edge refinement.
- * Green chroma key: detects pixels where the green channel dominates red and blue.
- * - Pixels outside object bounds: aggressive green removal
- * - Pixels near object edges: feathered alpha for smooth transitions
- * - Pixels inside objects: conservative removal (preserve drawer details)
+ * Uses YCbCr colorclose with distance-adaptive tolerances:
+ * - Far from objects: aggressive keying (low tolerances)
+ * - Near object edges: conservative keying (high tolerances)
+ * - Inside objects: very conservative (only remove strong greens)
  */
 async function removeGreenWithVision(
   buffer: Buffer,
@@ -173,59 +252,38 @@ async function removeGreenWithVision(
     .toBuffer({ resolveWithObject: true });
 
   const pixels = new Uint8Array(data.buffer, data.byteOffset, data.length);
-
-  // Build a distance map from object edges (simplified: use bounding boxes)
   const edgeDistance = buildEdgeDistanceMap(width, height, objectRegions);
 
+  // YCbCr chroma key with distance-adaptive tolerances
   for (let i = 0; i < pixels.length; i += 4) {
-    const r = pixels[i];
-    const g = pixels[i + 1];
-    const b = pixels[i + 2];
+    const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+    const dist = edgeDistance[i / 4];
 
-    const pixelIdx = i / 4;
-    const dist = edgeDistance[pixelIdx];
-
-    // Green detection — green channel dominates red and blue
-    const greenDominance = g - Math.max(r, b);
-    const isGreen = g > 200 && greenDominance > 80;
-    const isSoftGreen = g > 150 && greenDominance > 40;
-
-    if (isGreen) {
-      // Strong green — always remove
-      pixels[i + 3] = 0;
-    } else if (isSoftGreen && dist > 3) {
-      // Soft green outside object bounds — remove
-      pixels[i + 3] = 0;
-    } else if (isSoftGreen && dist > 0) {
-      // Soft green near object edge — feather alpha
-      const greenness = greenDominance / 120;
-      const distFade = 1 - dist / 4;
-      const alpha = Math.round(Math.min(1 - greenness, distFade) * 255);
-      pixels[i + 3] = Math.min(pixels[i + 3], Math.max(0, alpha));
+    let tola: number, tolb: number;
+    if (dist > 10) {
+      tola = 15; tolb = 40;   // Far from object: aggressive
+    } else if (dist > 0) {
+      tola = 25; tolb = 65;   // Near object edge: conservative
+    } else {
+      tola = 30; tolb = 75;   // Inside object: very conservative
     }
-    // Inside object or not green — keep as-is
+
+    pixels[i + 3] = Math.round(colorclose(r, g, b, tola, tolb) * 255);
   }
 
-  // Despill pass: neutralize green fringe on semi-transparent edge pixels
-  for (let i = 0; i < pixels.length; i += 4) {
-    const a = pixels[i + 3];
-    if (a > 0 && a < 255) {
-      pixels[i + 1] = Math.min(pixels[i + 1], Math.max(pixels[i], pixels[i + 2]));
-    }
-  }
+  await cleanAlpha(pixels, info.width, info.height);
+  despill(pixels);
 
   const result = await sharp(Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length), {
     raw: { width: info.width, height: info.height, channels: 4 },
-  })
-    .png()
-    .toBuffer();
+  }).png().toBuffer();
 
   return result.toString('base64');
 }
 
 /**
- * Pure green background removal — removes green-dominant pixels.
- * No Vision API needed. Works well for flat uniform green backgrounds.
+ * Pure green background removal using YCbCr colorclose algorithm.
+ * No Vision API needed. Uses fixed tolerances with morphological cleanup.
  */
 async function removeGreenChromaKey(
   buffer: Buffer,
@@ -237,55 +295,33 @@ async function removeGreenChromaKey(
 
   const pixels = new Uint8Array(data.buffer, data.byteOffset, data.length);
 
+  // YCbCr chroma key with fixed tolerances
   for (let i = 0; i < pixels.length; i += 4) {
-    const r = pixels[i];
-    const g = pixels[i + 1];
-    const b = pixels[i + 2];
-
-    // Green detection — green channel dominates red and blue
-    const greenDominance = g - Math.max(r, b);
-
-    if (g > 200 && greenDominance > 80) {
-      // Strong green — fully transparent
-      pixels[i + 3] = 0;
-    } else if (g > 150 && greenDominance > 40) {
-      // Soft green (edges, anti-aliasing) — feathered transparency
-      const greenness = greenDominance / 120;
-      const alpha = Math.round((1 - greenness) * 255);
-      pixels[i + 3] = Math.min(pixels[i + 3], Math.max(0, alpha));
-    }
+    pixels[i + 3] = Math.round(colorclose(pixels[i], pixels[i + 1], pixels[i + 2], 20, 55) * 255);
   }
 
-  // Despill pass: neutralize green fringe on semi-transparent edge pixels
-  for (let i = 0; i < pixels.length; i += 4) {
-    const a = pixels[i + 3];
-    if (a > 0 && a < 255) {
-      pixels[i + 1] = Math.min(pixels[i + 1], Math.max(pixels[i], pixels[i + 2]));
-    }
-  }
+  await cleanAlpha(pixels, info.width, info.height);
+  despill(pixels);
 
   const result = await sharp(Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length), {
     raw: { width: info.width, height: info.height, channels: 4 },
-  })
-    .png()
-    .toBuffer();
+  }).png().toBuffer();
 
   return result.toString('base64');
 }
 
 /**
- * Build a simplified distance map from object bounding box edges.
- * Returns distance in pixels from nearest object edge for each pixel.
- * Positive = outside object, 0 = on edge, negative values not used.
+ * Build a distance map from Vision API object bounding box edges.
+ * Positive = outside object, 0 = on edge, negative = inside object.
  */
 function buildEdgeDistanceMap(
   width: number,
   height: number,
   objectRegions: { x: number; y: number }[][],
 ): Float32Array {
+  const MARGIN = 15;
   const map = new Float32Array(width * height).fill(999);
 
-  // Convert polygon regions to bounding boxes for efficiency
   for (const region of objectRegions) {
     if (region.length < 2) continue;
     const xs = region.map(p => p.x);
@@ -295,20 +331,15 @@ function buildEdgeDistanceMap(
     const minY = Math.max(0, Math.min(...ys));
     const maxY = Math.min(height - 1, Math.max(...ys));
 
-    // Mark pixels inside bounding box with distance from edge
-    for (let y = Math.max(0, minY - 5); y <= Math.min(height - 1, maxY + 5); y++) {
-      for (let x = Math.max(0, minX - 5); x <= Math.min(width - 1, maxX + 5); x++) {
+    for (let y = Math.max(0, minY - MARGIN); y <= Math.min(height - 1, maxY + MARGIN); y++) {
+      for (let x = Math.max(0, minX - MARGIN); x <= Math.min(width - 1, maxX + MARGIN); x++) {
         const distToEdge = Math.min(
-          Math.abs(x - minX),
-          Math.abs(x - maxX),
-          Math.abs(y - minY),
-          Math.abs(y - maxY),
+          Math.abs(x - minX), Math.abs(x - maxX),
+          Math.abs(y - minY), Math.abs(y - maxY),
         );
-
         const inside = x >= minX && x <= maxX && y >= minY && y <= maxY;
         const dist = inside ? -distToEdge : distToEdge;
-        const idx = y * width + x;
-        map[idx] = Math.min(map[idx], dist);
+        map[y * width + x] = Math.min(map[y * width + x], dist);
       }
     }
   }
