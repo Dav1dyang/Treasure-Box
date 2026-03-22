@@ -265,7 +265,7 @@ function resolveStyleTags(style: DrawerStyle): string {
 }
 
 function resolveDecorTags(style: DrawerStyle): string[] {
-  if (style.decor && style.decor.trim()) return style.decor.split(', ').filter(Boolean);
+  if (style.decor && style.decor.trim()) return style.decor.split(/\s*,\s*/).filter(Boolean);
   return [];
 }
 
@@ -285,6 +285,17 @@ export function mapFrontRatio(drawerWidth?: number, drawerHeight?: number): stri
   return 'a tall portrait rectangle, clearly taller than wide';
 }
 
+function getCameraPriorityLabel(angle: DrawerAngle): string {
+  switch (angle) {
+    case 'left-45':
+      return 'Fixed left 45 degree camera stays locked';
+    case 'right-45':
+      return 'Fixed right 45 degree camera stays locked';
+    default:
+      return 'Centered front-facing camera stays locked';
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // PROMPT BUILDER
 // ═══════════════════════════════════════════════════════════════
@@ -299,7 +310,8 @@ export function buildSpriteSheetPrompt(style: DrawerStyle, dims?: BoxDimensions)
   const def = STYLE_BASES[style.preset];
 
   // Resolve all tokens
-  const angle = ANGLE_MAP[style.angle || 'front'];
+  const angleKey = style.angle || 'front';
+  const angle = ANGLE_MAP[angleKey];
   const stylePreset = resolveStyleTags(style);
   const materialDesc = def.material;
   const artStyleDesc = def.artStyle;
@@ -313,7 +325,7 @@ export function buildSpriteSheetPrompt(style: DrawerStyle, dims?: BoxDimensions)
     { hasKeyhole: d.hasKeyhole, hasRivets: d.hasRivets, handleStyle: d.handleStyle },
   );
   const additionalDesc = mapAdditionalFeatures(
-    style.customDecorText ? style.customDecorText.split(/[,\s]+/).filter(Boolean) : [],
+    style.customDecorText ? style.customDecorText.split(/\s*,\s*/).filter(Boolean) : [],
   );
 
   const frontRatio = mapFrontRatio(style.drawerWidth, style.drawerHeight);
@@ -458,7 +470,7 @@ PRIORITY ORDER:
 1. Exact 5:1 sprite sheet layout
 2. Exactly 5 equal cells
 3. Exactly one cabinet and exactly one drawer
-4. Centered front-facing camera stays locked
+4. ${getCameraPriorityLabel(angleKey)}
 5. Drawer moves only on depth axis
 6. Drawer remains centered in the same opening
 7. No cross-frame spill
