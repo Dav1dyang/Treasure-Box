@@ -100,7 +100,6 @@ export default function LoadingAnimation({ className, finishing, onFinished, sta
     if (!engine || !scene) return;
 
     spawnCountRef.current++;
-    console.log('[LoadingAnimation] SPAWN box #' + spawnCountRef.current, 'at', performance.now().toFixed(1) + 'ms');
 
     const w = scene.offsetWidth;
     const size = BOX_SIZES[Math.floor(Math.random() * BOX_SIZES.length)];
@@ -383,11 +382,6 @@ export default function LoadingAnimation({ className, finishing, onFinished, sta
 
   // Initialize engine — runs once on mount
   useEffect(() => {
-    const mountTime = performance.now();
-    console.log('[LoadingAnimation] MOUNT at', mountTime.toFixed(1), 'ms');
-    console.log('[LoadingAnimation] boxBodiesRef has', boxBodiesRef.current.length, 'bodies');
-    console.log('[LoadingAnimation] cycleState:', cycleStateRef.current);
-
     const scene = sceneRef.current;
     const canvas = canvasRef.current;
     if (!scene || !canvas) return;
@@ -419,7 +413,6 @@ export default function LoadingAnimation({ className, finishing, onFinished, sta
 
     // Delay spawning so the canvas is visibly empty before boxes start dropping
     const spawnDelay = setTimeout(() => {
-      console.log('[LoadingAnimation] START SPAWNING at', (performance.now() - mountTime).toFixed(1), 'ms after mount');
       startSpawningRef.current();
     }, 1000);
 
@@ -438,7 +431,6 @@ export default function LoadingAnimation({ className, finishing, onFinished, sta
     window.addEventListener('resize', handleResize);
 
     return () => {
-      console.log('[LoadingAnimation] CLEANUP at', performance.now().toFixed(1), 'ms, bodies:', boxBodiesRef.current.length);
       window.removeEventListener('resize', handleResize);
       clearTimeout(spawnDelay);
       clearInterval(fullnessCheck);
