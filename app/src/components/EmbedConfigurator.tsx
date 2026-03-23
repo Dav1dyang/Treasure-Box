@@ -6,17 +6,30 @@ import { DEFAULT_EMBED_SETTINGS } from '@/lib/config';
 import { uploadProcessedImage } from '@/lib/firestore';
 
 const CORNERS: { anchor: AnchorCorner; label: string }[] = [
-  { anchor: 'top-left', label: 'TL' },
-  { anchor: 'top-right', label: 'TR' },
-  { anchor: 'bottom-left', label: 'BL' },
-  { anchor: 'bottom-right', label: 'BR' },
+  { anchor: 'top-left', label: 'Top Left' },
+  { anchor: 'top-right', label: 'Top Right' },
+  { anchor: 'bottom-left', label: 'Bottom Left' },
+  { anchor: 'bottom-right', label: 'Bottom Right' },
 ];
+
+const MONO = "'Inconsolata', monospace";
 
 const S = {
   accent: { color: 'var(--tb-accent)' },
   faint: { color: 'var(--tb-fg-faint)' },
   ghost: { color: 'var(--tb-fg-ghost)' },
   muted: { color: 'var(--tb-fg-muted)' },
+};
+
+const label: React.CSSProperties = {
+  fontFamily: MONO, fontSize: 13, fontWeight: 700, letterSpacing: '0.08em',
+  textTransform: 'uppercase', color: 'var(--tb-fg-muted)',
+  display: 'block', marginBottom: 8,
+};
+
+const hint: React.CSSProperties = {
+  fontFamily: MONO, fontSize: 11, fontWeight: 400, letterSpacing: '0.04em',
+  color: 'var(--tb-fg-ghost)', marginTop: 4,
 };
 
 interface Props {
@@ -121,158 +134,44 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
   };
 
   return (
-    <div className="space-y-5">
-      {/* Preview Background (screenshot upload + live URL tabs) */}
-      <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-        <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>preview background</label>
-        <div className="flex gap-0 mb-3">
-          {([
-            { id: 'screenshot' as const, label: 'screenshot' },
-            { id: 'url' as const, label: 'live url' },
-          ]).map((t, i) => {
-            const active = previewTab === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => update({ previewMode: t.id })}
-                className="text-[10px] px-[14px] py-[6px] border cursor-pointer transition-all"
-                style={{
-                  borderColor: active ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
-                  color: active ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
-                  borderLeftWidth: i === 0 ? 1 : 0,
-                  background: 'transparent',
-                }}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Screenshot tab */}
-        {previewTab === 'screenshot' && (
-          <div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={e => {
-                const f = e.target.files?.[0];
-                if (f) handleScreenshotUpload(f);
-                e.target.value = '';
-              }}
-            />
-            {settings.previewImageUrl ? (
-              <div className="flex items-center gap-2">
-                <img
-                  src={settings.previewImageUrl}
-                  alt="Preview screenshot"
-                  className="h-[48px] object-cover border"
-                  style={{ borderColor: 'var(--tb-border-subtle)' }}
-                />
-                <span className="text-[9px] flex-1" style={S.muted}>screenshot loaded</span>
-                <button
-                  onClick={() => update({ previewImageUrl: undefined, previewMode: undefined })}
-                  className="text-[9px] px-1 py-[5px] cursor-pointer shrink-0"
-                  style={{ color: 'var(--tb-fg-ghost)', background: 'transparent', border: 'none' }}
-                >
-                  ✕
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="w-full text-[10px] px-3 py-2 cursor-pointer transition-all"
-                style={{
-                  border: '1px dashed var(--tb-border-subtle)',
-                  color: 'var(--tb-fg-faint)',
-                  background: 'transparent',
-                }}
-              >
-                {uploading ? 'uploading...' : 'upload screenshot'}
-              </button>
-            )}
-            <p className="text-[8px] mt-1" style={S.ghost}>
-              take a screenshot of your site and upload it here — works with any website
-            </p>
-          </div>
-        )}
-
-        {/* Live URL tab */}
-        {previewTab === 'url' && (
-          <div>
-            <div className="flex gap-1">
-              <input
-                type="text"
-                value={urlInput}
-                onChange={e => setUrlInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleLoadUrl(); }}
-                placeholder="paste your website URL (optional)"
-                className="flex-1 bg-transparent text-[10px] px-2 py-[5px] outline-none"
-                style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-muted)' }}
-              />
-              <button
-                onClick={handleLoadUrl}
-                className="text-[9px] px-2 py-[5px] cursor-pointer shrink-0"
-                style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)', background: 'transparent' }}
-              >
-                {settings.previewUrl ? 'reload' : 'load'}
-              </button>
-              {settings.previewUrl && (
-                <button
-                  onClick={() => { setUrlInput(''); update({ previewUrl: '', previewMode: undefined }); }}
-                  className="text-[9px] px-1 py-[5px] cursor-pointer shrink-0"
-                  style={{ color: 'var(--tb-fg-ghost)', background: 'transparent', border: 'none' }}
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-            <p className="text-[8px] mt-1" style={S.ghost}>
-              most sites block iframe embedding — if your site doesn&apos;t load, try the screenshot tab instead
-            </p>
-          </div>
-        )}
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {/* Widget Size */}
-      <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-        <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>widget size</label>
-        <div className="flex items-center gap-2">
+      <div className="pb-4" style={{ borderBottom: '0.5px solid var(--tb-border)' }}>
+        <span style={label}>Widget Size</span>
+        <div className="flex items-center gap-3">
           <input
             type="range" min={0.5} max={2.0} step={0.1}
             value={embedScale}
-            onChange={e => {
-              const s = Number(e.target.value);
-              if (onScaleChange) onScaleChange(s);
-            }}
-            className="flex-1"
-            style={{ accentColor: 'var(--tb-accent)' }}
+            onChange={e => { if (onScaleChange) onScaleChange(Number(e.target.value)); }}
+            className="tb-slider flex-1"
+            style={{ '--slider-pct': `${((embedScale - 0.5) / 1.5) * 100}%` } as React.CSSProperties}
           />
-          <span className="text-[10px] w-10 text-right" style={S.accent}>
+          <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...S.accent }}>
             {Math.round(embedScale * 100)}%
           </span>
         </div>
       </div>
 
-      {/* Position Controls (corner picker + offset sliders) */}
-      <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-        <label className="text-[10px] block mb-2 tracking-[0.12em]" style={S.faint}>position</label>
-        {/* 2x2 Corner Grid */}
-        <div className="grid grid-cols-2 gap-1 mb-3" style={{ maxWidth: 160 }}>
+      {/* Position */}
+      <div className="pb-4" style={{ borderBottom: '0.5px solid var(--tb-border)' }}>
+        <span style={label}>Position</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 12 }}>
           {CORNERS.map(c => {
             const active = settings.position.anchor === c.anchor;
             return (
               <button
                 key={c.anchor}
+                className="tb-pill"
                 onClick={() => update({ position: { ...settings.position, anchor: c.anchor } })}
-                className="text-[10px] px-[10px] py-[5px] border cursor-pointer transition-all"
                 style={{
-                  borderColor: active ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
+                  fontFamily: MONO, fontSize: 12, fontWeight: active ? 700 : 500,
+                  letterSpacing: '0.06em', textTransform: 'uppercase' as const,
+                  padding: '7px 0', textAlign: 'center', width: '100%',
+                  border: `1px solid ${active ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
                   color: active ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
                   background: active ? 'var(--tb-bg-muted)' : 'transparent',
+                  cursor: 'pointer', transition: 'all 0.15s',
                 }}
               >
                 {c.label}
@@ -280,149 +179,114 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
             );
           })}
         </div>
-        {/* X offset slider */}
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-[9px] w-5 shrink-0" style={S.ghost}>X</span>
-          <input type="range" min={0} max={200} step={4}
-            value={settings.position.offsetX}
-            onChange={e => {
-              const v = Number(e.target.value);
-              update({
-                position: {
-                  ...settings.position,
-                  offsetX: v,
-                  ...(offsetsLinked ? { offsetY: v } : {}),
-                },
-              });
-            }}
-            className="flex-1"
-            style={{ accentColor: 'var(--tb-accent)' }} />
-          <input type="number" min={0} max={200} step={4}
-            value={settings.position.offsetX}
-            onChange={e => {
-              const v = Math.max(0, Math.min(200, Number(e.target.value)));
-              update({
-                position: {
-                  ...settings.position,
-                  offsetX: v,
-                  ...(offsetsLinked ? { offsetY: v } : {}),
-                },
-              });
-            }}
-            className="w-14 bg-transparent text-[10px] p-1 text-right outline-none"
-            style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-accent)' }} />
-          <span className="text-[9px]" style={S.ghost}>px</span>
+
+        {/* Offset sliders */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 600, width: 20, ...S.faint }}>X</span>
+            <input type="range" min={0} max={200} step={4}
+              value={settings.position.offsetX}
+              onChange={e => {
+                const v = Number(e.target.value);
+                update({ position: { ...settings.position, offsetX: v, ...(offsetsLinked ? { offsetY: v } : {}) } });
+              }}
+              className="tb-slider flex-1"
+              style={{ '--slider-pct': `${(settings.position.offsetX / 200) * 100}%` } as React.CSSProperties} />
+            <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums', width: 45, textAlign: 'right', ...S.muted }}>
+              {settings.position.offsetX}px
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 600, width: 20, ...S.faint }}>Y</span>
+            <input type="range" min={0} max={200} step={4}
+              value={settings.position.offsetY}
+              onChange={e => {
+                const v = Number(e.target.value);
+                update({ position: { ...settings.position, offsetY: v, ...(offsetsLinked ? { offsetX: v } : {}) } });
+              }}
+              className="tb-slider flex-1"
+              style={{ '--slider-pct': `${(settings.position.offsetY / 200) * 100}%` } as React.CSSProperties} />
+            <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums', width: 45, textAlign: 'right', ...S.muted }}>
+              {settings.position.offsetY}px
+            </span>
+          </div>
+          <button
+            onClick={() => setOffsetsLinked(!offsetsLinked)}
+            className="tb-link cursor-pointer uppercase"
+            style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', background: 'none', border: 'none', padding: 0, textAlign: 'left', transition: 'color 0.15s', ...(offsetsLinked ? S.accent : S.ghost) }}
+          >
+            {offsetsLinked ? '⊞ Offsets Linked' : '⊟ Link Offsets'}
+          </button>
         </div>
-        {/* Y offset slider */}
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-[9px] w-5 shrink-0" style={S.ghost}>Y</span>
-          <input type="range" min={0} max={200} step={4}
-            value={settings.position.offsetY}
-            onChange={e => {
-              const v = Number(e.target.value);
-              update({
-                position: {
-                  ...settings.position,
-                  offsetY: v,
-                  ...(offsetsLinked ? { offsetX: v } : {}),
-                },
-              });
-            }}
-            className="flex-1"
-            style={{ accentColor: 'var(--tb-accent)' }} />
-          <input type="number" min={0} max={200} step={4}
-            value={settings.position.offsetY}
-            onChange={e => {
-              const v = Math.max(0, Math.min(200, Number(e.target.value)));
-              update({
-                position: {
-                  ...settings.position,
-                  offsetY: v,
-                  ...(offsetsLinked ? { offsetX: v } : {}),
-                },
-              });
-            }}
-            className="w-14 bg-transparent text-[10px] p-1 text-right outline-none"
-            style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-accent)' }} />
-          <span className="text-[9px]" style={S.ghost}>px</span>
-        </div>
-        {/* Link toggle */}
-        <button
-          onClick={() => setOffsetsLinked(!offsetsLinked)}
-          className="flex items-center gap-[6px] cursor-pointer text-[9px] mt-1"
-          style={offsetsLinked ? S.accent : S.ghost}
-        >
-          <span>{offsetsLinked ? '=' : '~'}</span>
-          <span>{offsetsLinked ? 'offsets linked' : 'link offsets'}</span>
-        </button>
-        <p className="text-[8px] mt-1" style={S.ghost}>
-          distance from the chosen corner — also drag in preview
-        </p>
       </div>
 
-      {/* DOM Collision Toggle */}
-      <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
+      {/* DOM Collision */}
+      <div className="pb-4" style={{ borderBottom: '0.5px solid var(--tb-border)' }}>
         <button
           onClick={() => update({ domCollide: settings.domCollide ? false : true })}
-          className="flex items-center gap-2 cursor-pointer text-[10px]"
-          style={settings.domCollide ? S.accent : S.faint}
+          className="tb-pill cursor-pointer uppercase flex items-center gap-3"
+          style={{
+            fontFamily: MONO, fontSize: 13, fontWeight: settings.domCollide ? 700 : 500,
+            letterSpacing: '0.06em', background: 'none',
+            border: `1px solid ${settings.domCollide ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
+            color: settings.domCollide ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
+            padding: '7px 14px', width: '100%', textAlign: 'left', transition: 'all 0.15s',
+          }}
         >
-          <span
-            className="w-4 h-4 flex items-center justify-center border text-[9px]"
-            style={{
-              borderColor: settings.domCollide ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
-              background: settings.domCollide ? 'var(--tb-accent)' : 'transparent',
-              color: settings.domCollide ? 'var(--tb-bg)' : 'transparent',
-            }}
-          >
-            {settings.domCollide ? '×' : ''}
-          </span>
-          items collide with page elements
+          <span style={{
+            width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: `1px solid ${settings.domCollide ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
+            background: settings.domCollide ? 'var(--tb-accent)' : 'transparent',
+            color: settings.domCollide ? 'var(--tb-bg)' : 'transparent', fontSize: 10, flexShrink: 0,
+          }}>✓</span>
+          DOM Collision
         </button>
         {settings.domCollide && (
-          <div className="mt-2 ml-6">
+          <div className="mt-2">
             <input
               type="text"
               value={typeof settings.domCollide === 'string' ? settings.domCollide : ''}
-              onChange={e => {
-                const v = e.target.value.trim();
-                update({ domCollide: v || true });
+              onChange={e => update({ domCollide: e.target.value.trim() || true })}
+              placeholder="Custom CSS selector (optional)"
+              style={{
+                fontFamily: MONO, fontSize: 13, fontWeight: 400, letterSpacing: '0.04em',
+                width: '100%', background: 'transparent', outline: 'none',
+                border: '0.5px solid var(--tb-border)', padding: '6px 8px', color: 'var(--tb-fg)',
               }}
-              placeholder="custom CSS selector (optional)"
-              className="w-full bg-transparent text-[10px] px-2 py-[5px] outline-none"
-              style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-muted)' }}
             />
-            <p className="text-[8px] mt-1" style={S.ghost}>
-              default: headings, images, videos, articles, .card — add <code style={{ color: 'var(--tb-fg-faint)' }}>data-tb-collide</code> to include or <code style={{ color: 'var(--tb-fg-faint)' }}>data-tb-no-collide</code> to exclude elements
-            </p>
+            <p style={hint}>Items bounce off headings, images, and other page elements</p>
           </div>
         )}
-        <p className="text-[8px] mt-1 ml-6" style={S.ghost}>
-          items bounce off headings, images, and other DOM elements
-        </p>
       </div>
 
-      {/* Embed Code Output */}
+      {/* Embed Code */}
       <div>
-        <label className="text-[10px] block mb-[6px] tracking-[0.12em]" style={S.faint}>
-          embed code
-        </label>
+        <div className="flex items-center justify-between mb-2">
+          <span style={label}>Embed Code</span>
+          <button
+            onClick={handleCopy}
+            className="tb-pill cursor-pointer uppercase"
+            style={{
+              fontFamily: MONO, fontSize: 12, fontWeight: 600, letterSpacing: '0.08em',
+              padding: '5px 14px',
+              border: `1px solid ${copied === 'embed' ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
+              color: copied === 'embed' ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
+              background: 'transparent', transition: 'all 0.15s',
+            }}
+          >
+            {copied === 'embed' ? 'Copied ✓' : 'Copy'}
+          </button>
+        </div>
         <pre
-          className="p-3 text-[9px] overflow-x-auto whitespace-pre-wrap break-all leading-relaxed"
-          style={{ background: 'var(--tb-bg-muted)', color: 'var(--tb-fg-muted)' }}
+          style={{
+            fontFamily: MONO, fontSize: 11, lineHeight: 1.5, padding: 12,
+            background: 'var(--tb-bg-muted)', color: 'var(--tb-fg-muted)',
+            border: '0.5px solid var(--tb-border)',
+            whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflow: 'auto', maxHeight: 200, margin: 0,
+          }}
         >
           {getEmbedCode()}
         </pre>
-        <button
-          onClick={handleCopy}
-          className="mt-[6px] text-[9px] px-3 py-1 cursor-pointer transition-colors"
-          style={{
-            border: '1px solid var(--tb-border)',
-            color: copied === 'embed' ? 'var(--tb-accent)' : 'var(--tb-fg-muted)',
-          }}
-        >
-          {copied === 'embed' ? 'copied ✓' : 'copy'}
-        </button>
       </div>
     </div>
   );

@@ -89,23 +89,26 @@ export const PRESET_MATERIALS: { id: DrawerStylePreset; label: string }[] = [
   { id: 'glass', label: 'glass' },
 ];
 
-/** Surface pattern / aesthetic options for the drawer front face. */
+/** Surface pattern / aesthetic options for the drawer front face (static fallbacks). */
 export const STYLE_PRESETS = [
-  { id: 'mid-century-modern', label: 'Mid-Century Modern' },
-  { id: 'victorian-ornate', label: 'Victorian Ornate' },
-  { id: 'art-deco-glam', label: 'Art Deco Glam' },
-  { id: 'rustic-farmhouse', label: 'Rustic Farmhouse' },
-  { id: 'modern-minimal', label: 'Modern Minimal' },
+  { id: 'mid-century-modern', label: 'Mid-Century Modern', prompt: 'mid-century modern' },
+  { id: 'victorian-ornate', label: 'Victorian Ornate', prompt: 'Victorian ornate' },
+  { id: 'art-deco-glam', label: 'Art Deco Glam', prompt: 'Art Deco glam' },
+  { id: 'rustic-farmhouse', label: 'Rustic Farmhouse', prompt: 'rustic farmhouse' },
+  { id: 'modern-minimal', label: 'Modern Minimal', prompt: 'modern minimal' },
 ] as const;
 
-/** Hardware & decorative elements (multi-select). */
+/** Hardware & decorative elements — static fallbacks (multi-select). */
 export const DECOR_ITEMS = [
-  { id: 'old-keyhole', label: 'Old Keyhole' },
-  { id: 'corner-caps', label: 'Corner Caps' },
-  { id: 'metal-studs', label: 'Metal Studs' },
-  { id: 'ring-pull', label: 'Ring Pull' },
-  { id: 'engraved-trim', label: 'Engraved Trim' },
+  { id: 'old-keyhole', label: 'Old Keyhole', prompt: 'an old-fashioned keyhole' },
+  { id: 'corner-caps', label: 'Corner Caps', prompt: 'decorative corner caps' },
+  { id: 'metal-studs', label: 'Metal Studs', prompt: 'metal studs' },
+  { id: 'ring-pull', label: 'Ring Pull', prompt: 'a ring pull' },
+  { id: 'engraved-trim', label: 'Engraved Trim', prompt: 'engraved trim' },
 ] as const;
+
+export type StyleOption = { id: string; label: string; prompt: string };
+export type FeatureOption = { id: string; label: string; prompt: string };
 
 
 // ═══════════════════════════════════════════════════════════════

@@ -24,6 +24,11 @@ export const STYLE_MAP: Record<string, string> = {
   'art-deco-glam': 'Art Deco glam',
   'rustic-farmhouse': 'rustic farmhouse',
   'modern-minimal': 'modern minimal',
+  'japanese-wabi-sabi': 'Japanese wabi-sabi with imperfect beauty',
+  'scandinavian-hygge': 'Scandinavian hygge with clean warmth',
+  'industrial-loft': 'industrial loft with raw exposed elements',
+  'coastal-driftwood': 'coastal driftwood with weathered texture',
+  'bohemian-eclectic': 'bohemian eclectic with layered patterns',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -36,6 +41,11 @@ export const DECOR_LABEL_MAP: Record<string, string> = {
   'metal-studs': 'metal studs',
   'ring-pull': 'a ring pull',
   'engraved-trim': 'engraved trim',
+  'leather-strap': 'a leather strap closure',
+  'brass-plate': 'a brass name plate',
+  'carved-motif': 'a carved decorative motif',
+  'inlay-pattern': 'an inlay pattern in contrasting material',
+  'patina-finish': 'an aged patina finish',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -94,7 +104,8 @@ export function buildDrawerPrompt(style: DrawerStyle, dims?: BoxDimensions): str
 
   // Resolve variables
   const ANGLE = 'left 45-degree';
-  const STYLE = STYLE_MAP[style.stylePattern ?? 'modern-minimal'] ?? 'modern minimal';
+  // Use stylePrompt if provided (dynamic Gemini options), fall back to STYLE_MAP
+  const STYLE = style.stylePrompt || (STYLE_MAP[style.stylePattern ?? 'modern-minimal'] ?? 'modern minimal');
   const MATERIAL = MATERIAL_MAP[style.preset];
   const MAIN_COLOR = style.color || '#8B4513';
   const ACCENT_COLOR = style.accentColor || '#B08D57';
@@ -105,7 +116,7 @@ export function buildDrawerPrompt(style: DrawerStyle, dims?: BoxDimensions): str
   const decorParts: string[] = [];
   if (style.decor) {
     for (const label of style.decor.split(/\s*,\s*/).filter(Boolean)) {
-      // Map known decor item labels to natural language
+      // Map known decor item labels to natural language via DECOR_LABEL_MAP or decor prompt map
       const item = DECOR_ITEMS.find(di => di.label === label);
       if (item) {
         decorParts.push(DECOR_LABEL_MAP[item.id] ?? label);
@@ -113,6 +124,10 @@ export function buildDrawerPrompt(style: DrawerStyle, dims?: BoxDimensions): str
         decorParts.push(label);
       }
     }
+  }
+  // Add feature prompts from dynamic options if available
+  if (style.featurePrompts) {
+    decorParts.push(...style.featurePrompts);
   }
   if (style.customDecorText) {
     for (const kw of style.customDecorText.split(/\s*,\s*/).filter(Boolean)) {

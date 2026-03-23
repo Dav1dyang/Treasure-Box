@@ -99,3 +99,17 @@ body:has([data-embed]) {
   border-radius: 3px;
   background: transparent;
 }
+
+/* ═══ PILL BUTTON HOVER ═══ */
+.tb-pill:hover:not(:disabled),
+.tb-pill-material:hover:not(:disabled) {
+  border-color: var(--tb-accent) !important;
+  color: var(--tb-accent) !important;
+}
+.tb-pill:active:not(:disabled),
+.tb-pill-material:active:not(:disabled) {
+  opacity: 0.8;
+}
+.tb-link:hover {
+  color: var(--tb-fg) !important;
+}

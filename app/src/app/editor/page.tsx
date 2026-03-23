@@ -29,8 +29,8 @@ function Slider({ value, min, max, step, label, format, onChange, snap }: {
   const pct = ((value - min) / (max - min)) * 100;
 
   return (
-    <div className="flex items-center gap-2 w-full">
-      <span className="text-[9px] w-[28px] shrink-0" style={{ color: 'var(--tb-fg-faint)' }}>{label}</span>
+    <div className="flex items-center gap-3 w-full">
+      <span className="w-[36px] shrink-0 uppercase" style={{ fontFamily: "'Inconsolata', monospace", fontWeight: 600, fontSize: '12px', letterSpacing: '0.06em', color: 'var(--tb-fg-faint)' }}>{label}</span>
       <input
         type="range"
         min={min}
@@ -41,12 +41,12 @@ function Slider({ value, min, max, step, label, format, onChange, snap }: {
           let v = parseFloat(e.target.value);
           onChange(snap ? snap(v) : v);
         }}
-        className="tb-slider flex-1"
+        className="tb-slider flex-1 h-2"
         style={{
           '--slider-pct': `${pct}%`,
         } as React.CSSProperties}
       />
-      <span className="text-[9px] w-[32px] shrink-0 text-right tabular-nums" style={{ color: 'var(--tb-fg-muted)' }}>{format(value)}</span>
+      <span className="w-[40px] shrink-0 text-right" style={{ fontFamily: "'Inconsolata', monospace", fontWeight: 500, fontSize: '12px', fontVariantNumeric: 'tabular-nums', color: 'var(--tb-fg-muted)' }}>{format(value)}</span>
     </div>
   );
 }
@@ -57,7 +57,7 @@ export default function EditorPage() {
   const [config, setConfig] = useState<BoxConfig | null>(null);
   const [items, setItems] = useState<TreasureItem[]>([]);
   const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState<'items' | 'settings'>('items');
+  const [tab, setTab] = useState<'drawer' | 'items' | 'share'>('drawer');
   const [removingBg, setRemovingBg] = useState<string | null>(null);
   const [bgError, setBgError] = useState<string | null>(null);
   const [configStatus, setConfigStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -67,6 +67,7 @@ export default function EditorPage() {
   const configLoadedRef = useRef(false);
   const skipAutoSaveRef = useRef(false);
   const [generating, setGenerating] = useState(false);
+  const [drawerActionState, setDrawerActionState] = useState<import('@/components/DrawerStylePicker').DrawerPickerActionState | null>(null);
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
   const [generatingColors, setGeneratingColors] = useState<{ color: string; accentColor: string } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -276,24 +277,23 @@ export default function EditorPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center font-mono" style={{ background: 'var(--tb-bg)' }}>
-        <div className="text-center">
-          <pre className="text-[9px] mb-8 leading-relaxed" style={{ color: 'var(--tb-fg-faint)' }}>
-{`╔════════════════════════╗
-║   T R E A S U R E      ║
-║       B O X            ║
-║                        ║
-║   editor               ║
-╚════════════════════════╝`}
-          </pre>
-          <button
-            onClick={signIn}
-            className="font-mono text-[10px] px-8 py-3 transition-colors cursor-pointer tracking-[0.12em]"
-            style={{ border: '1px solid var(--tb-border)', color: 'var(--tb-accent)' }}
-          >
-            sign in with Google →
-          </button>
-        </div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--tb-bg)' }}>
+        <button
+          onClick={signIn}
+          className="cursor-pointer uppercase transition-colors"
+          style={{
+            fontFamily: "'Inconsolata', monospace",
+            fontWeight: 600,
+            fontSize: 'clamp(15px, 1.8vw, 18px)',
+            letterSpacing: '0.08em',
+            color: 'var(--tb-accent)',
+            background: 'none',
+            border: '1.5px solid var(--tb-border)',
+            padding: '14px 28px',
+          }}
+        >
+          Sign in with Google →
+        </button>
       </div>
     );
   }
@@ -305,35 +305,72 @@ export default function EditorPage() {
     ghost: { color: 'var(--tb-fg-ghost)' },
     muted: { color: 'var(--tb-fg-muted)' },
   };
+  const MONO = "'Inconsolata', monospace";
+  const DISPLAY = "'Barlow Condensed', sans-serif";
 
   return (
-    <div className="h-screen font-mono flex flex-col overflow-hidden" style={{ background: 'var(--tb-bg)', color: 'var(--tb-fg)' }}>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--tb-bg)', color: 'var(--tb-fg)', fontFamily: MONO }}>
       {/* Header */}
-      <header className="px-5 h-11 flex items-center justify-between text-[10px] shrink-0" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-        <div className="flex items-center gap-3">
-          <Link href="/" className="uppercase tracking-[0.12em] no-underline" style={S.accent}>treasure box</Link>
-          <span className="hidden sm:inline" style={S.ghost}>|</span>
-          <span className="hidden sm:inline" style={S.faint}>{user.email}</span>
-        </div>
-        <div className="flex items-center gap-4">
+      <header className="relative px-3 sm:px-5 h-12 flex items-center justify-between shrink-0 uppercase" style={{ borderBottom: '0.5px solid var(--tb-border)', fontWeight: 500, fontSize: '13px', letterSpacing: '0.08em' }}>
+        <Link href="/" className="no-underline shrink-0" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: '16px', letterSpacing: '0.02em', ...S.accent }}>Junk Drawer</Link>
+        {/* Editable owner title — centered, hidden on small screens */}
+        {config && (
+          <div className="absolute left-1/2 -translate-x-1/2 hidden sm:flex items-baseline gap-0">
+            <input
+              value={config.ownerName || ''}
+              onChange={e => setConfig({ ...config, ownerName: e.target.value })}
+              placeholder="Owner"
+              className="bg-transparent outline-none text-right uppercase"
+              style={{
+                fontFamily: DISPLAY, fontWeight: 700, fontSize: '16px', letterSpacing: '0.02em',
+                color: 'var(--tb-fg)',
+                width: `${Math.max(3, (config.ownerName || 'Owner').length) + 1}ch`,
+                maxWidth: '16ch',
+                borderBottom: '1px dashed var(--tb-border)',
+              }}
+            />
+            <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: '16px', letterSpacing: '0.02em', color: 'var(--tb-fg-faint)', whiteSpace: 'nowrap' }}>&rsquo;s Drawer</span>
+          </div>
+        )}
+        <div className="flex items-center gap-3 sm:gap-5">
           <button onClick={toggleTheme} className="cursor-pointer" style={S.faint} title="Toggle theme">
             {theme === 'dark' ? '○' : '●'}
           </button>
-          <Link href="/" className="no-underline" style={S.accent}>back to home</Link>
-          <button onClick={logOut} className="cursor-pointer" style={S.faint}>sign out</button>
+          <Link href="/" className="no-underline hidden sm:inline" style={S.muted}>Home</Link>
+          <button onClick={logOut} className="cursor-pointer uppercase" style={S.faint}>Sign Out</button>
         </div>
       </header>
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col lg:grid lg:grid-cols-2 min-h-0 overflow-hidden">
+        {/* Mobile: compact preview at top */}
+        <div className="lg:hidden shrink-0 h-[200px] relative" style={{ background: '#cccccc', borderBottom: '0.5px solid var(--tb-border)' }}>
+          {config && (
+            <UnifiedPreview config={config} items={items} useEmbedPosition={tab === 'share'} />
+          )}
+          {showLoadingOverlay && (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 10 }}>
+              <LoadingAnimation
+                finishing={!generating}
+                onFinished={() => setShowLoadingOverlay(false)}
+                startColor={generatingColors?.color ?? config?.drawerImages?.style?.color}
+                endColor={generatingColors?.accentColor ?? config?.drawerImages?.style?.accentColor}
+              />
+            </div>
+          )}
+        </div>
         {/* LEFT: Edit Panel */}
-        <div className="flex flex-col min-h-0 overflow-hidden" style={{ borderRight: '1px solid var(--tb-border-subtle)' }}>
-          <nav className="flex shrink-0" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-            {(['items', 'settings'] as const).map(t => (
+        <div className="flex flex-col min-h-0 overflow-hidden flex-1 lg:flex-none" style={{ borderRight: '0.5px solid var(--tb-border)' }}>
+          <nav className="flex shrink-0" style={{ borderBottom: '0.5px solid var(--tb-border)' }}>
+            {(['drawer', 'items', 'share'] as const).map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className="px-4 py-[10px] text-[10px] tracking-[0.12em] border-b-2 transition-colors cursor-pointer"
+                className="px-3 sm:px-5 py-3 border-b-2 transition-colors cursor-pointer uppercase flex-1 sm:flex-none text-center sm:text-left"
                 style={{
+                  fontFamily: MONO,
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  letterSpacing: '0.08em',
                   borderBottomColor: tab === t ? 'var(--tb-accent)' : 'transparent',
                   color: tab === t ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
                   background: 'transparent',
@@ -344,157 +381,235 @@ export default function EditorPage() {
             ))}
           </nav>
 
-          <div className="flex-1 overflow-y-auto min-h-0 p-4">
+          <div className="flex-1 flex flex-col min-h-0">
             {/* ITEMS */}
             {tab === 'items' && (
-              <div>
-                <h2 className="text-[11px] tracking-[0.12em] uppercase mb-3" style={S.accent}>
-                  items ({items.length}/{config?.maxItems || 100})
-                </h2>
-                {removingBg && <div className="text-[10px] mb-3 animate-pulse" style={{ color: 'var(--tb-highlight)' }}>removing background...</div>}
-                {bgError && <div className="text-[10px] mb-3" style={{ color: '#c44' }}>bg removal failed: {bgError}</div>}
+              <div className="flex-1 flex flex-col min-h-0">
+                {/* Scrollable: header + grid */}
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  <div className="px-4 pt-4 pb-2">
+                    <h2 className="uppercase" style={{ fontFamily: MONO, fontWeight: 600, fontSize: '13px', letterSpacing: '0.08em', ...S.accent }}>
+                      items ({items.length}/{config?.maxItems || 100})
+                    </h2>
+                    {removingBg && <div className="text-[10px] mt-2 animate-pulse" style={{ color: 'var(--tb-highlight)' }}>removing background...</div>}
+                    {bgError && <div className="text-[10px] mt-2" style={{ color: '#c44' }}>bg removal failed: {bgError}</div>}
+                  </div>
 
                 {items.length === 0 ? (
-                  <div className="text-center py-12 text-[10px]" style={S.faint}>no items yet — upload your first treasure</div>
+                  <div className="text-center py-12 uppercase" style={{ fontFamily: MONO, fontSize: '12px', letterSpacing: '0.08em', ...S.faint }}>no items yet — upload your first treasure</div>
                 ) : (
                   <>
-                    {/* Specimen grid */}
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-[1px]" style={{ background: 'var(--tb-border-subtle)' }}>
+                    {/* Specimen grid — matches front page gallery style */}
+                    <div className="grid grid-cols-3 sm:grid-cols-4" style={{ borderTop: '0.5px solid var(--tb-border)', borderLeft: '0.5px solid var(--tb-border)' }}>
                       {items.map((item, idx) => {
                         const isSelected = selectedItemId === item.id;
-                        const hasLink = !!item.link;
-                        const hasStory = !!item.story;
                         return (
                           <div
                             key={item.id}
-                            className="aspect-square relative flex items-center justify-center p-3 cursor-pointer transition-shadow"
+                            className="aspect-square relative overflow-hidden flex items-center justify-center cursor-pointer"
                             style={{
-                              background: 'var(--tb-bg)',
+                              borderRight: '0.5px solid var(--tb-border)',
+                              borderBottom: '0.5px solid var(--tb-border)',
                               outline: isSelected ? '2px solid var(--tb-accent)' : 'none',
                               outlineOffset: '-2px',
                               zIndex: isSelected ? 1 : 0,
                             }}
                             onClick={() => setSelectedItemId(isSelected ? null : item.id)}
                           >
-                            {/* Index number */}
-                            <span className="absolute top-[6px] left-[6px] text-[10px] leading-none select-none" style={S.ghost}>{idx + 1}</span>
+                            {/* Specimen label — top left, "01 — name" */}
+                            <span className="absolute top-2.5 left-3 right-3 leading-none truncate select-none z-10 uppercase" style={{ fontFamily: MONO, fontWeight: 500, fontSize: '11px', letterSpacing: '0.08em', color: 'var(--tb-fg-faint)', fontVariantNumeric: 'tabular-nums' }}>
+                              {String(idx + 1).padStart(2, '0')}&ensp;—&ensp;{item.label || 'untitled'}
+                            </span>
                             {/* Item image */}
                             <img
                               src={item.imageUrl}
                               alt={item.label}
-                              className="max-w-[75%] max-h-[75%] object-contain"
+                              className="max-w-[70%] max-h-[70%] object-contain"
                               style={{ transform: `rotate(${item.rotation ?? 0}deg) scale(${Math.min(item.scale ?? 1, 1.8)})` }}
                               draggable={false}
                             />
-                            {/* Label */}
-                            <span className="absolute bottom-[6px] left-1/2 -translate-x-1/2 text-[9px] truncate max-w-[85%] text-center select-none" style={S.ghost}>{item.label}</span>
-                            {/* Indicator dots */}
-                            {(hasLink || hasStory) && (
-                              <div className="absolute bottom-[6px] right-[6px] flex gap-[3px]">
-                                {hasLink && <div className="w-[4px] h-[4px] rounded-full" style={{ background: 'var(--tb-accent)', opacity: 0.5 }} />}
-                                {hasStory && <div className="w-[4px] h-[4px] rounded-full" style={{ background: 'var(--tb-highlight, var(--tb-accent))', opacity: 0.5 }} />}
-                              </div>
-                            )}
                           </div>
                         );
                       })}
                       {/* Upload cell */}
                       {items.length < (config?.maxItems || 100) && (
                         <label
-                          className="aspect-square flex flex-col items-center justify-center cursor-pointer transition-colors"
-                          style={{ background: 'var(--tb-bg)', border: 'none' }}
+                          className="aspect-square flex flex-col items-center justify-center cursor-pointer"
+                          style={{ borderRight: '0.5px solid var(--tb-border)', borderBottom: '0.5px solid var(--tb-border)' }}
                         >
                           <span className="text-lg leading-none mb-1" style={S.ghost}>+</span>
-                          <span className="text-[9px] tracking-[0.08em]" style={S.ghost}>upload</span>
+                          <span className="uppercase" style={{ fontFamily: MONO, fontWeight: 500, fontSize: '11px', letterSpacing: '0.08em', ...S.ghost }}>Upload</span>
                           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUpload} className="hidden" />
                         </label>
                       )}
                     </div>
-
-                    {/* Selected item detail panel */}
-                    {selectedItemId && (() => {
-                      const item = items.find(i => i.id === selectedItemId);
-                      if (!item) return null;
-                      return (
-                        <div className="mt-3 p-3 flex flex-col gap-[8px]" style={{ border: '1px solid var(--tb-border-subtle)' }}>
-                          <div className="grid grid-cols-[56px_1fr] gap-3">
-                            {/* Thumbnail */}
-                            <div className="w-14 h-14 flex items-center justify-center overflow-hidden shrink-0" style={{ background: 'var(--tb-bg-muted)' }}>
-                              <img src={item.imageUrl} alt={item.label} className="max-w-full max-h-full object-contain"
-                                style={{ transform: `rotate(${item.rotation ?? 0}deg) scale(${Math.min(item.scale ?? 1, 1.8)})` }} />
-                            </div>
-                            {/* Fields */}
-                            <div className="flex flex-col gap-[6px] min-w-0">
-                              <input value={item.label} onChange={e => handleUpdateItem(item.id, { label: e.target.value })} placeholder="label"
-                                className="w-full bg-transparent text-[11px] pb-[2px] outline-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', ...S.accent }} />
-                              <input value={item.link || ''} onChange={e => handleUpdateItem(item.id, { link: e.target.value })} placeholder="link (https://...)"
-                                className="w-full bg-transparent text-[10px] pb-[2px] outline-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
-                              <textarea value={item.story || ''} onChange={e => handleUpdateItem(item.id, { story: e.target.value })} placeholder="story (shown on long-press)" rows={2}
-                                className="w-full bg-transparent text-[10px] pb-[2px] outline-none resize-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
-                            </div>
-                          </div>
-                          {/* Background removal toggle */}
-                          <div className="flex items-center gap-2 pt-1" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
-                            <span className="text-[9px] tracking-[0.12em] shrink-0" style={{ color: 'var(--tb-fg-faint)' }}>bg removal</span>
-                            <button
-                              onClick={() => handleToggleBgRemoval(item.id, item.bgRemoved === false)}
-                              disabled={removingBg === item.id}
-                              className="text-[9px] px-[8px] py-[2px] cursor-pointer tracking-[0.08em] transition-colors"
-                              style={{
-                                border: '1px solid var(--tb-border-subtle)',
-                                color: (item.bgRemoved !== false) ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
-                                background: (item.bgRemoved !== false) ? 'var(--tb-accent-bg, transparent)' : 'transparent',
-                              }}
-                            >
-                              {removingBg === item.id ? 'processing...' : (item.bgRemoved !== false) ? 'on' : 'off'}
-                            </button>
-                          </div>
-                          {/* Sliders + delete */}
-                          <div className="flex flex-col gap-[6px] pt-1" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
-                            <Slider value={item.rotation ?? 0} min={0} max={360} step={1}
-                              label="rot" format={v => `${v}°`}
-                              snap={v => { const n = Math.round(v / 90) * 90; return Math.abs(v - n) < 8 ? n % 360 : v; }}
-                              onChange={v => handleUpdateItem(item.id, { rotation: v })} />
-                            <Slider value={item.scale ?? 1} min={0.3} max={5} step={0.1}
-                              label="size" format={v => `${v.toFixed(1)}×`}
-                              onChange={v => handleUpdateItem(item.id, { scale: v })} />
-                            <div className="flex justify-end pt-[2px]">
-                              <button
-                                onClick={() => { handleDeleteItem(item.id); setSelectedItemId(null); }}
-                                className="text-[10px] px-[10px] py-[4px] cursor-pointer tracking-[0.08em] transition-colors"
-                                style={{ border: '1px solid #c44', color: '#c44', background: 'transparent' }}
-                              >
-                                delete
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
                   </>
                 )}
 
                 {/* Upload cell for empty state */}
                 {items.length === 0 && (
-                  <label className="mt-4 flex items-center justify-center gap-2 py-3 cursor-pointer transition-colors text-[10px] tracking-[0.12em]"
-                    style={{ border: '1px dashed var(--tb-border)', ...S.accent }}>
-                    + upload your first item
+                  <label className="mx-4 mt-4 flex items-center justify-center gap-2 py-3 cursor-pointer uppercase"
+                    style={{ fontFamily: MONO, fontSize: '12px', letterSpacing: '0.08em', border: '1px dashed var(--tb-border)', ...S.accent }}>
+                    + Upload Your First Item
                     <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUpload} className="hidden" />
                   </label>
+                )}
+                </div>{/* end scrollable */}
+
+                {/* ── Fixed control panel — compact, no scroll ── */}
+                {items.length > 0 && (
+                  <div className="shrink-0" style={{ borderTop: '0.5px solid var(--tb-border)' }}>
+                    {selectedItemId && (() => {
+                      const item = items.find(i => i.id === selectedItemId);
+                      if (!item) return null;
+                      const itemIdx = items.findIndex(i => i.id === selectedItemId);
+                      return (
+                        <div className="px-4 py-3 flex flex-col gap-3">
+                          {/* Row 1: Editable name (inline like Google Docs title) + delete */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-baseline gap-0 min-w-0">
+                              <span className="uppercase shrink-0" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: '16px', letterSpacing: '0.02em', ...S.accent }}>
+                                {String(itemIdx + 1).padStart(2, '0')}&ensp;—&ensp;
+                              </span>
+                              <input
+                                value={item.label}
+                                onChange={e => handleUpdateItem(item.id, { label: e.target.value })}
+                                placeholder="Item name"
+                                className="bg-transparent outline-none uppercase min-w-0"
+                                style={{
+                                  fontFamily: DISPLAY, fontWeight: 700, fontSize: '16px', letterSpacing: '0.02em',
+                                  color: 'var(--tb-fg)',
+                                  borderBottom: '1px dashed var(--tb-border)',
+                                  width: `${Math.max(4, (item.label || 'Item name').length) + 1}ch`,
+                                  maxWidth: '100%',
+                                }}
+                              />
+                            </div>
+                            <button
+                              onClick={() => { handleDeleteItem(item.id); setSelectedItemId(null); }}
+                              className="cursor-pointer uppercase shrink-0 ml-3"
+                              style={{ fontFamily: MONO, fontWeight: 600, fontSize: '11px', letterSpacing: '0.08em', border: '1px solid #c44', color: '#c44', background: 'transparent', padding: '4px 10px' }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+
+                          {/* Row 2: Link */}
+                          <div>
+                            <label className="block mb-1 uppercase" style={{ fontFamily: MONO, fontWeight: 700, fontSize: '11px', letterSpacing: '0.08em', color: 'var(--tb-fg-muted)' }}>Link <span style={{ fontWeight: 400, color: 'var(--tb-fg-ghost)' }}>— optional</span></label>
+                            <input value={item.link || ''} onChange={e => handleUpdateItem(item.id, { link: e.target.value })} placeholder="Where does this link to?"
+                              className="w-full bg-transparent outline-none"
+                              style={{ fontFamily: MONO, fontSize: '13px', fontWeight: 400, letterSpacing: '0.02em', border: '0.5px solid var(--tb-border)', padding: '6px 8px', color: 'var(--tb-fg)' }} />
+                          </div>
+
+                          {/* Row 3: Story */}
+                          <div>
+                            <label className="block mb-1 uppercase" style={{ fontFamily: MONO, fontWeight: 700, fontSize: '11px', letterSpacing: '0.08em', color: 'var(--tb-fg-muted)' }}>Story <span style={{ fontWeight: 400, color: 'var(--tb-fg-ghost)' }}>— optional</span></label>
+                            <textarea value={item.story || ''} onChange={e => handleUpdateItem(item.id, { story: e.target.value })} placeholder="What makes this special?" rows={2}
+                              className="w-full bg-transparent outline-none resize-none"
+                              style={{ fontFamily: MONO, fontSize: '13px', fontWeight: 400, letterSpacing: '0.02em', border: '0.5px solid var(--tb-border)', padding: '6px 8px', color: 'var(--tb-fg)' }} />
+                          </div>
+
+                          {/* Row 4: Sliders + BG toggle — single row */}
+                          <div className="flex items-center gap-3 pt-2" style={{ borderTop: '0.5px solid var(--tb-border)' }}>
+                            <div className="flex-1">
+                              <Slider value={item.rotation ?? 0} min={0} max={360} step={1}
+                                label="ROT" format={v => `${v}°`}
+                                snap={v => { const n = Math.round(v / 90) * 90; return Math.abs(v - n) < 8 ? n % 360 : v; }}
+                                onChange={v => handleUpdateItem(item.id, { rotation: v })} />
+                            </div>
+                            <div className="flex-1">
+                              <Slider value={item.scale ?? 1} min={0.3} max={5} step={0.1}
+                                label="SIZE" format={v => `${v.toFixed(1)}×`}
+                                onChange={v => handleUpdateItem(item.id, { scale: v })} />
+                            </div>
+                            <button
+                              onClick={() => handleToggleBgRemoval(item.id, item.bgRemoved === false)}
+                              disabled={removingBg === item.id}
+                              className="cursor-pointer uppercase shrink-0"
+                              style={{
+                                fontFamily: MONO, fontWeight: 600, fontSize: '11px', letterSpacing: '0.06em',
+                                padding: '5px 12px',
+                                border: `1px solid ${(item.bgRemoved !== false) ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
+                                color: (item.bgRemoved !== false) ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
+                                background: 'transparent',
+                              }}
+                            >
+                              {removingBg === item.id ? 'Removing...' : 'BG Removal'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    {!selectedItemId && (
+                      <div className="px-4 py-4 text-center uppercase" style={{ fontFamily: MONO, fontWeight: 400, fontSize: '12px', letterSpacing: '0.08em', ...S.ghost }}>
+                        Select an item to edit
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
 
-            {/* SETTINGS */}
-            {tab === 'settings' && config && (
-              <div>
-                {/* ── 1. DRAWER APPEARANCE ── */}
-                <CfgGroup title="drawer appearance" hint="generate AI artwork for your drawer — choose a style and hit generate" first>
+            {/* DRAWER tab */}
+            {tab === 'drawer' && config && (
+              <div className="p-4 flex-1 min-h-0 overflow-y-auto">
+                {/* Top bar: title left, action buttons right */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-baseline gap-3">
+                    <h2 className="uppercase" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: '18px', letterSpacing: '0.02em', ...S.accent }}>Appearance</h2>
+                    <span className="uppercase" style={{ fontFamily: MONO, fontWeight: 400, fontSize: '10px', letterSpacing: '0.08em', color: configStatus === 'saved' ? 'var(--tb-accent)' : 'var(--tb-fg-ghost)' }}>
+                      {configStatus === 'saving' ? 'saving...' : configStatus === 'saved' ? 'saved ✓' : ''}
+                    </span>
+                  </div>
+                  {drawerActionState && (
+                    <div className="flex items-center gap-3">
+                      {drawerActionState.hasExisting && !drawerActionState.generating && (
+                        <button
+                          onClick={drawerActionState.onReset}
+                          className="cursor-pointer uppercase tb-link"
+                          style={{ fontFamily: MONO, fontSize: '12px', fontWeight: 500, letterSpacing: '0.08em', color: 'var(--tb-fg-faint)', background: 'none', border: 'none' }}
+                        >
+                          Reset
+                        </button>
+                      )}
+                      <button
+                        onClick={drawerActionState.onGenerate}
+                        disabled={drawerActionState.generating}
+                        className="cursor-pointer uppercase tb-pill"
+                        style={{
+                          fontFamily: MONO, fontSize: '12px', fontWeight: 600, letterSpacing: '0.08em',
+                          padding: '6px 16px',
+                          border: '1.5px solid var(--tb-accent)', color: 'var(--tb-accent)',
+                          background: 'transparent',
+                          opacity: drawerActionState.generating ? 0.5 : 1,
+                        }}
+                      >
+                        {drawerActionState.generating ? 'Generating...' : drawerActionState.hasExisting ? 'Regenerate' : 'Generate'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Appearance — direction + style picker */}
+                <div>
+                  {/* Direction toggle — inside appearance */}
+                  <div className="mb-4 pb-4" style={{ borderBottom: '0.5px solid var(--tb-border)' }}>
+                    <CfgLabel>direction</CfgLabel>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                      <CfgToggle active={!config.drawerFlipped} first onClick={() => setConfig({ ...config, drawerFlipped: false })}>normal</CfgToggle>
+                      <CfgToggle active={!!config.drawerFlipped} first onClick={() => setConfig({ ...config, drawerFlipped: true })}>flipped</CfgToggle>
+                    </div>
+                  </div>
+
+                  {/* AI style picker */}
                   <DrawerStylePicker
                     key={config.drawerImages?.generatedAt ?? 'ascii'}
                     userId={user.uid}
                     currentImages={config.drawerImages || undefined}
                     boxDimensions={config.boxDimensions}
+                    hideActions
+                    onActionState={setDrawerActionState}
                     onComplete={(images: DrawerImages) => {
                       skipAutoSaveRef.current = true;
                       const material = images.style?.preset;
@@ -507,29 +622,19 @@ export default function EditorPage() {
                       if (colors) setGeneratingColors(colors);
                     }}
                   />
-                </CfgGroup>
+                </div>
 
-                {/* ── 2. BOX IDENTITY ── */}
-                <CfgGroup title="box identity">
-                  <CfgSection>
-                    <CfgLabel>drawer label</CfgLabel>
-                    <input type="text" value={config.drawerLabel} onChange={e => setConfig({ ...config, drawerLabel: e.target.value })}
-                      className="w-full bg-transparent text-[10px] p-2 outline-none"
-                      style={{ border: '1px solid var(--tb-border-subtle)', ...S.accent }} />
-                  </CfgSection>
+              </div>
+            )}
 
+            {/* SHARE */}
+            {tab === 'share' && config && (
+              <div className="p-4 overflow-y-auto flex-1 min-h-0">
+                {/* Visibility */}
+                <CfgGroup title="visibility" first>
                   <CfgSection>
-                    <CfgLabel>owner name (optional)</CfgLabel>
-                    <input type="text" value={config.ownerName || ''} onChange={e => setConfig({ ...config, ownerName: e.target.value })}
-                      placeholder="displayed on your box" className="w-full bg-transparent text-[10px] p-2 outline-none"
-                      style={{ border: '1px solid var(--tb-border-subtle)', ...S.accent }} />
-                    <CfgHint>shown at the bottom corner of your treasure box</CfgHint>
-                  </CfgSection>
-
-                  <CfgSection>
-                    <CfgLabel>visibility</CfgLabel>
-                    <div className="flex">
-                      <CfgToggle active={!config.isPublic} first onClick={() => setConfig({ ...config, isPublic: false })}>private</CfgToggle>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                      <CfgToggle active={!config.isPublic} onClick={() => setConfig({ ...config, isPublic: false })}>private</CfgToggle>
                       <CfgToggle active={config.isPublic} onClick={() => setConfig({ ...config, isPublic: true })}>public</CfgToggle>
                     </div>
                     <CfgHint>public boxes appear in the gallery on the landing page</CfgHint>
@@ -538,8 +643,8 @@ export default function EditorPage() {
                   {isAdmin && (
                   <CfgSection>
                     <CfgLabel>front page demo</CfgLabel>
-                    <div className="flex">
-                      <CfgToggle active={!isDemoBox} first onClick={async () => {
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                      <CfgToggle active={!isDemoBox} onClick={async () => {
                         await setDemoBoxId(null);
                         setIsDemoBox(false);
                       }}>off</CfgToggle>
@@ -551,18 +656,9 @@ export default function EditorPage() {
                     <CfgHint>set your box as the landing page hero demo</CfgHint>
                   </CfgSection>
                   )}
-
-                  <CfgSection>
-                    <CfgLabel>drawer direction</CfgLabel>
-                    <div className="flex">
-                      <CfgToggle active={!config.drawerFlipped} first onClick={() => setConfig({ ...config, drawerFlipped: false })}>normal</CfgToggle>
-                      <CfgToggle active={!!config.drawerFlipped} onClick={() => setConfig({ ...config, drawerFlipped: true })}>flipped</CfgToggle>
-                    </div>
-                    <CfgHint>mirror the drawer horizontally</CfgHint>
-                  </CfgSection>
                 </CfgGroup>
 
-                {/* ── 3. EMBED ── */}
+                {/* Embed codes */}
                 {user && (
                   <CfgGroup title="embed">
                     <EmbedConfigurator
@@ -577,53 +673,49 @@ export default function EditorPage() {
                 )}
 
                 {/* Auto-save status */}
-                <div className="text-[10px] tracking-[0.12em] mb-6 h-6 flex items-center" style={S.faint}>
+                <div className="mb-6 h-6 flex items-center uppercase" style={{ fontFamily: MONO, fontWeight: 400, fontSize: '11px', letterSpacing: '0.08em', ...S.faint }}>
                   {configStatus === 'saving' && <span className="animate-pulse">saving...</span>}
                   {configStatus === 'saved' && <span style={S.accent}>saved &#10003;</span>}
                   {configStatus === 'idle' && <span style={S.ghost}>auto-saves on change</span>}
                 </div>
 
                 {/* ── DANGER ZONE ── */}
-                <div className="pt-6 mt-2" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
-                  <h3 className="text-[11px] mb-4 tracking-[0.12em] uppercase" style={{ color: '#c44' }}>danger zone</h3>
+                {/* Danger zone — single row */}
+                <div className="pt-4 mt-2 flex items-center justify-between" style={{ borderTop: '0.5px solid var(--tb-border)' }}>
+                  <span className="uppercase" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: '16px', letterSpacing: '0.04em', color: '#c44' }}>Danger Zone</span>
                   {!showDeleteConfirm ? (
                     <button
                       onClick={() => setShowDeleteConfirm(true)}
-                      className="text-[10px] px-[14px] py-[6px] cursor-pointer tracking-[0.12em] transition-colors"
-                      style={{ border: '1px solid #c44', color: '#c44', background: 'transparent' }}
+                      className="tb-pill cursor-pointer uppercase"
+                      style={{ fontFamily: MONO, fontSize: '12px', fontWeight: 600, letterSpacing: '0.08em', border: '1px solid #c44', color: '#c44', background: 'transparent', padding: '6px 14px' }}
                     >
-                      delete my box
+                      Delete My Box
                     </button>
                   ) : (
-                    <div className="p-3" style={{ border: '1px solid #c44' }}>
-                      <p className="text-[10px] mb-3" style={{ color: '#c44' }}>
-                        This will permanently delete your box, all items, and all images. This cannot be undone.
-                      </p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={async () => {
-                            setDeleting(true);
-                            await deleteBox(user.uid);
-                            setConfig(null);
-                            setItems([]);
-                            setShowDeleteConfirm(false);
-                            setDeleting(false);
-                            window.location.href = '/';
-                          }}
-                          disabled={deleting}
-                          className="text-[10px] px-[14px] py-[6px] cursor-pointer tracking-[0.12em]"
-                          style={{ border: '1px solid #c44', color: '#fff', background: '#c44', opacity: deleting ? 0.5 : 1 }}
-                        >
-                          {deleting ? 'deleting...' : 'confirm delete'}
-                        </button>
-                        <button
-                          onClick={() => setShowDeleteConfirm(false)}
-                          className="text-[10px] px-[14px] py-[6px] cursor-pointer tracking-[0.12em]"
-                          style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)', background: 'transparent' }}
-                        >
-                          cancel
-                        </button>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={async () => {
+                          setDeleting(true);
+                          await deleteBox(user.uid);
+                          setConfig(null);
+                          setItems([]);
+                          setShowDeleteConfirm(false);
+                          setDeleting(false);
+                          window.location.href = '/';
+                        }}
+                        disabled={deleting}
+                        className="cursor-pointer uppercase"
+                        style={{ fontFamily: MONO, fontSize: '12px', fontWeight: 600, letterSpacing: '0.08em', border: '1px solid #c44', color: '#fff', background: '#c44', padding: '6px 14px', opacity: deleting ? 0.5 : 1 }}
+                      >
+                        {deleting ? 'Deleting...' : 'Confirm'}
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="tb-pill cursor-pointer uppercase"
+                        style={{ fontFamily: MONO, fontSize: '12px', fontWeight: 500, letterSpacing: '0.08em', border: '1px solid var(--tb-border)', color: 'var(--tb-fg-faint)', background: 'transparent', padding: '6px 14px' }}
+                      >
+                        Cancel
+                      </button>
                     </div>
                   )}
                 </div>
@@ -632,11 +724,11 @@ export default function EditorPage() {
           </div>
         </div>
 
-        {/* RIGHT: Live Preview */}
-        <div className="flex flex-col overflow-hidden" style={{ background: 'var(--tb-bg-subtle)' }}>
-          <div className="flex items-center justify-between px-4 py-[10px] shrink-0" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-            <span className="text-[10px] tracking-[0.12em]" style={S.faint}>live preview</span>
-            <span className="text-[9px] px-2 py-[2px] tracking-widest uppercase" style={{ ...S.ghost, border: '1px solid var(--tb-border-subtle)' }}>live</span>
+        {/* RIGHT: Live Preview — desktop only (mobile uses compact preview above) */}
+        <div className="hidden lg:flex flex-col overflow-hidden" style={{ background: 'var(--tb-bg-subtle)' }}>
+          <div className="flex items-center justify-between px-5 py-3 shrink-0" style={{ borderBottom: '0.5px solid var(--tb-border)' }}>
+            <span className="uppercase" style={{ fontFamily: MONO, fontWeight: 600, fontSize: '13px', letterSpacing: '0.08em', ...S.faint }}>Live Preview</span>
+            <span className="uppercase px-2 py-[2px]" style={{ fontFamily: MONO, fontWeight: 400, fontSize: '10px', letterSpacing: '0.12em', ...S.ghost, border: '0.5px solid var(--tb-border)' }}>live</span>
           </div>
           <div className="flex-1 flex items-center justify-center relative overflow-hidden"
             style={{ background: '#cccccc' }}>
@@ -644,6 +736,7 @@ export default function EditorPage() {
               <UnifiedPreview
                 config={config}
                 items={items}
+                useEmbedPosition={tab === 'share'}
               />
             )}
             {showLoadingOverlay && (
@@ -664,47 +757,57 @@ export default function EditorPage() {
 }
 
 function CfgSection({ children }: { children: React.ReactNode }) {
-  return <div className="mb-5 pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>{children}</div>;
+  return <div className="mb-5 pb-5" style={{ borderBottom: '0.5px solid var(--tb-border)' }}>{children}</div>;
 }
 function CfgLabel({ children }: { children: React.ReactNode }) {
-  return <label className="text-[10px] block mb-2 tracking-[0.12em]" style={{ color: 'var(--tb-fg-faint)' }}>{children}</label>;
+  return <label className="block mb-2 uppercase" style={{ fontFamily: "'Inconsolata', monospace", fontWeight: 500, fontSize: '12px', letterSpacing: '0.08em', color: 'var(--tb-fg-faint)' }}>{children}</label>;
 }
 function CfgHint({ children }: { children: React.ReactNode }) {
-  return <p className="text-[9px] mt-[6px]" style={{ color: 'var(--tb-fg-ghost)' }}>{children}</p>;
+  return <p className="mt-[6px]" style={{ fontFamily: "'Inconsolata', monospace", fontWeight: 400, fontSize: '11px', letterSpacing: '0.04em', color: 'var(--tb-fg-ghost)' }}>{children}</p>;
 }
 function CfgGroup({ title, hint, children, first }: { title: string; hint?: string; children: React.ReactNode; first?: boolean }) {
   return (
-    <div style={{ borderTop: first ? 'none' : '1px solid var(--tb-border-subtle)' }}
+    <div style={{ borderTop: first ? 'none' : '0.5px solid var(--tb-border)' }}
       className={first ? 'mb-4' : 'pt-5 mt-3 mb-4'}>
-      <h3 className="text-[11px] mb-1 tracking-[0.12em] uppercase"
-        style={{ color: 'var(--tb-accent)' }}>{title}</h3>
-      {hint && <p className="text-[9px] mb-4" style={{ color: 'var(--tb-fg-ghost)' }}>{hint}</p>}
+      <h3 className="mb-1 uppercase"
+        style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: '16px', letterSpacing: '0.04em', color: 'var(--tb-accent)' }}>{title}</h3>
+      {hint && <p className="mb-4" style={{ fontFamily: "'Inconsolata', monospace", fontWeight: 400, fontSize: '11px', letterSpacing: '0.04em', color: 'var(--tb-fg-ghost)' }}>{hint}</p>}
       {!hint && <div className="mb-3" />}
       {children}
     </div>
   );
 }
-function CfgToggle({ active, first, children, onClick }: { active: boolean; first?: boolean; children: React.ReactNode; onClick: () => void }) {
+function CfgToggle({ active, children, onClick }: { active: boolean; first?: boolean; children: React.ReactNode; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="text-[10px] px-[14px] py-[6px] border cursor-pointer transition-all"
+    <button onClick={onClick} className="tb-pill cursor-pointer transition-all uppercase"
       style={{
-        borderColor: active ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
+        fontFamily: "'Inconsolata', monospace",
+        fontWeight: active ? 700 : 500,
+        fontSize: '13px',
+        letterSpacing: '0.08em',
+        padding: '7px 16px',
+        width: '100%',
+        textAlign: 'center',
+        border: `1px solid ${active ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
         color: active ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
-        borderLeftWidth: first ? 1 : 0, background: 'transparent',
+        background: active ? 'var(--tb-bg-muted)' : 'transparent',
       }}>{children}</button>
   );
 }
 
-/** Unified preview — single centered TreasureBox with pop-in transition */
+/** Unified preview — shows TreasureBox centered or anchored to embed position */
 function UnifiedPreview({
   config,
   items,
+  useEmbedPosition,
 }: {
   config: BoxConfig;
   items: TreasureItem[];
+  useEmbedPosition?: boolean;
 }) {
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewReady, setPreviewReady] = useState(false);
+  const [dims, setDims] = useState({ w: 0, h: 0 });
   const handleReady = useCallback(() => setPreviewReady(true), []);
 
   // Reset readiness when drawer images change
@@ -712,10 +815,70 @@ function UnifiedPreview({
     setPreviewReady(false);
   }, [config.drawerImages?.spriteUrl]);
 
-  const drawerStyle = useMemo(() => {
+  // Track container size for anchor positioning
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setDims({ w: entry.contentRect.width, h: entry.contentRect.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const drawerStyle = useMemo((): React.CSSProperties => {
     if (!previewRef.current) return { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' };
+
+    if (useEmbedPosition && config.embedSettings) {
+      const pos = config.embedSettings.position || { anchor: 'bottom-right' as const, offsetX: 20, offsetY: 20 };
+      const anchor = pos.anchor || 'bottom-right';
+      const ox = pos.offsetX ?? 20;
+      const oy = pos.offsetY ?? 20;
+      // The drawer element's layout size is unscaled, but the visual size is scaled by boxScale.
+      // transform-origin: center means scaling leaves equal invisible space on all sides.
+      // Compensate by shifting the position by half the difference between layout and visual size.
+      const scale = config.boxScale ?? 1;
+      // We don't know the exact drawer dimensions here, but we can use a transform
+      // to shift the drawer so its visual edge aligns with the offset.
+      // translateX/Y shifts by percentage of the element's own size.
+      const shiftPct = ((1 - scale) / 2) * 100; // % of element size that's invisible on each side
+
+      const style: React.CSSProperties = { position: 'absolute' };
+      if (anchor.includes('top')) {
+        style.top = oy;
+        style.transform = `translateY(-${shiftPct}%)`;
+      } else {
+        style.bottom = oy;
+        style.transform = `translateY(${shiftPct}%)`;
+      }
+      if (anchor.includes('left')) {
+        style.left = ox;
+        style.transform = (style.transform || '') + ` translateX(-${shiftPct}%)`;
+      } else {
+        style.right = ox;
+        style.transform = (style.transform || '') + ` translateX(${shiftPct}%)`;
+      }
+
+      return style;
+    }
+
     return computeCenteredDrawerPosition(previewRef.current.offsetWidth, previewRef.current.offsetHeight);
-  }, [config]);
+  }, [config, useEmbedPosition, dims]);
+
+  // Spawn origin based on anchor position
+  const spawnOrigin = useMemo(() => {
+    if (useEmbedPosition && config.embedSettings && dims.w > 0) {
+      const pos = config.embedSettings.position || { anchor: 'bottom-right' as const, offsetX: 20, offsetY: 20 };
+      const anchor = pos.anchor || 'bottom-right';
+      const ox = pos.offsetX ?? 20;
+      const oy = pos.offsetY ?? 20;
+
+      const x = anchor.includes('left') ? ox / dims.w : 1 - ox / dims.w;
+      const y = anchor.includes('top') ? oy / dims.h : 1 - oy / dims.h;
+      return { x: Math.max(0.1, Math.min(0.9, x)), y: Math.max(0.1, Math.min(0.9, y)) };
+    }
+    return computeCenteredSpawnOrigin();
+  }, [config, useEmbedPosition, dims]);
 
   return (
     <div ref={previewRef} className="w-full h-full relative">
@@ -729,7 +892,7 @@ function UnifiedPreview({
           config={config}
           overlayPreview={{
             drawerStyle,
-            spawnOrigin: computeCenteredSpawnOrigin(),
+            spawnOrigin,
           }}
           onReady={handleReady}
         />

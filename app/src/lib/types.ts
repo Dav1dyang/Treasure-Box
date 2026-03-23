@@ -31,6 +31,8 @@ export interface DrawerStyle {
   customDecorText?: string;   // user's free-text decor keywords (persisted for round-trip)
   accentColor?: string;    // hex color for hardware/trim
   decor?: string;          // decoration description (combined toggle pills + custom text)
+  stylePrompt?: string;    // direct prompt text for dynamic Gemini-generated styles
+  featurePrompts?: string[]; // direct prompt texts for dynamic Gemini-generated features
   drawerWidth?: number;    // ratio width 1-5 (default 3)
   drawerHeight?: number;   // ratio height 1-5 (default 2)
   angle?: DrawerAngle;     // camera angle

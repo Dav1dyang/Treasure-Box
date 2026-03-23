@@ -283,24 +283,67 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         }
       }
     } else if (drawerElRef.current) {
-      // Normal mode: reposition 3-wall box around the scaled drawer
+      // Normal mode: reposition walls + drawer collision body around the scaled drawer
       const sceneRect = scene.getBoundingClientRect();
       const drawerRect = drawerElRef.current.getBoundingClientRect();
-      const scaledH = drawerRect.height * cs;
-      const centerY = drawerRect.top - sceneRect.top + drawerRect.height / 2;
-      const boxCenterX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
+      const dw = drawerRect.width;
+      const dh = drawerRect.height;
+      const scaledW = dw * cs;
+      const scaledH = dh * cs;
+      const centerX = drawerRect.left - sceneRect.left + dw / 2;
+      const centerY = drawerRect.top - sceneRect.top + dh / 2;
       const floorY = centerY - scaledH * 0.25;
-      const boxW = Math.max(drawerRect.width * cs, 200 * cs);
+      const boxW = Math.max(scaledW, 200 * cs);
 
       // Remove old walls, create new ones at updated positions/sizes
       if (walls.floor) Matter.Composite.remove(engine.world, walls.floor);
       if (walls.left) Matter.Composite.remove(engine.world, walls.left);
       if (walls.right) Matter.Composite.remove(engine.world, walls.right);
 
-      walls.floor = Matter.Bodies.rectangle(boxCenterX, floorY, boxW, 14, wallOpts);
-      walls.left = Matter.Bodies.rectangle(boxCenterX - boxW / 2 - 7, floorY - 300, 14, 700 * cs, wallOpts);
-      walls.right = Matter.Bodies.rectangle(boxCenterX + boxW / 2 + 7, floorY - 300, 14, 700 * cs, wallOpts);
+      walls.floor = Matter.Bodies.rectangle(centerX, floorY, boxW, 14, wallOpts);
+      walls.left = Matter.Bodies.rectangle(centerX - boxW / 2 - 7, floorY - 300, 14, 700 * cs, wallOpts);
+      walls.right = Matter.Bodies.rectangle(centerX + boxW / 2 + 7, floorY - 300, 14, 700 * cs, wallOpts);
       Matter.Composite.add(engine.world, [walls.floor, walls.left, walls.right]);
+
+      // Update drawer collision body to match current drawer size
+      if (walls.drawerBody) Matter.Composite.remove(engine.world, walls.drawerBody);
+      if (walls.drawerBodies) walls.drawerBodies.forEach(b => Matter.Composite.remove(engine.world, b));
+      walls.drawerBody = undefined;
+      walls.drawerBodies = undefined;
+
+      const wallPath = drawerWallPathRef.current;
+      if (wallPath && wallPath.length >= 4) {
+        const bodies: Matter.Body[] = [];
+        const thickness = 12;
+        for (let i = 0; i < wallPath.length - 1; i++) {
+          const p1 = wallPath[i];
+          const p2 = wallPath[i + 1];
+          const x1 = centerX - scaledW / 2 + p1.x * scaledW;
+          const y1 = centerY - scaledH / 2 + p1.y * scaledH;
+          const x2 = centerX - scaledW / 2 + p2.x * scaledW;
+          const y2 = centerY - scaledH / 2 + p2.y * scaledH;
+          const midX = (x1 + x2) / 2;
+          const midY = (y1 + y2) / 2;
+          const segLen = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+          if (segLen < 1) continue;
+          const angle = Math.atan2(y2 - y1, x2 - x1);
+          bodies.push(Matter.Bodies.rectangle(midX, midY, segLen + thickness * 0.5, thickness, {
+            isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer', angle,
+          }));
+        }
+        if (bodies.length > 0) {
+          Matter.Composite.add(engine.world, bodies);
+          walls.drawerBodies = bodies;
+        }
+      } else {
+        const bodyH = scaledH * 0.75;
+        const bodyY = centerY + scaledH * 0.125;
+        const newDrawerBody = Matter.Bodies.rectangle(centerX, bodyY, scaledW, bodyH, {
+          isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
+        });
+        Matter.Composite.add(engine.world, newDrawerBody);
+        walls.drawerBody = newDrawerBody;
+      }
     }
 
     // Reposition text collider bodies on resize
@@ -684,11 +727,19 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     }
 
     const mouse = Matter.Mouse.create(canvas);
-    // Allow page scrolling through the canvas — Matter.js captures wheel events by default
-    if ((mouse as any).mousewheel) {
-      mouse.element.removeEventListener('mousewheel', (mouse as any).mousewheel);
-      mouse.element.removeEventListener('DOMMouseScroll', (mouse as any).mousewheel);
+    // Allow page scrolling through the canvas — Matter.js captures wheel events by default.
+    // Remove all wheel-related listeners Matter.js may have added, then add a passive
+    // no-op listener to guarantee the browser never blocks native scroll.
+    const wheelHandler = (mouse as any).mousewheel;
+    if (wheelHandler) {
+      canvas.removeEventListener('mousewheel', wheelHandler);
+      canvas.removeEventListener('DOMMouseScroll', wheelHandler);
+      canvas.removeEventListener('wheel', wheelHandler);
     }
+    // Overwrite the handler so Matter.js can't re-add it
+    (mouse as any).mousewheel = null;
+    // Passive no-op ensures browser always allows native scroll through canvas
+    canvas.addEventListener('wheel', () => {}, { passive: true });
     mouse.pixelRatio = window.devicePixelRatio || 1;
     const mouseConstraint = Matter.MouseConstraint.create(engine, {
       mouse,
@@ -743,6 +794,32 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           } else {
             lastClickTimeRef.current = now;
             lastClickBodyRef.current = bodyId;
+          }
+        }
+      }
+      // Tap-to-close: if no body was tapped/dragged, check if tap is near drawer → close
+      // This handles mobile where Matter.js preventDefault() blocks synthetic click events
+      if (!body?.itemData && !didDragRef.current) {
+        const drawerEl = drawerElRef.current;
+        const sceneEl = sceneRef.current;
+        if (drawerEl && sceneEl) {
+          const sceneRect = sceneEl.getBoundingClientRect();
+          const drawerRect = drawerEl.getBoundingClientRect();
+          const mx = mouse.position.x;
+          const my = mouse.position.y;
+          const cs = boxScaleRef.current;
+          // Shrink the hit zone to match the visual (scaled) drawer, not the layout rect
+          const insetX = drawerRect.width * (1 - cs) / 2;
+          const insetY = drawerRect.height * (1 - cs) / 2;
+          const margin = 5;
+          const insideDrawer = (
+            mx >= (drawerRect.left - sceneRect.left + insetX - margin) &&
+            mx <= (drawerRect.right - sceneRect.left - insetX + margin) &&
+            my >= (drawerRect.top - sceneRect.top + insetY - margin) &&
+            my <= (drawerRect.bottom - sceneRect.top - insetY + margin)
+          );
+          if (insideDrawer) {
+            closeDrawerRef.current();
           }
         }
       }
@@ -919,21 +996,21 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     const cs = boxScaleRef.current;
     const op = overlayPreviewRef.current;
 
-    // Derive spawn position from the actual drawer element when available
+    // Derive spawn position from the actual drawer element (most accurate).
+    // Falls back to spawnOrigin fraction if drawer element isn't available.
     let spawnY: number;
     let centerX: number;
-    if (op) {
-      spawnY = op.spawnOrigin.y * h;
-      centerX = op.spawnOrigin.x * w;
-    } else if (drawerElRef.current) {
+    if (drawerElRef.current) {
       const sceneRect = scene.getBoundingClientRect();
       const drawerRect = drawerElRef.current.getBoundingClientRect();
       centerX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
-      // drawerRect is unscaled — compute visual top accounting for transform-origin: center center
       const centerY = drawerRect.top - sceneRect.top + drawerRect.height / 2;
       const scaledH = drawerRect.height * cs;
       const visualTop = centerY - scaledH / 2;
-      spawnY = visualTop - 60 * cs;
+      spawnY = visualTop - Math.max(20, scaledH * 0.15);
+    } else if (op) {
+      spawnY = op.spawnOrigin.y * h;
+      centerX = op.spawnOrigin.x * w;
     } else {
       spawnY = h - 200 * cs;
       centerX = w / 2;
@@ -1073,10 +1150,10 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       ctx.translate(x, y);
       ctx.rotate(angle);
 
-      ctx.shadowColor = isLightBg ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.5)';
-      ctx.shadowBlur = 8;
-      ctx.shadowOffsetX = 2;
-      ctx.shadowOffsetY = 4;
+      ctx.shadowColor = isLightBg ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.2)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 2;
 
       if (img && img.complete && img.naturalWidth > 0) {
         const imgAspect = img.naturalWidth / img.naturalHeight;
@@ -1489,12 +1566,15 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       const drawerEl = drawerElRef.current;
       if (drawerEl) {
         const drawerRect = drawerEl.getBoundingClientRect();
-        const margin = 20;
+        const cs = boxScaleRef.current;
+        const insetX = drawerRect.width * (1 - cs) / 2;
+        const insetY = drawerRect.height * (1 - cs) / 2;
+        const margin = 5;
         const insideDrawer = (
-          e.clientX >= drawerRect.left - margin &&
-          e.clientX <= drawerRect.right + margin &&
-          e.clientY >= drawerRect.top - margin &&
-          e.clientY <= drawerRect.bottom + margin
+          e.clientX >= drawerRect.left + insetX - margin &&
+          e.clientX <= drawerRect.right - insetX + margin &&
+          e.clientY >= drawerRect.top + insetY - margin &&
+          e.clientY <= drawerRect.bottom - insetY + margin
         );
         if (!insideDrawer) return;
       }
@@ -1639,25 +1719,28 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         onPointerMove={effectiveOverlay?.onDrag ? handleDrawerPointerMove : undefined}
         onPointerUp={effectiveOverlay?.onDrag ? handleDrawerPointerUp : undefined}
       >
-        <div style={{ transform: `scale(${boxScale})${config.drawerFlipped ? ' scaleX(-1)' : ''}`, transformOrigin: 'center center' }}>
-          {hasGeneratedImages ? (
-            // === AI-Generated Image Drawer ===
-            <DrawerImage
-              images={config.drawerImages!}
-              currentState={gulpState ?? boxState}
-              isLight={isLightBg}
-              displaySize={config.drawerDisplaySize}
-            />
-          ) : (
-            // === ASCII Art Fallback (dimension-aware) ===
-            <DynamicASCIIBox
-              dimensions={normalizeDimensions(config.boxDimensions || DEFAULT_BOX_DIMENSIONS)}
-              label={config.drawerLabel || 'TREASURE BOX'}
-              state={gulpState ?? boxState}
-              isOpen={isOpen}
-              isLight={isLightBg}
-            />
-          )}
+        <div style={{ transform: `scale(${boxScale})`, transformOrigin: 'center center' }}>
+          <div style={config.drawerFlipped ? { transform: 'scaleX(-1)' } : undefined}>
+            {hasGeneratedImages ? (
+              // === AI-Generated Image Drawer ===
+              <DrawerImage
+                images={config.drawerImages!}
+                currentState={gulpState ?? boxState}
+                isLight={isLightBg}
+                displaySize={config.drawerDisplaySize}
+                flipped={!!config.drawerFlipped}
+              />
+            ) : (
+              // === ASCII Art Fallback (dimension-aware) ===
+              <DynamicASCIIBox
+                dimensions={normalizeDimensions(config.boxDimensions || DEFAULT_BOX_DIMENSIONS)}
+                label={config.drawerLabel || 'TREASURE BOX'}
+                state={gulpState ?? boxState}
+                isOpen={isOpen}
+                isLight={isLightBg}
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -1668,7 +1751,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         onMouseMove={physicsActive ? handleCanvasMouseMove : undefined}
         onMouseLeave={physicsActive ? handleCanvasMouseLeave : undefined}
         className={`absolute inset-0 ${physicsActive ? 'pointer-events-auto' : 'pointer-events-none'}`}
-        style={{ zIndex: isOpen ? 15 : 5 }}
+        style={{ zIndex: isOpen ? 15 : 5, touchAction: physicsActive ? 'manipulation' : 'auto' }}
       />
 
       {/* Story overlay */}
@@ -1699,13 +1782,15 @@ function DrawerImage({
   currentState,
   isLight,
   displaySize,
+  flipped,
 }: {
   images: DrawerImages;
   currentState: BoxState;
   isLight: boolean;
   displaySize?: { width: number; height: number };
+  flipped?: boolean;
 }) {
-  const dropShadow = isLight ? 'none' : 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))';
+  const dropShadow = isLight ? 'none' : 'drop-shadow(0 2px 6px rgba(0,0,0,0.15))';
   const [naturalRatio, setNaturalRatio] = useState<number | null>(null);
 
   const maxW = displaySize?.width || DEFAULT_DRAWER_DISPLAY_SIZE.width;
@@ -1774,11 +1859,16 @@ function DrawerImage({
         ))
       )}
 
-      {/* Hint text for IDLE state */}
+      {/* Hint text for IDLE state — counter-flip if drawer is mirrored */}
       {currentState === 'IDLE' && (
         <div
-          className="absolute bottom-0 left-0 right-0 text-center text-[10px] animate-pulse"
-          style={{ color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.25)' }}
+          className="absolute -bottom-6 left-0 right-0 text-center text-[10px]"
+          style={{
+            fontFamily: "'Inconsolata', monospace",
+            letterSpacing: '0.06em',
+            color: isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)',
+            ...(flipped ? { transform: 'scaleX(-1)' } : {}),
+          }}
         >
           ▸ hover to peek, click to open
         </div>
@@ -2020,8 +2110,12 @@ function DynamicASCIIBox({
       {/* Hint */}
       {state === 'IDLE' && (
         <div
-          className="text-center text-[10px] mt-3 animate-pulse"
-          style={{ color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.25)' }}
+          className="text-center text-[10px] mt-4"
+          style={{
+            fontFamily: "'Inconsolata', monospace",
+            letterSpacing: '0.06em',
+            color: isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)',
+          }}
         >
           ▸ click to open drawer
         </div>
