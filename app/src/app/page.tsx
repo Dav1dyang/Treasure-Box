@@ -24,11 +24,9 @@ export default function Home() {
   const [hasInteracted, setHasInteracted] = useState(false);
 
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const subtitleRef = useRef<HTMLParagraphElement>(null);
 
   const textColliders = useMemo(() => [
     { ref: titleRef, label: 'title' },
-    { ref: subtitleRef, label: 'subtitle' },
   ], []);
 
   // Load hero box: user's own box if logged in, otherwise random public box
@@ -200,22 +198,6 @@ export default function Home() {
 
       {/* ═══ CATALOG GRID ═══ */}
       <section id="gallery">
-        {/* Subtitle — visible only when scrolled past hero */}
-        <p
-          ref={subtitleRef}
-          className="uppercase text-center"
-          style={{
-            fontFamily: "'Inconsolata', monospace",
-            fontWeight: 500,
-            fontSize: 'clamp(14px, 1.8vw, 18px)',
-            letterSpacing: '0.12em',
-            color: 'var(--tb-fg-muted)',
-            margin: 0,
-            padding: '20px 0 16px 0',
-          }}
-        >
-          keep the things you were given by the people you love
-        </p>
         {/* Section label */}
         <div
           className="uppercase text-center"
@@ -225,8 +207,9 @@ export default function Home() {
             fontSize: 'clamp(14px, 1.8vw, 18px)',
             letterSpacing: '0.12em',
             color: 'var(--tb-fg-muted)',
-            padding: '6px 0 10px 0',
+            padding: '16px 0 12px 0',
             borderTop: '0.5px solid var(--tb-border)',
+            marginTop: '8px',
           }}
         >
           Public Gallery
