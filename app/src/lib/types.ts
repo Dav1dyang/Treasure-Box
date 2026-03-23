@@ -14,13 +14,6 @@ export interface BoxDimensions {
   hasKeyhole: boolean;
 }
 
-/** Geometry tokens for prompt generation — proportions only, not structure. */
-export interface GeometryTokens {
-  BOX_WIDTH: number;
-  BOX_HEIGHT: number;
-  DRAWER_HEIGHT: number;
-}
-
 // ===== Drawer AI Generation =====
 
 export type BoxState = 'IDLE' | 'HOVER_PEEK' | 'OPEN' | 'HOVER_CLOSE' | 'CLOSING' | 'SLAMMING';

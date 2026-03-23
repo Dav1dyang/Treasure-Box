@@ -19,8 +19,6 @@ import type {
   DrawerStylePreset,
   EmbedSettings,
   SoundPreset,
-  HandleStyle,
-  CornerStyle,
 } from './types';
 
 // ═══════════════════════════════════════════════════════════════
@@ -108,9 +106,6 @@ export const DECOR_ITEMS = [
 // SOUND DEFAULTS
 // ═══════════════════════════════════════════════════════════════
 
-export const DEFAULT_SOUND_VOLUME = 0.3;
-export const DEFAULT_SOUND_PRESET: SoundPreset = 'metallic';
-
 /** Auto-match sound preset to drawer material. */
 export const MATERIAL_SOUND_MAP: Record<DrawerStylePreset, SoundPreset> = {
   clay: 'clay',
@@ -120,21 +115,6 @@ export const MATERIAL_SOUND_MAP: Record<DrawerStylePreset, SoundPreset> = {
   paper: 'paper',
   glass: 'glass',
 };
-export const SOUND_MIN_INTERVAL_MS = 50;
-export const COLLISION_VELOCITY_THRESHOLD = 0.5;
-
-// ═══════════════════════════════════════════════════════════════
-// PHYSICS & IMAGE PROCESSING DEFAULTS
-// ═══════════════════════════════════════════════════════════════
-
-export const CONTOUR_SAMPLE_POINTS = 12;
-export const CONTOUR_ALPHA_THRESHOLD = 30;
-
-// ═══════════════════════════════════════════════════════════════
-// EDITOR DEFAULTS
-// ═══════════════════════════════════════════════════════════════
-
-export const AUTOSAVE_DEBOUNCE_MS = 1500;
 
 // ═══════════════════════════════════════════════════════════════
 // ADDITIONAL FEATURES INPUT LIMITS
@@ -144,53 +124,3 @@ export const ADDITIONAL_FEATURES_MAX_KEYWORDS = 3;
 export const ADDITIONAL_FEATURES_MAX_CHAR_PER_KEYWORD = 20;
 export const ADDITIONAL_FEATURES_INPUT_MAX_LENGTH = 60;
 
-// ═══════════════════════════════════════════════════════════════
-// SPRITE SHEET STATE MAPPING
-// ═══════════════════════════════════════════════════════════════
-
-/** Default frame open percentages for the 5-frame sprite sheet. */
-export const DEFAULT_STATES = [0, 25, 50, 75, 100] as const;
-
-/** Maps runtime BoxState → visual open percentage for sprite frame reuse. */
-export const VISUAL_STATE_MAP: Record<BoxState, number> = {
-  IDLE: 0,
-  HOVER_PEEK: 25,
-  CLOSING: 50,
-  HOVER_CLOSE: 75,
-  OPEN: 100,
-  SLAMMING: 0,
-} as const;
-
-/** Config keys that must never be injected into the generation prompt. */
-export const NON_VISUAL_CONFIG_KEYS = [
-  'drawerLabel',
-  'backgroundColor',
-  'soundEnabled',
-  'soundVolume',
-  'soundPreset',
-  'maxItems',
-  'contentScale',
-  'embed',
-  'isPublic',
-] as const;
-
-// ═══════════════════════════════════════════════════════════════
-// HANDLE & CORNER STYLE OPTIONS (for UI)
-// ═══════════════════════════════════════════════════════════════
-
-export const HANDLE_STYLES: { id: HandleStyle; label: string }[] = [
-  { id: 'round-knob', label: 'round knob' },
-  { id: 'pull-bar', label: 'pull bar' },
-  { id: 'ring-pull', label: 'ring pull' },
-  { id: 'half-moon', label: 'half moon' },
-  { id: 'slot-pull', label: 'slot pull' },
-  { id: 'none', label: 'none' },
-];
-
-export const CORNER_STYLES: { id: CornerStyle; label: string }[] = [
-  { id: 'rounded', label: 'rounded' },
-  { id: 'square', label: 'square' },
-  { id: 'beveled', label: 'beveled' },
-  { id: 'double', label: 'double' },
-  { id: 'reinforced', label: 'reinforced' },
-];
