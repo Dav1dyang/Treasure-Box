@@ -87,6 +87,12 @@
   var offsetX = parseInt(cfg.ox, 10) || DEFAULTS.OFFSET_X;
   var offsetY = parseInt(cfg.oy, 10) || DEFAULTS.OFFSET_Y;
 
+  // ═══════════════════════════════════════════════════════════════
+  // Mobile responsive hiding — skip overlay on narrow viewports
+  // ═══════════════════════════════════════════════════════════════
+  var mobileQuery = window.matchMedia('(max-width: 767px)');
+  if (mobileQuery.matches) return; // Skip all DOM creation on mobile
+
   // DOM collision opt-in
   var domCollide = cfg.domCollide;
   var domCollideDebug = !!cfg.domCollideDebug;
@@ -260,6 +266,59 @@
   document.body.appendChild(canvas);
   var ctx = canvas.getContext('2d');
   if (ctx) ctx.scale(dpr, dpr);
+
+  // ═══════════════════════════════════════════════════════════════
+  // Mobile responsive: hide/show on viewport resize across breakpoint
+  // ═══════════════════════════════════════════════════════════════
+  function updateMobileVisibility() {
+    var hidden = mobileQuery.matches;
+    boxContainer.style.display = hidden ? 'none' : '';
+    canvas.style.display = hidden ? 'none' : '';
+  }
+  mobileQuery.addEventListener('change', updateMobileVisibility);
+
+  // ═══════════════════════════════════════════════════════════════
+  // CSS Transform Ancestor Compensation
+  // When position:fixed is inside a CSS-transformed ancestor
+  // (common in Webflow, Squarespace, Framer, Readymag),
+  // it becomes relative to that ancestor instead of the viewport.
+  // We detect this by probing and apply a counter-transform.
+  // ═══════════════════════════════════════════════════════════════
+  function detectFixedOffset() {
+    var probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;visibility:hidden;z-index:-1;';
+    document.body.appendChild(probe);
+    var r = probe.getBoundingClientRect();
+    document.body.removeChild(probe);
+    return {
+      scaleX: window.innerWidth / (r.width || window.innerWidth),
+      scaleY: window.innerHeight / (r.height || window.innerHeight),
+      offsetX: -r.left,
+      offsetY: -r.top,
+    };
+  }
+
+  function applyFixedCompensation() {
+    var fix = detectFixedOffset();
+    if (Math.abs(fix.scaleX - 1) < 0.001 && Math.abs(fix.scaleY - 1) < 0.001 &&
+        Math.abs(fix.offsetX) < 1 && Math.abs(fix.offsetY) < 1) {
+      boxContainer.style.transform = '';
+      canvas.style.transform = '';
+      return;
+    }
+    // Map anchor string to CSS transform-origin
+    var originMap = {
+      'bottom-right': 'bottom right', 'bottom-left': 'bottom left',
+      'top-right': 'top right', 'top-left': 'top left',
+    };
+    boxContainer.style.transformOrigin = originMap[anchor] || 'bottom right';
+    boxContainer.style.transform = 'scale(' + fix.scaleX + ',' + fix.scaleY + ') translate(' + fix.offsetX + 'px,' + fix.offsetY + 'px)';
+    // Canvas covers the full viewport — always origin top-left
+    canvas.style.transformOrigin = 'top left';
+    canvas.style.transform = 'scale(' + fix.scaleX + ',' + fix.scaleY + ') translate(' + fix.offsetX + 'px,' + fix.offsetY + 'px)';
+  }
+
+  applyFixedCompensation();
 
   // State: latest frame data from iframe physics engine
   var frameBodies = [];
@@ -644,6 +703,8 @@
       if (resizeCtx) resizeCtx.scale(curDpr, curDpr);
       // Notify iframe of new viewport
       sendViewportInfo();
+      // Re-check CSS transform compensation (host page may rescale on resize)
+      applyFixedCompensation();
       // Full re-scan on resize (element positions may have changed)
       if (domCollideSelector) scanDomColliders(boxIframe);
     }, DEFAULTS.RESIZE_DEBOUNCE_MS);
