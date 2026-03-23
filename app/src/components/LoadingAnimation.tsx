@@ -18,9 +18,10 @@ function lerpOklab(a: string, b: string, t: number): string {
   return chroma.mix(a, b, t, 'oklab').hex();
 }
 
-/** Interpolate then darken by 35% for a deeper stroke. */
-function lerpOklabDark(a: string, b: string, t: number): string {
-  return chroma.mix(a, b, t, 'oklab').darken(1.5).hex();
+/** Interpolate then adjust for a contrasting stroke — darken light fills, lighten dark fills. */
+function lerpOklabStroke(a: string, b: string, t: number): string {
+  const mixed = chroma.mix(a, b, t, 'oklab');
+  return mixed.luminance() > 0.15 ? mixed.darken(1.5).hex() : mixed.brighten(1.5).hex();
 }
 
 // Number of boxes in one full gradient cycle (start → end color)
@@ -120,7 +121,7 @@ export default function LoadingAnimation({ className, finishing, onFinished, sta
     const raw = (spawnCountRef.current % (GRADIENT_CYCLE * 2)) / GRADIENT_CYCLE;
     const t = raw <= 1 ? raw : 2 - raw;
     body.fillColor = lerpOklab(colA, colB, t);
-    body.strokeColor = lerpOklabDark(colA, colB, t);
+    body.strokeColor = lerpOklabStroke(colA, colB, t);
     body.boxW = boxW;
     body.boxH = boxH;
 
