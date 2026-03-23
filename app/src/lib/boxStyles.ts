@@ -125,11 +125,13 @@ export function buildDrawerPrompt(style: DrawerStyle, dims?: BoxDimensions): str
 
   return `Sprite sheet: 5 evenly spaced sprites on a single continuous #00FF00 green canvas, 5:1 aspect ratio. No borders, dividers, separators, panel outlines, or black lines anywhere. One unbroken flat green background.
 
-Each sprite is centered within its cell and must fit within the center 60% of its cell, 40% green margin on every side, even at 100% open with the drawer fully extended. Zero bleed between cells.
+Each sprite must fit within the center 70% of its cell, 30% green margin on every side, even at 100% open. Zero bleed between cells.
+
+CRITICAL ALIGNMENT RULE: The cabinet shell must be anchored at the exact same position in all 5 frames. Do not center the combined cabinet-plus-drawer as one object. Anchor the cabinet body, let the drawer extend outward from it. In frame 1 (closed), there is extra empty green space where the drawer would extend. In frame 5 (fully open), the drawer fills that space. The cabinet never moves, shifts, or resizes to accommodate the drawer. Size all 5 frames to fit the largest state (100% open). Earlier frames will have more empty green space. This is correct.
 
 Subject: a single one-drawer cabinet, ${ANGLE} view, ${STYLE} style, ${MATERIAL}. ${MAIN_COLOR} body with ${ACCENT_COLOR} accents. ${HANDLE}, ${CORNERS}. ${DECOR}. Exactly one drawer, no stacked drawers, no multi-drawer, no extra compartments.
 
-Sprite 1: drawer closed (0%). Sprite 2: drawer slightly open (25%). Sprite 3: drawer half open (50%). Sprite 4: drawer mostly open (75%). Sprite 5: drawer fully open (100%). Progression is linear and mechanical. Cabinet shell stays identical across all 5 sprites. Same angle, scale, position, lighting. Only the drawer translates outward along depth axis. Drawer interior empty.
+Sprite 1: drawer closed (0%). Sprite 2: drawer slightly open (25%). Sprite 3: drawer half open (50%). Sprite 4: drawer mostly open (75%). Sprite 5: drawer fully open (100%). Progression is linear and mechanical. Cabinet shell stays identical and stationary across all 5 sprites. Same angle, scale, position, lighting. Only the drawer translates outward along depth axis. Drawer interior empty.
 
 No shadows, no floor, no text, no labels, no watermark. No props inside drawer. Game asset style, clean edges.`;
 }

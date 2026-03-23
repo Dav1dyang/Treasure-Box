@@ -177,123 +177,31 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ═══ CREATE CTA ═══ */}
-      <section
-        className="flex items-center justify-center px-6 py-12"
-        style={{ borderTop: '1px solid var(--tb-border)' }}
-      >
-        <Link
-          href={user ? '/editor' : '#'}
-          onClick={e => {
-            if (!user) {
-              e.preventDefault();
-              signIn();
-            }
-          }}
-          className="inline-block px-10 py-4 no-underline transition-colors uppercase"
-          style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontWeight: 700,
-            fontSize: '18px',
-            letterSpacing: '0.04em',
-            borderRadius: '8px',
-            background: 'var(--tb-accent)',
-            color: 'var(--tb-bg)',
-          }}
-          onMouseEnter={e => e.currentTarget.style.background = 'var(--tb-accent-hover)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'var(--tb-accent)'}
-        >
-          {user ? 'Create Your Drawer' : 'Sign In to Create Yours'}
-        </Link>
-      </section>
-
-      {/* ═══ FULL-WIDTH SPECIMEN ═══ */}
-      <section
-        className="w-full relative"
-        style={{
-          borderTop: '1px solid var(--tb-border)',
-          height: '100vh',
-          maxHeight: '900px',
-        }}
-      >
-        <div className="absolute inset-0">
-          {demoLoading ? (
-            <div className="w-full h-full flex items-center justify-center">
-              <div
-                className="animate-pulse w-full h-full"
-                style={{ background: 'var(--tb-bg-subtle)' }}
-              />
-            </div>
-          ) : demoConfig ? (
-            <TreasureBox items={demoItems} config={demoConfig} />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center" style={{ background: 'var(--tb-bg-subtle)' }}>
-              <pre className="text-[10px] leading-relaxed text-center" style={{ color: 'var(--tb-fg-faint)' }}>
-{`┌──────────────────────────────────────────────┐
-│                                              │
-│        specimen drawer — full width          │
-│                                              │
-│   sign in and create your own to see it      │
-│   come alive with physics and sound          │
-│                                              │
-│        ┌──────────────────────────┐          │
-│        │    [ ═══ PULL ═══ ]     │          │
-│        └──────────────────────────┘          │
-│                                              │
-└──────────────────────────────────────────────┘`}
-              </pre>
-            </div>
-          )}
-        </div>
-        <div
-          className="absolute bottom-6 left-0 right-0 text-center text-[10px] tracking-[0.15em] uppercase pointer-events-none"
-          style={{ color: 'var(--tb-fg-faint)' }}
-        >
-          full-width specimen — pull to explore
-        </div>
-      </section>
-
-      {/* ═══ PUBLIC GALLERY ═══ */}
-      <section id="gallery" className="px-6 py-16" style={{ borderTop: '1px solid var(--tb-border)' }}>
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-baseline justify-between mb-8">
-            <h2 className="text-[11px] tracking-[0.12em] uppercase" style={{ color: 'var(--tb-accent)' }}>
-              public boxes
-            </h2>
-            <span className="text-[9px]" style={{ color: 'var(--tb-fg-ghost)' }}>
-              {galleryBoxes.length} {galleryBoxes.length === 1 ? 'box' : 'boxes'}
-            </span>
+      {/* ═══ CATALOG GRID ═══ */}
+      <section id="gallery">
+        {galleryError ? (
+          <div className="text-center py-16 text-[10px]" style={{ color: '#f87171' }}>
+            {galleryError}
           </div>
-
-          {galleryError ? (
-            <div className="text-center py-16 text-[10px]" style={{ color: '#f87171' }}>
-              {galleryError}
-            </div>
-          ) : galleryBoxes.length === 0 ? (
-            <div className="text-center py-16 text-[10px]" style={{ color: 'var(--tb-fg-faint)' }}>
-              no public boxes yet — toggle yours to public in the editor
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {galleryBoxes.map((entry) => (
-                <GalleryBox key={entry.config.id} config={entry.config} items={entry.items} />
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ═══ FOOTER ═══ */}
-      <footer className="py-12 text-center" style={{ borderTop: '1px solid var(--tb-border)' }}>
-        <p className="text-[9px] tracking-[0.2em]" style={{ color: 'var(--tb-fg-ghost)' }}>
-          junk drawer &middot; physics &middot; memories
-        </p>
-      </footer>
+        ) : galleryBoxes.length === 0 ? (
+          <div className="text-center py-16 text-[10px]" style={{ color: 'var(--tb-fg-faint)' }}>
+            no public boxes yet — toggle yours to public in the editor
+          </div>
+        ) : (
+          <div
+            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
+            style={{ borderTop: '1px solid var(--tb-border)', borderLeft: '1px solid var(--tb-border)' }}
+          >
+            {galleryBoxes.map((entry, i) => (
+              <GalleryBox key={entry.config.id} config={entry.config} items={entry.items} index={i + 1} />
+            ))}
+          </div>
+        )}</section>
     </div>
   );
 }
 
-function GalleryBox({ config, items }: { config: BoxConfig; items: TreasureItem[] }) {
+function GalleryBox({ config, items, index }: { config: BoxConfig; items: TreasureItem[]; index: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
 
@@ -314,25 +222,28 @@ function GalleryBox({ config, items }: { config: BoxConfig; items: TreasureItem[
   }, []);
 
   return (
-    <div ref={ref} className="flex flex-col">
-      <div
-        className="aspect-square relative overflow-hidden"
-        style={{ border: '1px solid var(--tb-border-subtle)' }}
+    <div
+      ref={ref}
+      className="aspect-square relative overflow-hidden"
+      style={{ borderRight: '1px solid var(--tb-border)', borderBottom: '1px solid var(--tb-border)' }}
+    >
+      {isVisible && (
+        <TreasureBox items={items} config={config} />
+      )}
+      {/* Index number */}
+      <span
+        className="absolute top-2 left-2.5 text-[10px] leading-none pointer-events-none"
+        style={{ color: 'var(--tb-fg-ghost)', fontVariantNumeric: 'tabular-nums' }}
       >
-        {isVisible && (
-          <TreasureBox items={items} config={config} />
-        )}
-      </div>
-      <div className="pt-3 pb-1">
-        <div className="text-[10px] truncate" style={{ color: 'var(--tb-fg-muted)' }}>
-          {config.title || 'untitled'}
-        </div>
-        {config.ownerName && (
-          <div className="text-[8px] mt-[2px]" style={{ color: 'var(--tb-fg-ghost)' }}>
-            {config.ownerName}
-          </div>
-        )}
-      </div>
+        {index}
+      </span>
+      {/* Title label */}
+      <span
+        className="absolute bottom-2 left-2.5 right-2.5 text-[9px] leading-none truncate pointer-events-none"
+        style={{ color: 'var(--tb-fg-faint)' }}
+      >
+        {config.title || config.ownerName || 'untitled'}
+      </span>
     </div>
   );
 }
