@@ -35,7 +35,7 @@ interface Props {
   /** When true, skips min-h constraint for iframe/contained embeds */
   embedded?: boolean;
   /** Called each render frame with body positions for postMessage streaming */
-  onFrameSync?: (bodies: FrameSyncBody[], effects: { brightness: number; contrast: number; tint?: string }) => void;
+  onFrameSync?: (bodies: FrameSyncBody[], effects: Record<string, unknown>) => void;
   /** Host viewport dimensions for wall placement when embedded in an iframe */
   hostViewport?: HostViewport;
 }
@@ -828,28 +828,10 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         if (imgAspect > 1) drawH = size / imgAspect;
         else drawW = size * imgAspect;
 
-        // Apply brightness/contrast/grayscale filter
-        const br = config.itemBrightness ?? 1;
-        const ct = config.itemContrast ?? 1;
-        const bw = config.itemTint === 'bw';
-        if (br !== 1 || ct !== 1 || bw) {
-          ctx.filter = `brightness(${br}) contrast(${ct})${bw ? ' grayscale(1)' : ''}`;
-        }
-
         ctx.beginPath();
         ctx.roundRect(-drawW / 2, -drawH / 2, drawW, drawH, 4);
         ctx.clip();
         ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
-
-        // Apply tint overlay (skip for grayscale mode)
-        if (config.itemTint && config.itemTint !== 'bw') {
-          ctx.globalCompositeOperation = 'source-atop';
-          ctx.fillStyle = config.itemTint + '40';
-          ctx.fillRect(-drawW / 2, -drawH / 2, drawW, drawH);
-          ctx.globalCompositeOperation = 'source-over';
-        }
-
-        ctx.filter = 'none';
       } else {
         ctx.fillStyle = '#5a5a4a';
         ctx.beginPath();
@@ -898,15 +880,11 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           story: item?.story,
         };
       }).filter(b => b.id);
-      onFrameSyncRef.current(syncBodies, {
-        brightness: config.itemBrightness ?? 1,
-        contrast: config.itemContrast ?? 1,
-        tint: config.itemTint,
-      });
+      onFrameSyncRef.current(syncBodies, {});
     }
 
     animFrameRef.current = requestAnimationFrame(renderLoop);
-  }, [isLightBg, config.itemBrightness, config.itemContrast, config.itemTint]);
+  }, [isLightBg]);
 
   // ===== State machine handlers =====
 

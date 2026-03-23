@@ -17,7 +17,6 @@ import type {
   BoxDimensions,
   BoxState,
   DrawerStylePreset,
-  EmbedPadding,
   EmbedSettings,
   SoundPreset,
   HandleStyle,
@@ -38,8 +37,6 @@ export const DEFAULT_BOX_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' 
   soundPreset: 'metallic',
   isPublic: false,
   contentScale: 1.0,
-  itemBrightness: 1.0,
-  itemContrast: 1.0,
 };
 
 export const DEFAULT_BOX_DIMENSIONS: BoxDimensions = {
@@ -66,27 +63,7 @@ export const DEFAULT_DRAWER_DISPLAY_SIZE = { width: 420, height: 420 };
 // EMBED DEFAULTS
 // ═══════════════════════════════════════════════════════════════
 
-export const DEFAULT_EMBED_PADDING: EmbedPadding = {
-  top: 16,
-  right: 16,
-  bottom: 8,
-  left: 16,
-};
-
-export const EMBED_BASE_W = 350;
-export const EMBED_BASE_H = 300;
-
-export function getEmbedDimensions(scale: number) {
-  return {
-    width: Math.round(EMBED_BASE_W * scale),
-    height: Math.round(EMBED_BASE_H * scale),
-  };
-}
-
 export const DEFAULT_EMBED_SETTINGS: EmbedSettings = {
-  mode: 'overlay',
-  width: 350,
-  height: 300,
   position: {
     anchor: 'bottom-right',
     offsetX: 32,
@@ -133,6 +110,16 @@ export const DECOR_ITEMS = [
 
 export const DEFAULT_SOUND_VOLUME = 0.3;
 export const DEFAULT_SOUND_PRESET: SoundPreset = 'metallic';
+
+/** Auto-match sound preset to drawer material. */
+export const MATERIAL_SOUND_MAP: Record<DrawerStylePreset, SoundPreset> = {
+  clay: 'clay',
+  metal: 'metallic',
+  wood: 'wooden',
+  pixel: 'pixel',
+  paper: 'paper',
+  glass: 'glass',
+};
 export const SOUND_MIN_INTERVAL_MS = 50;
 export const COLLISION_VELOCITY_THRESHOLD = 0.5;
 
@@ -183,8 +170,6 @@ export const NON_VISUAL_CONFIG_KEYS = [
   'soundPreset',
   'maxItems',
   'contentScale',
-  'itemBrightness',
-  'itemContrast',
   'embed',
   'isPublic',
 ] as const;

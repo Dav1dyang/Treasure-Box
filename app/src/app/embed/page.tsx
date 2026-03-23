@@ -5,27 +5,19 @@ import { useSearchParams } from 'next/navigation';
 import { getPublicBoxConfig, getPublicItems } from '@/lib/firestore';
 import type { TreasureItem, BoxConfig, FrameSyncBody, HostViewport, AnchorCorner } from '@/lib/types';
 import TreasureBox from '@/components/TreasureBox';
-import { computeDrawerPosition, computeSpawnOrigin, computeCenteredDrawerPosition, computeCenteredSpawnOrigin } from '@/lib/embedPosition';
+import { computeCenteredDrawerPosition, computeCenteredSpawnOrigin } from '@/lib/embedPosition';
 import { Suspense } from 'react';
 
 function EmbedContent() {
   const searchParams = useSearchParams();
   const boxId = searchParams.get('box');
   const bgOverride = searchParams.get('bg');
-  const embedMode = searchParams.get('mode') || 'contained';
   const scaleParam = searchParams.get('scale');
 
   // Overlay position params
   const anchorParam = (searchParams.get('anchor') || 'bottom-right') as AnchorCorner;
   const offsetXParam = parseInt(searchParams.get('ox') || '32', 10) || 32;
   const offsetYParam = parseInt(searchParams.get('oy') || '32', 10) || 32;
-
-  // Padding params for contained mode (default 0 for backward compat)
-  const pt = Math.max(0, Math.min(60, parseInt(searchParams.get('pt') || '0', 10) || 0));
-  const pr = Math.max(0, Math.min(60, parseInt(searchParams.get('pr') || '0', 10) || 0));
-  const pb = Math.max(0, Math.min(60, parseInt(searchParams.get('pb') || '0', 10) || 0));
-  const pl = Math.max(0, Math.min(60, parseInt(searchParams.get('pl') || '0', 10) || 0));
-  const hasPadding = pt > 0 || pr > 0 || pb > 0 || pl > 0;
 
   const [config, setConfig] = useState<BoxConfig | null>(null);
   const [items, setItems] = useState<TreasureItem[]>([]);
@@ -64,12 +56,8 @@ function EmbedContent() {
     })();
   }, [boxId]);
 
-  const isOverlay = embedMode === 'overlay';
-
-  // Listen for viewport-info and dom-rects from parent (widget.js)
+  // Listen for viewport-info from parent (widget.js)
   useEffect(() => {
-    if (!isOverlay) return;
-
     const handleMessage = (event: MessageEvent) => {
       if (!event.data || event.data.type !== 'treasure-box') return;
 
@@ -86,13 +74,15 @@ function EmbedContent() {
     window.addEventListener('message', handleMessage);
 
     // Request viewport info from parent on mount
-    window.parent.postMessage({ type: 'treasure-box', action: 'request-viewport-info' }, '*');
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'treasure-box', action: 'request-viewport-info' }, '*');
+    }
 
     return () => window.removeEventListener('message', handleMessage);
-  }, [isOverlay]);
+  }, []);
 
   // Frame sync: stream body positions to parent for overlay rendering
-  const handleFrameSync = useCallback((bodies: FrameSyncBody[], effects: { brightness: number; contrast: number; tint?: string }) => {
+  const handleFrameSync = useCallback((bodies: FrameSyncBody[], effects: Record<string, unknown>) => {
     if (typeof window === 'undefined') return;
     window.parent.postMessage({
       type: 'treasure-box',
@@ -124,13 +114,8 @@ function EmbedContent() {
     ? { ...config, contentScale: scaleOverride }
     : config;
 
-  const isContained = !isOverlay;
-  const paddingStyle = (isContained && hasPadding)
-    ? { padding: `${pt}px ${pr}px ${pb}px ${pl}px` }
-    : undefined;
-
-  // For overlay mode with frame sync: use overlayPreview to position drawer and run physics locally
-  if (isOverlay && hostViewport) {
+  // Overlay mode with frame sync: position drawer and run physics locally
+  if (hostViewport) {
     const overlayConfig = {
       ...effectiveConfig,
       backgroundColor: 'transparent',
@@ -158,14 +143,14 @@ function EmbedContent() {
     );
   }
 
+  // Fallback: direct browser visit or no parent frame — render standalone
   return (
-    <div className="w-full h-screen overflow-hidden" style={paddingStyle}>
+    <div className="w-full h-screen overflow-hidden">
       <div className="w-full h-full">
         <TreasureBox
           items={items}
           config={effectiveConfig}
           backgroundColor={bg}
-          embedded={isContained}
         />
       </div>
     </div>

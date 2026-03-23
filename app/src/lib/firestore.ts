@@ -188,6 +188,17 @@ export async function getRandomPublicBox(): Promise<{ config: BoxConfig; items: 
   return { config, items };
 }
 
+export async function getPublicBoxesWithItems(limitCount = 20): Promise<{ config: BoxConfig; items: TreasureItem[] }[]> {
+  const boxes = await getPublicBoxes(limitCount);
+  const results = await Promise.all(
+    boxes.map(async (config) => ({
+      config,
+      items: await getPublicItems(config.ownerId),
+    }))
+  );
+  return results;
+}
+
 // ===== Public read (for embed) =====
 
 export async function getPublicBoxConfig(boxId: string): Promise<BoxConfig | null> {

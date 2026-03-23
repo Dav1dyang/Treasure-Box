@@ -10,41 +10,14 @@ import {
   uploadImage, uploadProcessedImage,
   clearDrawerImages, deleteItemWithCleanup, deleteBox,
 } from '@/lib/firestore';
-import type { TreasureItem, BoxConfig, SoundPreset, DrawerImages, EmbedSettings, AnchorCorner } from '@/lib/types';
-import { DEFAULT_EMBED_SETTINGS, DEFAULT_BOX_CONFIG, getEmbedDimensions } from '@/lib/config';
+import type { TreasureItem, BoxConfig, DrawerImages, EmbedSettings, AnchorCorner } from '@/lib/types';
+import { DEFAULT_EMBED_SETTINGS, DEFAULT_BOX_CONFIG, MATERIAL_SOUND_MAP } from '@/lib/config';
 import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
 import LoadingAnimation from '@/components/LoadingAnimation';
 import { extractContourFromImage } from '@/lib/contour';
 import EmbedConfigurator from '@/components/EmbedConfigurator';
 import { computeDrawerPosition, computeSpawnOrigin, computeCenteredDrawerPosition, computeCenteredSpawnOrigin, positionFromPointer } from '@/lib/embedPosition';
-
-const SOUND_PRESETS: SoundPreset[] = ['metallic', 'wooden', 'glass', 'paper', 'pixel', 'clay', 'silent'];
-function VolumeBar({ volume, onChange }: { volume: number; onChange: (v: number) => void }) {
-  const steps = 10;
-  const filled = Math.round(volume * steps);
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex gap-[3px] items-end">
-        {Array.from({ length: steps }, (_, i) => (
-          <button
-            key={i}
-            onClick={() => onChange((i + 1) / steps)}
-            className="cursor-pointer border transition-all"
-            style={{
-              width: 14, height: 6 + i * 2,
-              background: i < filled ? 'var(--tb-accent)' : 'var(--tb-bg-muted)',
-              borderColor: i < filled ? 'var(--tb-accent)' : 'var(--tb-border-subtle)',
-            }}
-          />
-        ))}
-      </div>
-      <span className="text-[10px] min-w-[28px]" style={{ color: 'var(--tb-fg-faint)' }}>
-        {Math.round(volume * 100)}%
-      </span>
-    </div>
-  );
-}
 
 function Slider({ value, min, max, step, label, format, onChange, snap }: {
   value: number; min: number; max: number; step: number;
@@ -83,10 +56,9 @@ export default function EditorPage() {
   const [config, setConfig] = useState<BoxConfig | null>(null);
   const [items, setItems] = useState<TreasureItem[]>([]);
   const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState<'items' | 'config' | 'embed'>('items');
+  const [tab, setTab] = useState<'items' | 'settings'>('items');
   const [removingBg, setRemovingBg] = useState<string | null>(null);
   const [bgError, setBgError] = useState<string | null>(null);
-  const [isTransparentBg, setIsTransparentBg] = useState(true);
   const [configStatus, setConfigStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -113,7 +85,6 @@ export default function EditorPage() {
         await saveBoxConfig(box);
       }
       setConfig(box);
-      setIsTransparentBg(box.backgroundColor === 'transparent');
       setItems(await getItems(user.uid));
       // Mark loaded so auto-save doesn't fire on initial load
       setTimeout(() => { configLoadedRef.current = true; }, 100);
@@ -268,7 +239,7 @@ export default function EditorPage() {
         {/* LEFT: Edit Panel */}
         <div className="flex flex-col min-h-0 overflow-hidden" style={{ borderRight: '1px solid var(--tb-border-subtle)' }}>
           <nav className="flex shrink-0" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-            {(['items', 'config', 'embed'] as const).map(t => (
+            {(['items', 'settings'] as const).map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -409,8 +380,8 @@ export default function EditorPage() {
               </div>
             )}
 
-            {/* CONFIG */}
-            {tab === 'config' && config && (
+            {/* SETTINGS */}
+            {tab === 'settings' && config && (
               <div>
                 {/* ── 1. DRAWER APPEARANCE ── */}
                 <CfgGroup title="drawer appearance" hint="generate AI artwork for your drawer — choose a style and hit generate" first>
@@ -419,136 +390,18 @@ export default function EditorPage() {
                     userId={user.uid}
                     currentImages={config.drawerImages || undefined}
                     boxDimensions={config.boxDimensions}
-                    onComplete={(images: DrawerImages) => { skipAutoSaveRef.current = true; setConfig({ ...config, drawerImages: images }); }}
+                    onComplete={(images: DrawerImages) => {
+                      skipAutoSaveRef.current = true;
+                      const material = images.style?.preset;
+                      const soundPreset = material ? (MATERIAL_SOUND_MAP[material] ?? config.soundPreset) : config.soundPreset;
+                      setConfig({ ...config, drawerImages: images, soundPreset, soundEnabled: soundPreset !== 'silent' });
+                    }}
                     onReset={async () => { await clearDrawerImages(user.uid); setConfig({ ...config, drawerImages: undefined }); }}
                     onGeneratingChange={setGenerating}
                   />
                 </CfgGroup>
 
-                {/* ── 2. ITEM STYLE ── */}
-                <CfgGroup title="item style" hint="visual filters applied to all items in the drawer">
-                  <CfgSection>
-                    <CfgLabel>brightness</CfgLabel>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range" min={0.5} max={1.5} step={0.05}
-                        value={config.itemBrightness ?? 1}
-                        onChange={e => setConfig({ ...config, itemBrightness: Number(e.target.value) })}
-                        className="flex-1"
-                        style={{ accentColor: 'var(--tb-accent)' }}
-                      />
-                      <span className="text-[10px] min-w-[32px] text-right font-mono" style={S.accent}>
-                        {(config.itemBrightness ?? 1).toFixed(2)}
-                      </span>
-                      {(config.itemBrightness ?? 1) !== 1 && (
-                        <button
-                          onClick={() => setConfig({ ...config, itemBrightness: 1 })}
-                          className="text-[9px] px-2 py-[2px] cursor-pointer"
-                          style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)' }}
-                        >
-                          reset
-                        </button>
-                      )}
-                    </div>
-                  </CfgSection>
-
-                  <CfgSection>
-                    <CfgLabel>contrast</CfgLabel>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range" min={0.5} max={1.5} step={0.05}
-                        value={config.itemContrast ?? 1}
-                        onChange={e => setConfig({ ...config, itemContrast: Number(e.target.value) })}
-                        className="flex-1"
-                        style={{ accentColor: 'var(--tb-accent)' }}
-                      />
-                      <span className="text-[10px] min-w-[32px] text-right font-mono" style={S.accent}>
-                        {(config.itemContrast ?? 1).toFixed(2)}
-                      </span>
-                      {(config.itemContrast ?? 1) !== 1 && (
-                        <button
-                          onClick={() => setConfig({ ...config, itemContrast: 1 })}
-                          className="text-[9px] px-2 py-[2px] cursor-pointer"
-                          style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-faint)' }}
-                        >
-                          reset
-                        </button>
-                      )}
-                    </div>
-                  </CfgSection>
-
-                  <CfgSection>
-                    <CfgLabel>color mode</CfgLabel>
-                    <div className="flex items-center gap-4">
-                      <label className="flex items-center gap-[6px] cursor-pointer">
-                        <div onClick={() => {
-                          if (config.itemTint && config.itemTint !== 'bw') {
-                            setConfig({ ...config, itemTint: undefined });
-                          } else {
-                            setConfig({ ...config, itemTint: '#ff0000' });
-                          }
-                        }}
-                          className="w-[14px] h-[14px] flex items-center justify-center text-[10px] shrink-0"
-                          style={{ border: '1px solid var(--tb-border)', ...S.accent, background: config.itemTint && config.itemTint !== 'bw' ? 'var(--tb-bg-muted)' : 'transparent' }}>
-                          {config.itemTint && config.itemTint !== 'bw' ? '\u2713' : ''}
-                        </div>
-                        <span className="text-[9px]" style={S.faint}>tint</span>
-                      </label>
-                      {config.itemTint && config.itemTint !== 'bw' && (
-                        <input type="color" value={config.itemTint}
-                          onChange={e => setConfig({ ...config, itemTint: e.target.value })}
-                          className="w-8 h-8 bg-transparent cursor-pointer p-0" style={{ border: '1px solid var(--tb-border)' }} />
-                      )}
-                      <label className="flex items-center gap-[6px] cursor-pointer">
-                        <div onClick={() => {
-                          setConfig({ ...config, itemTint: config.itemTint === 'bw' ? undefined : 'bw' });
-                        }}
-                          className="w-[14px] h-[14px] flex items-center justify-center text-[10px] shrink-0"
-                          style={{ border: '1px solid var(--tb-border)', ...S.accent, background: config.itemTint === 'bw' ? 'var(--tb-bg-muted)' : 'transparent' }}>
-                          {config.itemTint === 'bw' ? '\u2713' : ''}
-                        </div>
-                        <span className="text-[9px]" style={S.faint}>b&w</span>
-                      </label>
-                    </div>
-                    <CfgHint>apply a color tint or convert items to black &amp; white</CfgHint>
-                  </CfgSection>
-                </CfgGroup>
-
-                {/* ── 3. SOUND ── */}
-                <CfgGroup title="sound">
-                  <CfgSection>
-                    <CfgLabel>collision sound</CfgLabel>
-                    <div className="flex flex-wrap">
-                      {SOUND_PRESETS.map((p, i) => (
-                        <CfgToggle key={p} first={i === 0} active={config.soundPreset === p}
-                          onClick={() => setConfig({ ...config, soundPreset: p, soundEnabled: p !== 'silent' })}>{p}</CfgToggle>
-                      ))}
-                    </div>
-                  </CfgSection>
-
-                  {config.soundPreset !== 'silent' && (
-                    <CfgSection>
-                      <CfgLabel>volume</CfgLabel>
-                      <VolumeBar volume={config.soundVolume} onChange={v => setConfig({ ...config, soundVolume: v })} />
-                    </CfgSection>
-                  )}
-
-                  {/* Future sound controls */}
-                  <CfgSection>
-                    <CfgLabel>drawer open / close</CfgLabel>
-                    <span className="text-[9px] tracking-[0.08em]" style={{ color: 'var(--tb-fg-muted)' }}>synthesized per preset</span>
-                  </CfgSection>
-                  <CfgSection>
-                    <CfgLabel>item drop</CfgLabel>
-                    <span className="text-[9px] tracking-[0.08em]" style={{ color: 'var(--tb-fg-ghost)' }}>coming soon</span>
-                  </CfgSection>
-                  <CfgSection>
-                    <CfgLabel>ambient</CfgLabel>
-                    <span className="text-[9px] tracking-[0.08em]" style={{ color: 'var(--tb-fg-ghost)' }}>coming soon</span>
-                  </CfgSection>
-                </CfgGroup>
-
-                {/* ── 4. BOX IDENTITY ── */}
+                {/* ── 2. BOX IDENTITY ── */}
                 <CfgGroup title="box identity">
                   <CfgSection>
                     <CfgLabel>drawer label</CfgLabel>
@@ -566,27 +419,6 @@ export default function EditorPage() {
                   </CfgSection>
 
                   <CfgSection>
-                    <CfgLabel>background</CfgLabel>
-                    <label className="flex items-center gap-[6px] mb-[10px] cursor-pointer">
-                      <div onClick={() => { const n = !isTransparentBg; setIsTransparentBg(n); setConfig({ ...config, backgroundColor: n ? 'transparent' : '#0e0e0e' }); }}
-                        className="w-[14px] h-[14px] flex items-center justify-center text-[10px] shrink-0"
-                        style={{ border: '1px solid var(--tb-border)', ...S.accent, background: isTransparentBg ? 'var(--tb-bg-muted)' : 'transparent' }}>
-                        {isTransparentBg ? '\u2713' : ''}
-                      </div>
-                      <span className="text-[10px]" style={S.muted}>transparent (default)</span>
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <input type="color" value={config.backgroundColor === 'transparent' ? '#0e0e0e' : config.backgroundColor}
-                        onChange={e => { setIsTransparentBg(false); setConfig({ ...config, backgroundColor: e.target.value }); }}
-                        className="w-11 h-11 bg-transparent cursor-pointer p-0" style={{ border: '1px solid var(--tb-border)' }} />
-                      <input type="text" value={config.backgroundColor}
-                        onChange={e => { setIsTransparentBg(e.target.value === 'transparent'); setConfig({ ...config, backgroundColor: e.target.value }); }}
-                        className="w-20 bg-transparent text-[10px] p-2 outline-none" style={{ border: '1px solid var(--tb-border-subtle)', ...S.accent }} placeholder="#hex" />
-                    </div>
-                    <CfgHint>transparent inherits the background of the page it&apos;s embedded on</CfgHint>
-                  </CfgSection>
-
-                  <CfgSection>
                     <CfgLabel>visibility</CfgLabel>
                     <div className="flex">
                       <CfgToggle active={!config.isPublic} first onClick={() => setConfig({ ...config, isPublic: false })}>private</CfgToggle>
@@ -596,6 +428,20 @@ export default function EditorPage() {
                   </CfgSection>
                 </CfgGroup>
 
+                {/* ── 3. EMBED ── */}
+                {user && (
+                  <CfgGroup title="embed">
+                    <EmbedConfigurator
+                      config={config}
+                      userId={user.uid}
+                      onSettingsChange={(settings: EmbedSettings) => setConfig({ ...config, embedSettings: settings })}
+                      onScaleChange={(s: number) => {
+                        setConfig({ ...config, contentScale: s });
+                      }}
+                    />
+                  </CfgGroup>
+                )}
+
                 {/* Auto-save status */}
                 <div className="text-[10px] tracking-[0.12em] mb-6 h-6 flex items-center" style={S.faint}>
                   {configStatus === 'saving' && <span className="animate-pulse">saving...</span>}
@@ -603,7 +449,7 @@ export default function EditorPage() {
                   {configStatus === 'idle' && <span style={S.ghost}>auto-saves on change</span>}
                 </div>
 
-                {/* ── 5. DANGER ZONE ── */}
+                {/* ── DANGER ZONE ── */}
                 <div className="pt-6 mt-2" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
                   <h3 className="text-[11px] mb-4 tracking-[0.12em] uppercase" style={{ color: '#c44' }}>danger zone</h3>
                   {!showDeleteConfirm ? (
@@ -649,24 +495,6 @@ export default function EditorPage() {
                 </div>
               </div>
             )}
-
-            {/* EMBED */}
-            {tab === 'embed' && config && user && (
-              <EmbedConfigurator
-                config={config}
-                userId={user.uid}
-                onSettingsChange={(settings: EmbedSettings) => setConfig({ ...config, embedSettings: settings })}
-                onScaleChange={(s: number) => {
-                  const dims = getEmbedDimensions(s);
-                  const es = config.embedSettings || DEFAULT_EMBED_SETTINGS;
-                  setConfig({
-                    ...config,
-                    contentScale: s,
-                    embedSettings: { ...es, width: dims.width, height: dims.height },
-                  });
-                }}
-              />
-            )}
           </div>
         </div>
 
@@ -691,18 +519,15 @@ export default function EditorPage() {
                   setConfig({
                     ...config,
                     embedSettings: {
-                      ...(config.embedSettings || { mode: 'overlay', width: 350, height: 300, position: { anchor: 'bottom-right' as AnchorCorner, offsetX: 32, offsetY: 32 } }),
+                      ...(config.embedSettings || DEFAULT_EMBED_SETTINGS),
                       position: pos,
                     },
                   });
                 }}
                 onScaleChange={(s: number) => {
-                  const dims = getEmbedDimensions(s);
-                  const currentEs = config.embedSettings || DEFAULT_EMBED_SETTINGS;
                   setConfig({
                     ...config,
                     contentScale: s,
-                    embedSettings: { ...currentEs, width: dims.width, height: dims.height },
                   });
                 }}
               />
@@ -766,79 +591,43 @@ function UnifiedPreview({
 }: {
   config: BoxConfig;
   items: TreasureItem[];
-  tab: 'items' | 'config' | 'embed';
+  tab: 'items' | 'settings';
   onPositionChange: (pos: { anchor: AnchorCorner; offsetX: number; offsetY: number }) => void;
   onScaleChange?: (scale: number) => void;
 }) {
   const previewRef = useRef<HTMLDivElement>(null);
-  const es = config.embedSettings || { mode: 'overlay' as const, width: 350, height: 300, position: { anchor: 'bottom-right' as AnchorCorner, offsetX: 32, offsetY: 32 } };
-  const isEmbedTab = tab === 'embed';
-  const isOverlay = es.mode !== 'contained';
-  const isContained = isEmbedTab && !isOverlay;
+  const es = config.embedSettings || DEFAULT_EMBED_SETTINGS;
+  const isSettingsTab = tab === 'settings';
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
 
-  // Track preview panel dimensions for boundary box scaling
-  const [previewSize, setPreviewSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
-  useEffect(() => {
-    const el = previewRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      setPreviewSize({ w: entry.contentRect.width, h: entry.contentRect.height });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  // Compute boundary box for contained mode — scales embed dimensions to fit preview
-  const boundaryBox = useMemo(() => {
-    if (!isContained || previewSize.w === 0) return null;
-    const margin = 40;
-    const availW = previewSize.w - margin * 2;
-    const availH = previewSize.h - margin * 2;
-    if (availW <= 0 || availH <= 0) return null;
-    const scale = Math.min(availW / es.width, availH / es.height, 1);
-    return {
-      width: Math.round(es.width * scale),
-      height: Math.round(es.height * scale),
-      scale,
-    };
-  }, [isContained, previewSize, es.width, es.height]);
-
-  // Compute drawer position: centered for items/config, stored anchor for embed overlay
+  // Compute drawer position: centered for items tab, stored anchor for settings tab
   const getDrawerStyle = useCallback((): React.CSSProperties => {
-    // During drag, follow pointer directly
     if (dragPos) {
       return { left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)' };
     }
-    // Items/Config tabs OR contained mode: centered
-    if (!isEmbedTab || !isOverlay) {
-      // In contained mode, use boundary box dimensions for centering
-      if (boundaryBox) {
-        return computeCenteredDrawerPosition(boundaryBox.width, boundaryBox.height);
-      }
+    if (!isSettingsTab) {
       if (!previewRef.current) return { left: '50%', top: '60%', transform: 'translate(-50%, -50%)' };
       const w = previewRef.current.offsetWidth;
       const h = previewRef.current.offsetHeight;
       return computeCenteredDrawerPosition(w, h);
     }
-    // Embed tab + overlay mode: use stored position
     if (!previewRef.current) return { bottom: 24, right: 24 };
     return computeDrawerPosition(
       es.position.anchor, es.position.offsetX, es.position.offsetY,
       previewRef.current.offsetWidth, previewRef.current.offsetHeight,
     );
-  }, [isEmbedTab, isOverlay, es.position, dragPos, boundaryBox]);
+  }, [isSettingsTab, es.position, dragPos]);
 
   // Compute spawn origin
   const getSpawnOrigin = useCallback(() => {
-    if (!isEmbedTab || !isOverlay) return computeCenteredSpawnOrigin();
+    if (!isSettingsTab) return computeCenteredSpawnOrigin();
     if (!previewRef.current) return { x: 0.8, y: 0.8 };
     return computeSpawnOrigin(
       es.position.anchor, es.position.offsetX, es.position.offsetY,
       previewRef.current.offsetWidth, previewRef.current.offsetHeight,
     );
-  }, [isEmbedTab, isOverlay, es.position]);
+  }, [isSettingsTab, es.position]);
 
   // Handle drag from TreasureBox drawer — follow mouse during move, commit on end
   const handleDrag = useCallback((e: PointerEvent, phase: 'start' | 'move' | 'end') => {
@@ -879,22 +668,12 @@ function UnifiedPreview({
     ...(dragPos ? {} : { transition: 'left 0.5s ease-out, top 0.5s ease-out' }),
   }), [getDrawerStyle, dragPos]);
 
-  // Effective config: transparent background on embed tab overlay
-  const previewConfig = useMemo(() => {
-    if (isEmbedTab && isOverlay) {
-      return {
-        ...config,
-        backgroundColor: 'transparent',
-        contentScale: config.contentScale ?? 1,
-      };
-    }
-    return config;
-  }, [config, isEmbedTab, isOverlay]);
+  const previewConfig = useMemo(() => config, [config]);
 
   return (
     <div ref={previewRef} className="w-full h-full relative">
-      {/* Website background — only visible on embed tab */}
-      {isEmbedTab && (
+      {/* Website background — only visible on settings tab */}
+      {isSettingsTab && (
         <div style={{ opacity: 1, transition: 'opacity 0.3s' }}>
           <MockWebsitePlaceholder />
           {/* Screenshot preview */}
@@ -929,53 +708,20 @@ function UnifiedPreview({
         </div>
       )}
 
-      {/* Single persistent TreasureBox — never unmounted across tab switches.
-          Uses a single wrapper div that changes dimensions (not conditional branches)
-          so React preserves the TreasureBox instance across mode switches. */}
-      {boundaryBox && (
-        <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 4, background: 'rgba(0,0,0,0.25)' }} />
-      )}
-      <div
-        className={boundaryBox ? 'absolute' : 'absolute inset-0'}
-        style={boundaryBox ? {
-          zIndex: 5,
-          left: '50%',
-          top: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: boundaryBox.width,
-          height: boundaryBox.height,
-          border: '2px solid var(--tb-accent)',
-          overflow: 'hidden',
-          background: '#ffffff',
-        } : { zIndex: 5 }}
-      >
+      <div className="absolute inset-0" style={{ zIndex: 5 }}>
         <TreasureBox
           items={items}
           config={previewConfig}
-          embedded={!!boundaryBox}
           overlayPreview={{
             drawerStyle: drawerStyleWithTransition,
             spawnOrigin: getSpawnOrigin(),
-            onDrag: (isEmbedTab && isOverlay) ? handleDrag : undefined,
+            onDrag: isSettingsTab ? handleDrag : undefined,
           }}
         />
       </div>
-      {/* Dimension label below boundary box */}
-      {boundaryBox && (
-        <div className="absolute z-30 text-[9px] pointer-events-none"
-          style={{
-            color: 'var(--tb-fg-ghost)',
-            top: `calc(50% + ${boundaryBox.height / 2 + 8}px)`,
-            left: '50%',
-            transform: 'translateX(-50%)',
-          }}>
-          {es.width} &times; {es.height}px
-          {boundaryBox.scale < 1 && ` (${Math.round(boundaryBox.scale * 100)}%)`}
-        </div>
-      )}
 
-      {/* Position readout — only on embed tab overlay mode */}
-      {isEmbedTab && isOverlay && (
+      {/* Position readout — only on settings tab */}
+      {isSettingsTab && (
         <>
           <div className="absolute bottom-2 left-3 z-30 text-[8px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
             {es.position.anchor} &middot; {es.position.offsetX}px, {es.position.offsetY}px
@@ -986,25 +732,8 @@ function UnifiedPreview({
         </>
       )}
 
-      {/* Content scale slider — contained embed mode */}
-      {/* TODO: Duplicates overlay widget-size slider from EmbedConfigurator — unify later */}
-      {isContained && onScaleChange && (
-        <div className="absolute bottom-3 right-3 z-30 flex items-center gap-2 px-3 py-2"
-          style={{ background: 'var(--tb-bg)', border: '1px solid var(--tb-border-subtle)', borderRadius: 4 }}>
-          <span className="text-[9px]" style={{ color: 'var(--tb-fg-ghost)' }}>size</span>
-          <input type="range" min={0.5} max={2.0} step={0.1}
-            value={config.contentScale ?? 1}
-            onChange={e => onScaleChange(Number(e.target.value))}
-            style={{ width: 80, accentColor: 'var(--tb-accent)' }}
-          />
-          <span className="text-[10px] w-10 text-right" style={{ color: 'var(--tb-accent)' }}>
-            {Math.round((config.contentScale ?? 1) * 100)}%
-          </span>
-        </div>
-      )}
-
-      {/* Owner name — shown on non-embed tabs */}
-      {!isEmbedTab && config.ownerName && (
+      {/* Owner name — shown on items tab */}
+      {!isSettingsTab && config.ownerName && (
         <div className="absolute bottom-2 left-3 text-[8px] tracking-wider z-30 pointer-events-none" style={{ color: 'var(--tb-fg-faint)' }}>
           {config.ownerName}
         </div>
