@@ -141,11 +141,13 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
   const drawerHeight = currentImages?.style.drawerHeight || 2;
 
   // ── Ephemeral state (cleared on each new options load) ──
-  // Style pattern + decor selections reference dynamic Gemini option IDs/labels,
-  // so they must be cleared when new options are fetched. Don't restore from Firestore.
   const [stylePattern, setStylePattern] = useState('');
   const [selectedDecor, setSelectedDecor] = useState<string[]>([]);
   const [customDecor, setCustomDecor] = useState('');
+
+  // ── Custom mode: user writes their own prompt instead of picking options ──
+  const [customMode, setCustomMode] = useState(false);
+  const [customPromptText, setCustomPromptText] = useState('');
 
   // Dynamic options from Gemini
   type DynOption = { id: string; label: string; prompt: string };
@@ -214,6 +216,19 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
 
   // ── Build current style (single source of truth) ──────────────
   const buildCurrentStyle = useCallback((): DrawerStyle => {
+    // Custom mode: user's text overrides all style/feature selections
+    if (customMode && customPromptText.trim()) {
+      return {
+        preset,
+        color,
+        accentColor,
+        stylePrompt: customPromptText.trim(),
+        drawerWidth,
+        drawerHeight,
+      };
+    }
+
+    // Normal mode: use selected style + features from dynamic options
     const allDecor = [...selectedDecor];
     if (customDecor.trim()) {
       const keywords = customDecor
@@ -225,7 +240,6 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
       allDecor.push(...keywords);
     }
     const decorStr = allDecor.join(', ');
-    // Resolve dynamic prompts for selected style and features
     const selectedStyleOption = styleOptions.find(s => s.id === stylePattern);
     const selectedFeaturePrompts = selectedDecor
       .map(label => featureOptions.find(f => f.label === label)?.prompt)
@@ -243,7 +257,7 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
       drawerWidth,
       drawerHeight,
     };
-  }, [preset, color, accentColor, stylePattern, selectedDecor, customDecor, drawerWidth, drawerHeight, styleOptions, featureOptions]);
+  }, [preset, color, accentColor, stylePattern, selectedDecor, customDecor, drawerWidth, drawerHeight, styleOptions, featureOptions, customMode, customPromptText]);
 
   const currentStyle = useMemo(() => buildCurrentStyle(), [buildCurrentStyle]);
 
@@ -494,69 +508,105 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
         </div>
       </div>
 
-      {/* ── 3. Style & Features (dynamic from Gemini) ──── */}
+      {/* ── 3. Custom / Preset toggle ──────────────────── */}
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <label style={{ ...sectionLabel, marginBottom: 0 }}>style{changedDot('stylePattern')}</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
           <button
-            className="tb-link"
-            onClick={fetchOptions}
-            disabled={optionsLoading || generating}
-            style={{
-              fontFamily: MONO, fontSize: 11, fontWeight: 600, letterSpacing: '0.06em',
-              textTransform: 'uppercase' as const,
-              color: optionsLoading ? 'var(--tb-fg-ghost)' : 'var(--tb-fg-faint)',
-              background: 'none', border: 'none', cursor: optionsLoading ? 'wait' : 'pointer',
-              padding: 0, transition: 'color 0.15s',
-            }}
+            className="tb-pill"
+            onClick={() => { setCustomMode(false); }}
+            disabled={generating}
+            style={{ ...pillBtn(!customMode, generating), width: '100%', textAlign: 'center' }}
           >
-            {optionsLoading ? '↻ loading...' : '↻ refresh'}
+            presets
+          </button>
+          <button
+            className="tb-pill"
+            onClick={() => { setCustomMode(true); setStylePattern(''); setSelectedDecor([]); setCustomDecor(''); }}
+            disabled={generating}
+            style={{ ...pillBtn(customMode, generating), width: '100%', textAlign: 'center' }}
+          >
+            custom
           </button>
         </div>
-        {optionsError && <div style={{ fontFamily: MONO, fontSize: 12, color: '#f87171', marginBottom: 8 }}>failed to load options — using defaults</div>}
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(styleOptions.length, 5)}, 1fr)`, gap: 6, opacity: optionsLoading ? 0.4 : 1, transition: 'opacity 0.3s' }}>
-          {styleOptions.map(s => (
-            <button
-              key={s.id}
-              className="tb-pill"
-              onClick={() => setStylePattern(s.id)}
-              disabled={generating || optionsLoading}
-              style={{ ...pillBtn(stylePattern === s.id, generating), width: '100%', textAlign: 'center' }}
-            >
-              {s.label.toLowerCase()}
-            </button>
-          ))}
-        </div>
       </div>
-      <div>
-        <label style={sectionLabel}>features{changedDot('decor')}{changedDot('customDecor')} <span style={{ color: 'var(--tb-fg-ghost)', textTransform: 'none', fontWeight: 400 }}>— select any</span></label>
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(featureOptions.length, 5)}, 1fr)`, gap: 6, marginBottom: 10, opacity: optionsLoading ? 0.4 : 1, transition: 'opacity 0.3s' }}>
-          {featureOptions.map(d => (
-            <button
-              key={d.id}
-              className="tb-pill"
-              onClick={() => toggleDecor(d.label)}
-              disabled={generating || optionsLoading}
-              style={{ ...pillBtn(selectedDecor.includes(d.label), generating), width: '100%', textAlign: 'center' }}
-            >
-              {d.label.toLowerCase()}
-            </button>
-          ))}
+
+      {/* ── Preset mode: Style & Features from Gemini ── */}
+      {!customMode && (
+        <>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <label style={{ ...sectionLabel, marginBottom: 0 }}>style{changedDot('stylePattern')}</label>
+              <button
+                className="tb-link"
+                onClick={fetchOptions}
+                disabled={optionsLoading || generating}
+                style={{
+                  fontFamily: MONO, fontSize: 11, fontWeight: 600, letterSpacing: '0.06em',
+                  textTransform: 'uppercase' as const,
+                  color: optionsLoading ? 'var(--tb-fg-ghost)' : 'var(--tb-fg-faint)',
+                  background: 'none', border: 'none', cursor: optionsLoading ? 'wait' : 'pointer',
+                  padding: 0, transition: 'color 0.15s',
+                }}
+              >
+                {optionsLoading ? '↻ loading...' : '↻ refresh'}
+              </button>
+            </div>
+            {optionsError && <div style={{ fontFamily: MONO, fontSize: 12, color: '#f87171', marginBottom: 8 }}>failed to load options — using defaults</div>}
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(styleOptions.length, 5)}, 1fr)`, gap: 6, opacity: optionsLoading ? 0.4 : 1, transition: 'opacity 0.3s' }}>
+              {styleOptions.map(s => (
+                <button
+                  key={s.id}
+                  className="tb-pill"
+                  onClick={() => setStylePattern(s.id)}
+                  disabled={generating || optionsLoading}
+                  style={{ ...pillBtn(stylePattern === s.id, generating), width: '100%', textAlign: 'center' }}
+                >
+                  {s.label.toLowerCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label style={sectionLabel}>features{changedDot('decor')}{changedDot('customDecor')} <span style={{ color: 'var(--tb-fg-ghost)', textTransform: 'none', fontWeight: 400 }}>— select any</span></label>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(featureOptions.length, 5)}, 1fr)`, gap: 6, marginBottom: 10, opacity: optionsLoading ? 0.4 : 1, transition: 'opacity 0.3s' }}>
+              {featureOptions.map(d => (
+                <button
+                  key={d.id}
+                  className="tb-pill"
+                  onClick={() => toggleDecor(d.label)}
+                  disabled={generating || optionsLoading}
+                  style={{ ...pillBtn(selectedDecor.includes(d.label), generating), width: '100%', textAlign: 'center' }}
+                >
+                  {d.label.toLowerCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Custom mode: free-text prompt ──────────────── */}
+      {customMode && (
+        <div>
+          <label style={sectionLabel}>describe your drawer</label>
+          <textarea
+            value={customPromptText}
+            onChange={e => setCustomPromptText(e.target.value)}
+            disabled={generating}
+            placeholder="e.g. A weathered pirate's treasure chest with barnacles, rope handles, and a rusty iron latch"
+            rows={3}
+            style={{
+              fontFamily: MONO, fontSize: 13, fontWeight: 400, letterSpacing: '0.02em',
+              width: '100%', background: 'transparent', outline: 'none', resize: 'vertical',
+              border: '0.5px solid var(--tb-border)', padding: '8px 10px', color: 'var(--tb-fg)',
+              opacity: generating ? 0.5 : 1, lineHeight: 1.6,
+            }}
+          />
+          <p style={{ fontFamily: MONO, fontSize: 11, color: 'var(--tb-fg-ghost)', marginTop: 4 }}>
+            This text is sent directly to the AI — describe the style, features, and details you want
+          </p>
         </div>
-        <input
-          value={customDecor}
-          onChange={e => setCustomDecor(e.target.value)}
-          disabled={generating}
-          placeholder="Custom keywords — e.g. dragon, gemstones, filigree"
-          maxLength={ADDITIONAL_FEATURES_INPUT_MAX_LENGTH}
-          style={{
-            ...hexInput,
-            width: '100%',
-            fontSize: 13,
-            opacity: generating ? 0.5 : 1,
-          }}
-        />
-      </div>
+      )}
 
       {/* ── Debug Panel (collapsed — includes sprite preview) ── */}
       <details style={{ borderTop: '0.5px solid var(--tb-border)', paddingTop: 10 }}>
