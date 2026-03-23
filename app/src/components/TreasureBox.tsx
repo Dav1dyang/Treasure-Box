@@ -641,12 +641,20 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         if (drawerEl && sceneEl) {
           const sceneRect = sceneEl.getBoundingClientRect();
           const dRect = drawerEl.getBoundingClientRect();
-          // Drawer bounds in scene coordinates, expanded by 30px for forgiveness
-          const margin = 30;
-          const dLeft = dRect.left - sceneRect.left - margin;
-          const dRight = dRect.right - sceneRect.left + margin;
-          const dTop = dRect.top - sceneRect.top - margin;
-          const dBottom = dRect.bottom - sceneRect.top + margin;
+          // Use scaled drawer bounds (transform: scale(boxScale) is on inner child,
+          // so getBoundingClientRect returns unscaled size). Match physics body calc.
+          const cs = boxScaleRef.current;
+          const dw = dRect.width;
+          const dh = dRect.height;
+          const scaledW = dw * cs;
+          const scaledH = dh * cs;
+          // transform-origin: bottom center — bottom stays fixed, sides/top shrink inward
+          const centerX = dRect.left - sceneRect.left + dw / 2;
+          const bottomY = dRect.top - sceneRect.top + dh;
+          const dLeft = centerX - scaledW / 2;
+          const dRight = centerX + scaledW / 2;
+          const dTop = bottomY - scaledH;
+          const dBottom = bottomY;
           const bx = body.position.x;
           const by = body.position.y;
           if (bx >= dLeft && bx <= dRight && by >= dTop && by <= dBottom) {
