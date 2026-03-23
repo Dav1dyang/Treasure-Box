@@ -1,4 +1,4 @@
-(function() {
+(function () {
   'use strict';
 
   // ═══════════════════════════════════════════════════════════════
@@ -94,7 +94,7 @@
   // ═══════════════════════════════════════════════════════════════
   // DOM Collision scanning — reads host DOM rects, sends to iframe
   // ═══════════════════════════════════════════════════════════════
-  var DOM_COLLIDE_DEFAULTS = 'h1,h2,h3,h4,h5,h6,img,video,[data-tb-collide],article,.card,column-set,media-item,hr';
+  var DOM_COLLIDE_DEFAULTS = 'h1,h2,h3,h4,h5,h6,img,video,[data-tb-collide],article,.card,gallery-slideshow,a,br';
   var DOM_COLLIDE_MAX = 30;
   var domCollideSelector = '';
   var domCollidePrevRects = [];
@@ -131,14 +131,14 @@
       if (rect.width < 20 || rect.height < 20) continue;
       // Skip off-viewport
       if (rect.bottom < 0 || rect.top > window.innerHeight ||
-          rect.right < 0 || rect.left > window.innerWidth) continue;
+        rect.right < 0 || rect.left > window.innerWidth) continue;
 
       // Skip elements fully contained within an already-collected rect
       var contained = false;
       for (var j = 0; j < collected.length; j++) {
         var c = collected[j];
         if (rect.left >= c.left && rect.right <= c.right &&
-            rect.top >= c.top && rect.bottom <= c.bottom) {
+          rect.top >= c.top && rect.bottom <= c.bottom) {
           contained = true;
           break;
         }
@@ -187,7 +187,7 @@
   function scheduleDomCollideScan(iframeEl) {
     if (domCollideScanPending) return;
     domCollideScanPending = true;
-    requestAnimationFrame(function() {
+    requestAnimationFrame(function () {
       domCollideScanPending = false;
       scanDomColliders(iframeEl);
     });
@@ -232,20 +232,20 @@
   hitZone.style.cssText = 'position:absolute;z-index:1;cursor:pointer;display:none;';
   boxContainer.appendChild(hitZone);
 
-  hitZone.addEventListener('mouseenter', function() {
+  hitZone.addEventListener('mouseenter', function () {
     boxIframe.style.pointerEvents = 'auto';
     hitZone.style.display = 'none';
   });
-  hitZone.addEventListener('touchstart', function() {
+  hitZone.addEventListener('touchstart', function () {
     boxIframe.style.pointerEvents = 'auto';
     hitZone.style.display = 'none';
   }, { passive: true });
 
   // Safety net: if mouse leaves iframe without triggering drawer interaction,
   // re-disable pointer events so host page stays interactive
-  boxIframe.addEventListener('mouseleave', function() {
+  boxIframe.addEventListener('mouseleave', function () {
     if (isDraggingItem) return;
-    setTimeout(function() {
+    setTimeout(function () {
       if (isDraggingItem) return;
       if (boxIframe.style.pointerEvents === 'auto' && hitZone.style.display === 'none') {
         boxIframe.style.pointerEvents = 'none';
@@ -339,7 +339,7 @@
     var dx = clientX - containerRect.left;
     var dy = clientY - containerRect.top;
     return dx >= drawerRect.x && dx <= drawerRect.x + drawerRect.width &&
-           dy >= drawerRect.y && dy <= drawerRect.y + drawerRect.height;
+      dy >= drawerRect.y && dy <= drawerRect.y + drawerRect.height;
   }
 
   // Helper: pass event through to host page element under canvas
@@ -487,7 +487,7 @@
     var card = document.createElement('div');
     card.style.cssText = 'background:#0e0e0e;border:1px solid #3a3a32;padding:28px 32px;' +
       'border-radius:2px;max-width:400px;width:calc(100% - 32px);';
-    card.addEventListener('click', function(e) { e.stopPropagation(); });
+    card.addEventListener('click', function (e) { e.stopPropagation(); });
 
     if (body.imageUrl) {
       var imgWrap = document.createElement('div');
@@ -548,7 +548,7 @@
   // ═══════════════════════════════════════════════════════════════
 
   // Mousedown on canvas: start interaction with hit item, or pass through
-  canvas.addEventListener('mousedown', function(e) {
+  canvas.addEventListener('mousedown', function (e) {
     var hit = hitTestBodies(e.clientX, e.clientY);
     if (hit) {
       e.preventDefault();
@@ -559,7 +559,7 @@
       canvasLongPressFired = false;
 
       // Start long-press timer (800ms)
-      canvasLongPressTimer = setTimeout(function() {
+      canvasLongPressTimer = setTimeout(function () {
         canvasLongPressFired = true;
         // Release physics body
         sendMouseUpToIframe(e.clientX, e.clientY);
@@ -592,7 +592,7 @@
   });
 
   // Click pass-through for host page links/buttons in empty canvas areas
-  canvas.addEventListener('click', function(e) {
+  canvas.addEventListener('click', function (e) {
     if (!hitTestBodies(e.clientX, e.clientY)) {
       // Don't pass through clicks that were handled as drawer interactions
       if (isInsideDrawerRect(e.clientX, e.clientY)) return;
@@ -602,7 +602,7 @@
   });
 
   // Cursor feedback + drawer hover detection
-  canvas.addEventListener('mousemove', function(e) {
+  canvas.addEventListener('mousemove', function (e) {
     if (isDraggingItem) { canvas.style.cursor = 'grabbing'; return; }
     var onItem = hitTestBodies(e.clientX, e.clientY);
     var onDrawer = isInsideDrawerRect(e.clientX, e.clientY);
@@ -625,7 +625,7 @@
   });
 
   // Touch support: same state machine as mouse
-  canvas.addEventListener('touchstart', function(e) {
+  canvas.addEventListener('touchstart', function (e) {
     if (!e.touches[0]) return;
     var touch = e.touches[0];
     var hit = hitTestBodies(touch.clientX, touch.clientY);
@@ -635,7 +635,7 @@
       canvasDragStartPos = { x: touch.clientX, y: touch.clientY };
       canvasDidDrag = false;
       canvasLongPressFired = false;
-      canvasLongPressTimer = setTimeout(function() {
+      canvasLongPressTimer = setTimeout(function () {
         canvasLongPressFired = true;
         sendMouseUpToIframe(touch.clientX, touch.clientY);
         if (canvasDragBody) showStoryOverlay(canvasDragBody);
@@ -682,18 +682,18 @@
   }
 
   // Send viewport info when iframe loads and on resize
-  boxIframe.addEventListener('load', function() {
+  boxIframe.addEventListener('load', function () {
     sendViewportInfo();
     // Initial DOM collider scan after iframe is ready
     if (domCollideSelector) {
-      setTimeout(function() { scanDomColliders(boxIframe); }, 300);
+      setTimeout(function () { scanDomColliders(boxIframe); }, 300);
     }
   });
 
   var resizeTimer = null;
   function handleResize() {
     if (resizeTimer) clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function() {
+    resizeTimer = setTimeout(function () {
       // Update canvas size
       var curDpr = window.devicePixelRatio || 1;
       canvas.width = window.innerWidth * curDpr;
@@ -710,14 +710,14 @@
 
   // DOM collider event listeners (scroll, mutation)
   if (domCollideSelector) {
-    window.addEventListener('scroll', function() {
+    window.addEventListener('scroll', function () {
       onDomCollideScroll(boxIframe);
     }, { passive: true });
 
     if (typeof MutationObserver !== 'undefined') {
-      var domCollideObserver = new MutationObserver(function() {
+      var domCollideObserver = new MutationObserver(function () {
         if (domCollideMutationTimer) clearTimeout(domCollideMutationTimer);
-        domCollideMutationTimer = setTimeout(function() {
+        domCollideMutationTimer = setTimeout(function () {
           scanDomColliders(boxIframe);
         }, 500);
       });
@@ -769,7 +769,7 @@
 
     // Single item returned to drawer via drag
     if (event.data.action === 'item-returned-single' && event.data.itemId) {
-      frameBodies = frameBodies.filter(function(b) { return b.id !== event.data.itemId; });
+      frameBodies = frameBodies.filter(function (b) { return b.id !== event.data.itemId; });
       if (frameBodies.length === 0) {
         canvas.style.pointerEvents = 'none';
       }
