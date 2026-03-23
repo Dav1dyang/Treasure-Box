@@ -111,7 +111,7 @@ export interface EmbedPosition {
 
 export interface EmbedSettings {
   position: EmbedPosition;    // overlay positioning
-  domCollide?: boolean;       // optional: items collide with DOM elements
+  domCollide?: boolean | string; // true = auto-detect, string = CSS selector
   previewUrl?: string;        // optional: user's website URL for preview background
   previewImageUrl?: string;   // optional: Firebase Storage URL for uploaded screenshot
   previewMode?: 'url' | 'screenshot'; // which preview source is active
@@ -132,6 +132,14 @@ export interface FrameSyncBody {
   link?: string;
   label?: string;
   story?: string;
+}
+
+export interface DomColliderRect {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface HostViewport {

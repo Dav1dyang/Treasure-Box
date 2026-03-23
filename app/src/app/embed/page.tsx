@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getPublicBoxConfig, getPublicItems } from '@/lib/firestore';
-import type { TreasureItem, BoxConfig, FrameSyncBody, HostViewport, AnchorCorner } from '@/lib/types';
+import type { TreasureItem, BoxConfig, FrameSyncBody, HostViewport, AnchorCorner, DomColliderRect } from '@/lib/types';
 import TreasureBox from '@/components/TreasureBox';
 import { computeCenteredDrawerPosition, computeCenteredSpawnOrigin } from '@/lib/embedPosition';
 import { Suspense } from 'react';
@@ -23,6 +23,7 @@ function EmbedContent() {
   const [items, setItems] = useState<TreasureItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [hostViewport, setHostViewport] = useState<HostViewport | null>(null);
+  const [domColliderRects, setDomColliderRects] = useState<DomColliderRect[]>([]);
   const [ready, setReady] = useState(false);
   const sceneRef = useRef<HTMLDivElement>(null);
 
@@ -78,6 +79,20 @@ function EmbedContent() {
           offsetX: event.data.offsetX || 0,
           offsetY: event.data.offsetY || 0,
         });
+      }
+
+      if (event.data.action === 'dom-colliders') {
+        setDomColliderRects(event.data.rects || []);
+      }
+
+      if (event.data.action === 'dom-colliders-scroll') {
+        const dx = event.data.deltaX || 0;
+        const dy = event.data.deltaY || 0;
+        setDomColliderRects(prev => prev.map(r => ({
+          ...r,
+          x: r.x + dx,
+          y: r.y + dy,
+        })));
       }
     };
 
@@ -146,6 +161,7 @@ function EmbedContent() {
               spawnOrigin: computeCenteredSpawnOrigin(),
             }}
             hostViewport={hostViewport}
+            domColliderRects={domColliderRects}
             onFrameSync={handleFrameSync}
             onReady={handleReady}
           />

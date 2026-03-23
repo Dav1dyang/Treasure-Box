@@ -104,7 +104,11 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
     cfgLines.push(`    anchor: "${anchor}"`);
     cfgLines.push(`    ox: ${ox}`);
     cfgLines.push(`    oy: ${oy}`);
-    if (settings.domCollide) cfgLines.push(`    domCollide: true`);
+    if (settings.domCollide) {
+      cfgLines.push(typeof settings.domCollide === 'string'
+        ? `    domCollide: "${settings.domCollide}"`
+        : `    domCollide: true`);
+    }
 
     return `<script>\n(function(){\n  window.__TB = {\n${cfgLines.join(',\n')}\n  };\n  var s = document.createElement("script");\n  s.src = window.__TB.origin + "/embed/widget.js";\n  s.async = true;\n  document.head.appendChild(s);\n})();\n</script>`;
   };
@@ -359,7 +363,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
       {/* DOM Collision Toggle */}
       <div className="pb-5" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
         <button
-          onClick={() => update({ domCollide: !settings.domCollide })}
+          onClick={() => update({ domCollide: settings.domCollide ? false : true })}
           className="flex items-center gap-2 cursor-pointer text-[10px]"
           style={settings.domCollide ? S.accent : S.faint}
         >
@@ -375,6 +379,24 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
           </span>
           items collide with page elements
         </button>
+        {settings.domCollide && (
+          <div className="mt-2 ml-6">
+            <input
+              type="text"
+              value={typeof settings.domCollide === 'string' ? settings.domCollide : ''}
+              onChange={e => {
+                const v = e.target.value.trim();
+                update({ domCollide: v || true });
+              }}
+              placeholder="custom CSS selector (optional)"
+              className="w-full bg-transparent text-[10px] px-2 py-[5px] outline-none"
+              style={{ border: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg-muted)' }}
+            />
+            <p className="text-[8px] mt-1" style={S.ghost}>
+              default: headings, images, videos, articles, .card — add <code style={{ color: 'var(--tb-fg-faint)' }}>data-tb-collide</code> to include or <code style={{ color: 'var(--tb-fg-faint)' }}>data-tb-no-collide</code> to exclude elements
+            </p>
+          </div>
+        )}
         <p className="text-[8px] mt-1 ml-6" style={S.ghost}>
           items bounce off headings, images, and other DOM elements
         </p>

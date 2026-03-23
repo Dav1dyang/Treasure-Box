@@ -88,7 +88,110 @@
   var offsetY = parseInt(cfg.oy, 10) || DEFAULTS.OFFSET_Y;
 
   // DOM collision opt-in
-  var domCollide = !!cfg.domCollide;
+  var domCollide = cfg.domCollide;
+  var domCollideDebug = !!cfg.domCollideDebug;
+
+  // ═══════════════════════════════════════════════════════════════
+  // DOM Collision scanning — reads host DOM rects, sends to iframe
+  // ═══════════════════════════════════════════════════════════════
+  var DOM_COLLIDE_DEFAULTS = 'h1,h2,h3,h4,h5,h6,img,video,[data-tb-collide],article,.card';
+  var DOM_COLLIDE_MAX = 30;
+  var domCollideSelector = '';
+  var domCollidePrevRects = [];
+  var domCollidePrevScrollX = 0;
+  var domCollidePrevScrollY = 0;
+  var domCollideScanPending = false;
+  var domCollideMutationTimer = null;
+
+  if (domCollide) {
+    if (typeof domCollide === 'string') {
+      domCollideSelector = domCollide + ',[data-tb-collide]';
+    } else {
+      domCollideSelector = DOM_COLLIDE_DEFAULTS;
+    }
+  }
+
+  function scanDomColliders(iframeEl) {
+    if (!domCollideSelector || !iframeEl || !iframeEl.contentWindow) return;
+    var elements = document.querySelectorAll(domCollideSelector);
+    var rects = [];
+    var collected = [];
+
+    for (var i = 0; i < elements.length && rects.length < DOM_COLLIDE_MAX; i++) {
+      var el = elements[i];
+      // Skip excluded elements
+      if (el.hasAttribute('data-tb-no-collide')) continue;
+      // Skip widget's own elements
+      if (el === boxContainer || el === canvas || boxContainer.contains(el)) continue;
+      // Skip hidden elements
+      if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed') continue;
+
+      var rect = el.getBoundingClientRect();
+      // Skip tiny elements
+      if (rect.width < 20 || rect.height < 20) continue;
+      // Skip off-viewport
+      if (rect.bottom < 0 || rect.top > window.innerHeight ||
+          rect.right < 0 || rect.left > window.innerWidth) continue;
+
+      // Skip elements fully contained within an already-collected rect
+      var contained = false;
+      for (var j = 0; j < collected.length; j++) {
+        var c = collected[j];
+        if (rect.left >= c.left && rect.right <= c.right &&
+            rect.top >= c.top && rect.bottom <= c.bottom) {
+          contained = true;
+          break;
+        }
+      }
+      if (contained) continue;
+
+      collected.push(rect);
+      rects.push({
+        id: 'dom-' + i,
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        width: rect.width,
+        height: rect.height,
+      });
+    }
+
+    domCollidePrevRects = rects;
+    domCollidePrevScrollX = window.scrollX;
+    domCollidePrevScrollY = window.scrollY;
+
+    iframeEl.contentWindow.postMessage({
+      type: 'treasure-box',
+      action: 'dom-colliders',
+      rects: rects,
+    }, '*');
+  }
+
+  function onDomCollideScroll(iframeEl) {
+    if (!domCollideSelector || !iframeEl || !iframeEl.contentWindow) return;
+    var dx = window.scrollX - domCollidePrevScrollX;
+    var dy = window.scrollY - domCollidePrevScrollY;
+    if (dx === 0 && dy === 0) return;
+
+    // Pure scroll: just send delta for efficient body translation
+    domCollidePrevScrollX = window.scrollX;
+    domCollidePrevScrollY = window.scrollY;
+
+    iframeEl.contentWindow.postMessage({
+      type: 'treasure-box',
+      action: 'dom-colliders-scroll',
+      deltaX: -dx,
+      deltaY: -dy,
+    }, '*');
+  }
+
+  function scheduleDomCollideScan(iframeEl) {
+    if (domCollideScanPending) return;
+    domCollideScanPending = true;
+    requestAnimationFrame(function() {
+      domCollideScanPending = false;
+      scanDomColliders(iframeEl);
+    });
+  }
 
   // 1. Create fixed-position box container
   var boxContainer = document.createElement('div');
@@ -581,6 +684,10 @@
   // Send viewport info when iframe loads and on resize
   boxIframe.addEventListener('load', function() {
     sendViewportInfo();
+    // Initial DOM collider scan after iframe is ready
+    if (domCollideSelector) {
+      setTimeout(function() { scanDomColliders(boxIframe); }, 300);
+    }
   });
 
   var resizeTimer = null;
@@ -595,9 +702,28 @@
       if (resizeCtx) resizeCtx.scale(curDpr, curDpr);
       // Notify iframe of new viewport
       sendViewportInfo();
+      // Full re-scan on resize (element positions may have changed)
+      if (domCollideSelector) scanDomColliders(boxIframe);
     }, DEFAULTS.RESIZE_DEBOUNCE_MS);
   }
   window.addEventListener('resize', handleResize, { passive: true });
+
+  // DOM collider event listeners (scroll, mutation)
+  if (domCollideSelector) {
+    window.addEventListener('scroll', function() {
+      onDomCollideScroll(boxIframe);
+    }, { passive: true });
+
+    if (typeof MutationObserver !== 'undefined') {
+      var domCollideObserver = new MutationObserver(function() {
+        if (domCollideMutationTimer) clearTimeout(domCollideMutationTimer);
+        domCollideMutationTimer = setTimeout(function() {
+          scanDomColliders(boxIframe);
+        }, 500);
+      });
+      domCollideObserver.observe(document.body, { childList: true, subtree: true });
+    }
+  }
 
   // 5. Listen for postMessage from iframe
   window.addEventListener('message', function handleMessage(event) {
@@ -761,6 +887,19 @@
         continue;
       }
 
+      ctx.restore();
+    }
+
+    // Debug: draw green dashed outlines around DOM collider rects
+    if (domCollideDebug && domCollidePrevRects.length > 0) {
+      ctx.save();
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      for (var di = 0; di < domCollidePrevRects.length; di++) {
+        var dr = domCollidePrevRects[di];
+        ctx.strokeRect(dr.x - dr.width / 2, dr.y - dr.height / 2, dr.width, dr.height);
+      }
       ctx.restore();
     }
 

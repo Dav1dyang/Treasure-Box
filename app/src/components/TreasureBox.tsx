@@ -5,7 +5,7 @@ import Matter from 'matter-js';
 import { soundEngine } from '@/lib/sounds';
 import { contourToVertices, extractFrameFromSprite, extractDrawerWallPath } from '@/lib/contour';
 import { computeCenteredDrawerPosition, computeCenteredSpawnOrigin } from '@/lib/embedPosition';
-import type { TreasureItem, BoxConfig, BoxState, DrawerImages, BoxDimensions, FrameSyncBody, HostViewport } from '@/lib/types';
+import type { TreasureItem, BoxConfig, BoxState, DrawerImages, BoxDimensions, FrameSyncBody, HostViewport, DomColliderRect } from '@/lib/types';
 import { DEFAULT_DRAWER_DISPLAY_SIZE, DEFAULT_BOX_DIMENSIONS } from '@/lib/config';
 import { normalizeDimensions } from '@/lib/boxStyles';
 import StoryCard from './StoryCard';
@@ -42,11 +42,13 @@ interface Props {
   onReady?: () => void;
   /** DOM elements to create static physics collider bodies from (e.g. title text) */
   textColliders?: Array<{ ref: React.RefObject<HTMLElement | null>; label: string }>;
+  /** Rects from host page DOM elements (via postMessage) for cross-document collision */
+  domColliderRects?: DomColliderRect[];
 }
 
 const ALL_BOX_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
 
-export default function TreasureBox({ items, config, backgroundColor, onItemsEscaped, onItemsReturned, overlayPreview, embedded, onFrameSync, hostViewport, onReady, textColliders }: Props) {
+export default function TreasureBox({ items, config, backgroundColor, onItemsEscaped, onItemsReturned, overlayPreview, embedded, onFrameSync, hostViewport, onReady, textColliders, domColliderRects }: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
@@ -96,6 +98,11 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const textBodiesRef = useRef<Matter.Body[]>([]);
   const textCollidersRef = useRef(textColliders);
   useEffect(() => { textCollidersRef.current = textColliders; }, [textColliders]);
+
+  // DOM collider bodies from host page (cross-document via postMessage)
+  const domBodiesRef = useRef<Matter.Body[]>([]);
+  const domColliderRectsRef = useRef(domColliderRects);
+  domColliderRectsRef.current = domColliderRects;
 
   // Wall body references for dynamic repositioning
   const wallsRef = useRef<{
@@ -148,6 +155,37 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   useEffect(() => { onFrameSyncRef.current = onFrameSync; }, [onFrameSync]);
   const hostViewportRef = useRef(hostViewport);
   useEffect(() => { hostViewportRef.current = hostViewport; }, [hostViewport]);
+
+  // Sync DOM collider rects from host page into Matter.js static bodies
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || !domColliderRects || domColliderRects.length === 0) {
+      // Remove old bodies if rects cleared
+      if (engine && domBodiesRef.current.length > 0) {
+        Matter.Composite.remove(engine.world, domBodiesRef.current);
+        domBodiesRef.current = [];
+      }
+      return;
+    }
+    const hv = hostViewportRef.current;
+    const hvOx = hv ? hv.offsetX : 0;
+    const hvOy = hv ? hv.offsetY : 0;
+
+    // Remove old bodies
+    if (domBodiesRef.current.length > 0) {
+      Matter.Composite.remove(engine.world, domBodiesRef.current);
+    }
+
+    // Create new static bodies
+    const newBodies = domColliderRects.map(rect =>
+      Matter.Bodies.rectangle(
+        rect.x - hvOx, rect.y - hvOy, rect.width, rect.height,
+        { isStatic: true, friction: 0.6, restitution: 0.3, label: 'dom-collider-' + rect.id }
+      )
+    );
+    Matter.Composite.add(engine.world, newBodies);
+    domBodiesRef.current = newBodies;
+  }, [domColliderRects]);
 
   // Managed timeout system — tracks ALL timeouts for clean cancellation
   const timeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -521,6 +559,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     }
     runnerRef.current = null;
     bodiesRef.current = [];
+    domBodiesRef.current = [];
     appliedScaleRef.current.clear();
     // Clear any in-progress return animations
     returnAnimIntervalsRef.current.forEach(id => clearInterval(id));
