@@ -7,14 +7,6 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'storage.googleapis.com' },
     ],
   },
-  async rewrites() {
-    return [
-      {
-        source: '/embed/b/:boxId/widget.js',
-        destination: '/embed/widget.js',
-      },
-    ];
-  },
 };
 
 export default nextConfig;

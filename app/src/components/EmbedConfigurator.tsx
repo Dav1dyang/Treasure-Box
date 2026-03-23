@@ -91,31 +91,22 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
     const anchor = settings.position.anchor;
     const ox = settings.position.offsetX;
     const oy = settings.position.offsetY;
-    const domAttr = settings.domCollide ? `\n  data-dom-collide="true"` : '';
-    const scaleAttr = embedScale !== 1 ? `\n  data-scale="${embedScale}"` : '';
 
-    // Encode config in: (1) companion div data-attrs, (2) URL path, (3) query
-    // params, (4) hash fragment, (5) script data-attrs. Platforms like Cargo
-    // proxy scripts through their own CDN and strip all script attributes/params,
-    // so the companion div is the most resilient carrier.
-    const params = new URLSearchParams();
-    params.set('box-id', userId);
-    params.set('mode', 'overlay');
-    params.set('bg', bg);
-    if (embedScale !== 1) params.set('scale', String(embedScale));
-    params.set('anchor', anchor);
-    params.set('offset-x', String(ox));
-    params.set('offset-y', String(oy));
-    if (settings.domCollide) params.set('dom-collide', 'true');
-    const paramStr = params.toString();
-    const srcUrl = `${baseUrl}/embed/b/${encodeURIComponent(userId)}/widget.js?${paramStr}#${paramStr}`;
+    // Industry-standard inline IIFE pattern (like Intercom, Hotjar, GA).
+    // Config is stored in window.__TB — immune to platform HTML sanitization.
+    const cfgLines = [
+      `    boxId: "${userId}"`,
+      `    origin: "${baseUrl}"`,
+      `    mode: "overlay"`,
+      `    bg: "${bg}"`,
+    ];
+    if (embedScale !== 1) cfgLines.push(`    scale: ${embedScale}`);
+    cfgLines.push(`    anchor: "${anchor}"`);
+    cfgLines.push(`    ox: ${ox}`);
+    cfgLines.push(`    oy: ${oy}`);
+    if (settings.domCollide) cfgLines.push(`    domCollide: true`);
 
-    // Companion div: survives platforms that rewrite/proxy script URLs
-    const domCollideDiv = settings.domCollide ? `\n  data-dom-collide="true"` : '';
-    const scaleDiv = embedScale !== 1 ? `\n  data-scale="${embedScale}"` : '';
-    const configDiv = `<div id="treasure-box-embed"\n  data-box-id="${userId}"\n  data-origin="${baseUrl}"\n  data-mode="overlay"\n  data-bg="${bg}"${scaleDiv}\n  data-anchor="${anchor}"\n  data-offset-x="${ox}" data-offset-y="${oy}"${domCollideDiv}\n  style="display:none">\n</div>`;
-
-    return `${configDiv}\n<script src="${srcUrl}"\n  data-box-id="${userId}"\n  data-mode="overlay"\n  data-bg="${bg}"${scaleAttr}\n  data-anchor="${anchor}"\n  data-offset-x="${ox}" data-offset-y="${oy}"${domAttr}>\n</script>`;
+    return `<script>\n(function(){\n  window.__TB = {\n${cfgLines.join(',\n')}\n  };\n  var s = document.createElement("script");\n  s.src = window.__TB.origin + "/embed/widget.js";\n  s.async = true;\n  document.head.appendChild(s);\n})();\n</script>`;
   };
 
   const handleCopy = () => {

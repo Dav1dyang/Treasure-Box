@@ -19,70 +19,26 @@
     PLACEHOLDER_COLOR: 'rgba(180,160,100,0.6)',
   };
 
-  // Multi-tier fallback for finding the script element:
-  // 1. document.currentScript (works for synchronous <script> tags)
-  // 2. querySelector with data-box-id attr (dynamic insertion, attrs preserved)
-  // 3. querySelector with query params in src (dynamic insertion, attrs stripped)
-  // 4. querySelector with hash fragment in src (broadest: survives aggressive sanitization)
-  // 5. Any script with "widget.js" in src (last resort)
-  var script = document.currentScript
-    || document.querySelector('script[src*="widget.js"][data-box-id]')
-    || document.querySelector('script[src*="widget.js?"]')
-    || document.querySelector('script[src*="widget.js#"]')
-    || document.querySelector('script[src*="widget.js"]');
+  // ═══════════════════════════════════════════════════════════════
+  // Read config from window.__TB (set by inline IIFE embed code)
+  // This is the industry-standard pattern used by Intercom, Hotjar,
+  // Google Analytics, etc. — immune to platform HTML sanitization.
+  // ═══════════════════════════════════════════════════════════════
+  var cfg = window.__TB;
+  delete window.__TB; // Clear for potential next widget instance
 
-  // Read config from: data-* attributes → URL query params → hash fragment
-  var scriptSrc = (script && script.src) || '';
-  var hashStr = scriptSrc.indexOf('#') !== -1 ? scriptSrc.substring(scriptSrc.indexOf('#') + 1) : '';
-  function getParam(name) {
-    var dataName = 'data-' + name;
-    if (script && script.hasAttribute(dataName)) return script.getAttribute(dataName);
-    var escaped = name.replace(/-/g, '\\-');
-    var match = scriptSrc.match(new RegExp('[?&]' + escaped + '=([^&#]*)'));
-    if (match) return decodeURIComponent(match[1]);
-    // Fallback: parse from hash fragment (survives platforms that strip attrs + query params)
-    var hashMatch = hashStr.match(new RegExp('(?:^|&)' + escaped + '=([^&]*)'));
-    return hashMatch ? decodeURIComponent(hashMatch[1]) : null;
-  }
-
-  // ── Read config with multi-tier fallback ──
-  // Tier 1-3: script tag attrs → URL query → hash fragment (via getParam)
-  var boxId = getParam('box-id');
-  // Tier 4: box ID embedded in URL path (/embed/b/<id>/widget.js)
-  if (!boxId) {
-    var pathMatch = scriptSrc.match(/\/embed\/b\/([^/?#]+)\/widget\.js/);
-    if (pathMatch) boxId = decodeURIComponent(pathMatch[1]);
-  }
-
-  // Tier 5: companion <div id="treasure-box-embed"> element
-  // Platforms like Cargo proxy scripts through their own CDN, rewriting the URL
-  // and stripping all attributes. A companion div preserves config in the DOM.
-  var configEl = document.getElementById('treasure-box-embed');
-  function getConfigElParam(name) {
-    if (!configEl) return null;
-    var val = configEl.getAttribute('data-' + name);
-    return val || null;
-  }
-  if (!boxId) boxId = getConfigElParam('box-id');
-
-  var bg = getParam('bg') || getConfigElParam('bg') || 'transparent';
-  var scale = parseFloat(getParam('scale') || getConfigElParam('scale') || String(DEFAULTS.SCALE));
-  var rawW = getParam('width');
-  var rawH = getParam('height');
-  var width = rawW ? parseInt(rawW, 10) : Math.round(DEFAULTS.WIDTH * scale);
-  var height = rawH ? parseInt(rawH, 10) : Math.round(DEFAULTS.HEIGHT * scale);
-  var mode = getParam('mode') || getConfigElParam('mode') || 'overlay';
-
-  // Derive origin: from script src path → companion div → current page (last resort)
-  var origin = scriptSrc.replace(/\/embed\/(?:b\/[^/]+\/)?widget\.js.*$/, '');
-  if (!origin || origin === scriptSrc) {
-    origin = getConfigElParam('origin') || window.location.origin;
-  }
-
-  if (!boxId) {
-    console.error('[treasure-box] Missing data-box-id attribute (and no ?box-id= URL param)');
+  if (!cfg || !cfg.boxId) {
+    console.error('[treasure-box] Config not found. Use the embed code from your Treasure Box editor.');
     return;
   }
+
+  var boxId = cfg.boxId;
+  var origin = cfg.origin || window.location.origin;
+  var bg = cfg.bg || 'transparent';
+  var scale = parseFloat(cfg.scale) || DEFAULTS.SCALE;
+  var width = cfg.width ? parseInt(cfg.width, 10) : Math.round(DEFAULTS.WIDTH * scale);
+  var height = cfg.height ? parseInt(cfg.height, 10) : Math.round(DEFAULTS.HEIGHT * scale);
+  var mode = cfg.mode || 'overlay';
 
   // ===== Shared: create embed iframe =====
   function createIframe(w, h, extraParams) {
@@ -105,13 +61,13 @@
 
   // ===== MODE: CONTAINED =====
   if (mode === 'contained') {
-    var container = document.getElementById('treasure-box-embed') || script.parentElement;
+    var container = document.getElementById('treasure-box-embed') || document.body;
     if (!container) return;
-    // Read padding attributes
-    var padTop = parseInt(getParam('pad-top') || '0', 10) || 0;
-    var padRight = parseInt(getParam('pad-right') || '0', 10) || 0;
-    var padBottom = parseInt(getParam('pad-bottom') || '0', 10) || 0;
-    var padLeft = parseInt(getParam('pad-left') || '0', 10) || 0;
+    // Read padding from config
+    var padTop = parseInt(cfg.padTop || '0', 10) || 0;
+    var padRight = parseInt(cfg.padRight || '0', 10) || 0;
+    var padBottom = parseInt(cfg.padBottom || '0', 10) || 0;
+    var padLeft = parseInt(cfg.padLeft || '0', 10) || 0;
     var padParams = '';
     if (padTop > 0) padParams += '&pt=' + padTop;
     if (padRight > 0) padParams += '&pr=' + padRight;
@@ -127,12 +83,12 @@
   // Box is fixed-positioned on the page; physics runs inside the iframe,
   // body positions are streamed via postMessage and rendered on a host-page canvas.
 
-  var anchor = getParam('anchor') || getConfigElParam('anchor') || DEFAULTS.ANCHOR;
-  var offsetX = parseInt(getParam('offset-x') || getConfigElParam('offset-x') || String(DEFAULTS.OFFSET_X), 10);
-  var offsetY = parseInt(getParam('offset-y') || getConfigElParam('offset-y') || String(DEFAULTS.OFFSET_Y), 10);
+  var anchor = cfg.anchor || DEFAULTS.ANCHOR;
+  var offsetX = parseInt(cfg.ox, 10) || DEFAULTS.OFFSET_X;
+  var offsetY = parseInt(cfg.oy, 10) || DEFAULTS.OFFSET_Y;
 
   // DOM collision opt-in
-  var domCollide = (getParam('dom-collide') || getConfigElParam('dom-collide')) === 'true';
+  var domCollide = !!cfg.domCollide;
 
   // 1. Create fixed-position box container
   var boxContainer = document.createElement('div');
