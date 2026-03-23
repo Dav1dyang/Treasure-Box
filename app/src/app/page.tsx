@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/components/AuthProvider';
@@ -21,6 +21,14 @@ export default function Home() {
   const [galleryError, setGalleryError] = useState<string | null>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
   const [idleHintVisible, setIdleHintVisible] = useState(true);
+
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const subtitleRef = useRef<HTMLParagraphElement>(null);
+
+  const textColliders = useMemo(() => [
+    { ref: titleRef, label: 'title' },
+    { ref: subtitleRef, label: 'subtitle' },
+  ], []);
 
   useEffect(() => {
     (async () => {
@@ -108,12 +116,40 @@ export default function Home() {
 
       {/* ═══ HERO ═══ */}
       <section
-        className="min-h-screen flex flex-col relative"
+        className="min-h-screen flex flex-col items-center justify-center relative px-6 py-20"
         onClick={handleHeroInteraction}
         onMouseMove={handleHeroInteraction}
       >
-        {/* TreasureBox takes top ~2/3 */}
-        <div className="flex-1 relative min-h-0">
+        {/* Title and subtitle — inside the TreasureBox coordinate space for physics collision */}
+        <h1
+          ref={titleRef}
+          className="text-center uppercase leading-none relative z-20 pointer-events-none"
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 900,
+            fontSize: 'clamp(48px, 10vw, 80px)',
+            letterSpacing: '-0.02em',
+            color: 'var(--tb-fg)',
+          }}
+        >
+          Junk Drawer
+        </h1>
+        <p
+          ref={subtitleRef}
+          className="mt-3 text-center relative z-20 pointer-events-none"
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 700,
+            fontSize: 'clamp(18px, 3.5vw, 28px)',
+            letterSpacing: '0.02em',
+            textTransform: 'uppercase',
+            color: 'var(--tb-fg-muted)',
+          }}
+        >
+          a tiny widget for your most treasured things
+        </p>
+
+        <div className="absolute inset-0">
           {demoLoading ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div
@@ -122,7 +158,7 @@ export default function Home() {
               />
             </div>
           ) : demoConfig ? (
-            <TreasureBox items={demoItems} config={demoConfig} />
+            <TreasureBox items={demoItems} config={demoConfig} textColliders={textColliders} />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
               <pre className="text-[9px] leading-relaxed text-center" style={{ color: 'var(--tb-fg-faint)' }}>
@@ -141,43 +177,14 @@ export default function Home() {
           )}
         </div>
 
-        {/* Title and subtitle in bottom ~1/3 */}
-        <div className="flex flex-col items-center justify-center px-6 pb-12" style={{ height: '33vh' }}>
-          <h1
-            className="text-center uppercase leading-none"
-            style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontWeight: 900,
-              fontSize: 'clamp(48px, 10vw, 80px)',
-              letterSpacing: '-0.02em',
-              color: 'var(--tb-fg)',
-            }}
-          >
-            Junk Drawer
-          </h1>
-          <p
-            className="mt-3 text-center"
-            style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontWeight: 700,
-              fontSize: 'clamp(18px, 3.5vw, 28px)',
-              letterSpacing: '0.02em',
-              textTransform: 'uppercase',
-              color: 'var(--tb-fg-muted)',
-            }}
-          >
-            a tiny widget for your most treasured things
-          </p>
-
-          {/* Idle hint */}
-          <div
-            className={`mt-6 text-[10px] tracking-[0.2em] uppercase transition-opacity duration-1000 pointer-events-none ${
-              idleHintVisible ? 'opacity-100' : 'opacity-0'
-            }`}
-            style={{ color: 'var(--tb-fg-faint)' }}
-          >
-            pull the drawer
-          </div>
+        {/* Idle hint */}
+        <div
+          className={`mt-6 text-[10px] tracking-[0.2em] uppercase transition-opacity duration-1000 relative z-20 pointer-events-none ${
+            idleHintVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+          style={{ color: 'var(--tb-fg-faint)' }}
+        >
+          pull the drawer
         </div>
       </section>
 
