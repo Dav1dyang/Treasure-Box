@@ -449,7 +449,7 @@ export default function EditorPage() {
                       userId={user.uid}
                       onSettingsChange={(settings: EmbedSettings) => setConfig({ ...config, embedSettings: settings })}
                       onScaleChange={(s: number) => {
-                        setConfig({ ...config, contentScale: s });
+                        setConfig({ ...config, boxScale: s });
                       }}
                     />
                   </CfgGroup>

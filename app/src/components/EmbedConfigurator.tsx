@@ -41,7 +41,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
 
   const previewTab = settings.previewMode || (settings.previewUrl ? 'url' : 'screenshot');
 
-  const embedScale = config.contentScale ?? 1;
+  const embedScale = config.boxScale ?? 1;
 
   const update = useCallback((patch: Partial<EmbedSettings>) => {
     onSettingsChange({ ...settings, ...patch });

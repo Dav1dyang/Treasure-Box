@@ -53,7 +53,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const imagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const blobUrlsRef = useRef<string[]>([]);
   const appliedScaleRef = useRef<Map<string, number>>(new Map());
-  const contentScaleRef = useRef(config.contentScale ?? 1);
+  const boxScaleRef = useRef(config.boxScale ?? 1);
 
   // Drawer state machine — single source of truth
   const [boxState, setBoxState] = useState<BoxState>('IDLE');
@@ -162,8 +162,8 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     gulpTimeoutsRef.current = [];
   }, []);
 
-  // Keep contentScale ref in sync for use inside initPhysics closure
-  useEffect(() => { contentScaleRef.current = config.contentScale ?? 1; }, [config.contentScale]);
+  // Keep boxScale ref in sync for use inside initPhysics closure
+  useEffect(() => { boxScaleRef.current = config.boxScale ?? 1; }, [config.boxScale]);
 
   // Reposition walls and drawer body when position/scale changes (smooth — items keep momentum).
   // Works for both overlay (4 viewport walls + drawer body) and normal (3-wall box) modes.
@@ -173,7 +173,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     const scene = sceneRef.current;
     if (!engine || !scene) return;
 
-    const cs = contentScaleRef.current;
+    const cs = boxScaleRef.current;
     const wallOpts = { isStatic: true, friction: 0.9, restitution: 0.15 };
 
     if (overlayPreviewRef.current || hostViewportRef.current) {
@@ -284,12 +284,12 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     scheduleRepositionBoundaries();
   }, [hostViewport, scheduleRepositionBoundaries]);
 
-  // Watch contentScale changes and trigger repositioning (all modes)
+  // Watch boxScale changes and trigger repositioning (all modes)
   useEffect(() => {
     scheduleRepositionBoundaries();
-  }, [config.contentScale, scheduleRepositionBoundaries]);
+  }, [config.boxScale, scheduleRepositionBoundaries]);
 
-  const contentScale = config.contentScale ?? 1;
+  const boxScale = config.boxScale ?? 1;
   const hasGeneratedImages = !!(config.drawerImages && (config.drawerImages.spriteUrl || config.drawerImages.urls?.IDLE));
   const bg = backgroundColor || config.backgroundColor || '#0e0e0e';
   const isTransparent = bg === 'transparent' || bg === 'rgba(0,0,0,0)';
@@ -503,7 +503,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
 
     const w = scene.offsetWidth;
     const h = scene.offsetHeight;
-    const cs = contentScaleRef.current;
+    const cs = boxScaleRef.current;
     const wallOpts = { isStatic: true, friction: 0.9, restitution: 0.15 };
 
     // Determine wall bounds — use hostViewport if provided (embed overlay), else scene dimensions.
@@ -525,7 +525,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
 
     // Drawer collision body — uses contour-based wall segments if available, else rectangle fallback.
     // drawerElRef rect is UNSCALED (CSS transform is on inner child),
-    // so multiply by contentScale and account for transform-origin: bottom center.
+    // so multiply by boxScale and account for transform-origin: bottom center.
     if (drawerElRef.current && sceneRef.current) {
       const sceneRect = sceneRef.current.getBoundingClientRect();
       const drawerRect = drawerElRef.current.getBoundingClientRect();
@@ -754,7 +754,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
 
     const w = scene.offsetWidth;
     const h = scene.offsetHeight;
-    const cs = contentScaleRef.current;
+    const cs = boxScaleRef.current;
     const op = overlayPreviewRef.current;
 
     // Derive spawn position from the actual drawer element when available
@@ -795,22 +795,29 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       const itemScale = item.scale ?? 1;
       const size = ITEM_BASE_SIZE * itemScale;
 
+      // Use real image aspect ratio for physics body so hitbox matches the visual
+      const img = imagesRef.current.get(item.id);
+      const imgAspect = (img?.complete && img.naturalWidth > 0)
+        ? img.naturalWidth / img.naturalHeight : 1;
+      let physW = size, physH = size;
+      if (imgAspect > 1) physH = size / imgAspect;
+      else physW = size * imgAspect;
+
       let body: PhysicsBody;
 
       if (item.contourPoints && item.contourPoints.length >= 4) {
         try {
-          const verts = contourToVertices(item.contourPoints, size, size);
+          const verts = contourToVertices(item.contourPoints, physW, physH);
           body = Matter.Bodies.fromVertices(x, spawnY, [verts], {
             restitution: 0.25, friction: 0.7, density: 0.003, chamfer: { radius: 2 },
           }) as any;
         } catch {
-          body = Matter.Bodies.rectangle(x, spawnY, size, size * 0.8, {
+          body = Matter.Bodies.rectangle(x, spawnY, physW, physH, {
             restitution: 0.25, friction: 0.7, density: 0.003, chamfer: { radius: 4 },
           }) as any;
         }
       } else {
-        const aspectRatio = 0.7 + Math.random() * 0.6;
-        body = Matter.Bodies.rectangle(x, spawnY, size, size * aspectRatio, {
+        body = Matter.Bodies.rectangle(x, spawnY, physW, physH, {
           restitution: 0.25, friction: 0.7, density: 0.003, chamfer: { radius: 4 },
         }) as any;
       }
@@ -1465,7 +1472,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         onPointerMove={effectiveOverlay?.onDrag ? handleDrawerPointerMove : undefined}
         onPointerUp={effectiveOverlay?.onDrag ? handleDrawerPointerUp : undefined}
       >
-        <div style={{ transform: `scale(${contentScale})${config.drawerFlipped ? ' scaleX(-1)' : ''}`, transformOrigin: 'bottom center' }}>
+        <div style={{ transform: `scale(${boxScale})${config.drawerFlipped ? ' scaleX(-1)' : ''}`, transformOrigin: 'bottom center' }}>
           {hasGeneratedImages ? (
             // === AI-Generated Image Drawer ===
             <DrawerImage

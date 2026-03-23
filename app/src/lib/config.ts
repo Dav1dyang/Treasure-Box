@@ -34,7 +34,7 @@ export const DEFAULT_BOX_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' 
   soundVolume: 0.3,
   soundPreset: 'metallic',
   isPublic: false,
-  contentScale: 1.0,
+  boxScale: 1.0,
 };
 
 export const DEFAULT_BOX_DIMENSIONS: BoxDimensions = {

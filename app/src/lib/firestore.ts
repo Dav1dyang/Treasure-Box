@@ -13,7 +13,14 @@ import type { TreasureItem, BoxConfig, BoxState, DrawerImages } from './types';
 
 export async function getBoxConfig(userId: string): Promise<BoxConfig | null> {
   const snap = await getDoc(doc(getDb(), 'boxes', userId));
-  return snap.exists() ? (snap.data() as BoxConfig) : null;
+  if (!snap.exists()) return null;
+  const data = snap.data() as any;
+  // Backward compat: migrate old contentScale field name → boxScale
+  if ('contentScale' in data && !('boxScale' in data)) {
+    data.boxScale = data.contentScale;
+    delete data.contentScale;
+  }
+  return data as BoxConfig;
 }
 
 export async function saveBoxConfig(config: BoxConfig): Promise<void> {
