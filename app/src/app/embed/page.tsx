@@ -120,7 +120,7 @@ function EmbedContent() {
     ? { ...config, contentScale: scaleOverride }
     : config;
 
-  const handleReady = () => setReady(true);
+  const handleReady = useCallback(() => setReady(true), []);
 
   // Overlay mode with frame sync: position drawer and run physics locally
   if (hostViewport) {

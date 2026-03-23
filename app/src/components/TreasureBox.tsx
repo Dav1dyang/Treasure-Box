@@ -81,6 +81,8 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const itemsHandedOffRef = useRef(false);
   const closingAnimRef = useRef(false);
   const onReadyFiredRef = useRef(false);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
   const drawerElRef = useRef<HTMLDivElement>(null);
 
   // Wall body references for dynamic repositioning
@@ -285,11 +287,23 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const isTransparent = bg === 'transparent' || bg === 'rgba(0,0,0,0)';
   const isLightBg = isTransparent ? false : isLightColor(bg);
 
+  // Track which URL each key was loaded with, so we detect URL changes (e.g. sprite regeneration)
+  const imageUrlsRef = useRef<Map<string, string>>(new Map());
+
   // Preload image via fetch → blob URL to avoid CORS canvas tainting
   const loadImageAsBlobUrl = useCallback((key: string, url: string, onLoad?: () => void) => {
-    if (imagesRef.current.has(key)) return;
+    const existingUrl = imageUrlsRef.current.get(key);
+    if (existingUrl === url) {
+      // Same URL — if already loaded, fire callback immediately
+      const existing = imagesRef.current.get(key);
+      if (existing && existing.complete && existing.naturalWidth > 0 && onLoad) onLoad();
+      return;
+    }
+    // Different URL or first load — (re)load
+    imageUrlsRef.current.set(key, url);
     const img = new Image();
     if (onLoad) img.onload = onLoad;
+    img.onerror = () => { if (onLoad) onLoad(); }; // Fire callback even on failure
     imagesRef.current.set(key, img);
 
     fetch(url)
@@ -351,7 +365,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       // ASCII fallback — ready immediately
       if (!onReadyFiredRef.current) {
         onReadyFiredRef.current = true;
-        onReady?.();
+        onReadyRef.current?.();
       }
       return;
     }
@@ -368,7 +382,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         }
         if (!onReadyFiredRef.current) {
           onReadyFiredRef.current = true;
-          onReady?.();
+          onReadyRef.current?.();
         }
       });
     } else if (config.drawerImages.urls) {
@@ -378,12 +392,12 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         if (url) loadImageAsBlobUrl(`drawer_${state}`, url, state === 'IDLE' ? () => {
           if (!onReadyFiredRef.current) {
             onReadyFiredRef.current = true;
-            onReady?.();
+            onReadyRef.current?.();
           }
         } : undefined);
       });
     }
-  }, [config.drawerImages, loadImageAsBlobUrl, onReady]);
+  }, [config.drawerImages, loadImageAsBlobUrl]);
 
   // Init sound
   useEffect(() => {
