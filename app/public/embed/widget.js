@@ -9,14 +9,18 @@
     HEIGHT: 420,
     SCALE: 1,
     ANCHOR: 'bottom-right',
-    OFFSET_X: 32,
-    OFFSET_Y: 32,
+    OFFSET_X: 16,
+    OFFSET_Y: 16,
     Z_INDEX_BOX: 999998,
     Z_INDEX_CANVAS: 999999,
     RESIZE_DEBOUNCE_MS: 200,
     ITEM_DEFAULT_SIZE: 52,
     ITEM_CORNER_RADIUS: 4,
     PLACEHOLDER_COLOR: 'rgba(180,160,100,0.6)',
+    // Responsive scaling: widget scales down between these breakpoints
+    RESPONSIVE_MIN_VP: 768,   // viewport width where scale reaches minimum
+    RESPONSIVE_MAX_VP: 1280,  // viewport width where scale is 1.0
+    RESPONSIVE_MIN_SCALE: 0.6, // minimum responsive scale factor
   };
 
   // ═══════════════════════════════════════════════════════════════
@@ -86,6 +90,24 @@
   var anchor = cfg.anchor || DEFAULTS.ANCHOR;
   var offsetX = parseInt(cfg.ox, 10) || DEFAULTS.OFFSET_X;
   var offsetY = parseInt(cfg.oy, 10) || DEFAULTS.OFFSET_Y;
+
+  // Container-relative mode: position inside a specific div instead of viewport
+  var containerEl = cfg.container
+    ? (typeof cfg.container === 'string' ? document.querySelector(cfg.container) : cfg.container)
+    : null;
+
+  // ═══════════════════════════════════════════════════════════════
+  // Responsive scaling — shrinks widget proportionally on smaller viewports
+  // ═══════════════════════════════════════════════════════════════
+  function computeResponsiveScale() {
+    var vw = window.innerWidth;
+    if (vw >= DEFAULTS.RESPONSIVE_MAX_VP) return 1;
+    if (vw <= DEFAULTS.RESPONSIVE_MIN_VP) return DEFAULTS.RESPONSIVE_MIN_SCALE;
+    var t = (vw - DEFAULTS.RESPONSIVE_MIN_VP) / (DEFAULTS.RESPONSIVE_MAX_VP - DEFAULTS.RESPONSIVE_MIN_VP);
+    return DEFAULTS.RESPONSIVE_MIN_SCALE + t * (1 - DEFAULTS.RESPONSIVE_MIN_SCALE);
+  }
+
+  var responsiveScale = computeResponsiveScale();
 
   // ═══════════════════════════════════════════════════════════════
   // Mobile responsive hiding — skip overlay on narrow viewports
@@ -189,31 +211,40 @@
     }, '*');
   }
 
-  // 1. Create fixed-position box container
+  // 1. Create box container — fixed to viewport or absolute in a parent div
   var boxContainer = document.createElement('div');
   boxContainer.id = 'treasure-box-overlay';
-  boxContainer.style.position = 'fixed';
+  boxContainer.style.position = containerEl ? 'absolute' : 'fixed';
   boxContainer.style.zIndex = String(DEFAULTS.Z_INDEX_BOX);
-  boxContainer.style.width = width + 'px';
-  boxContainer.style.height = height + 'px';
+
+  // Apply responsive scale to offsets so the widget hugs edges more on smaller screens
+  var effectiveOffsetX = Math.round(offsetX * responsiveScale);
+  var effectiveOffsetY = Math.round(offsetY * responsiveScale);
 
   // Position using anchor + offsets
   if (anchor.indexOf('bottom') !== -1) {
-    boxContainer.style.bottom = offsetY + 'px';
+    boxContainer.style.bottom = effectiveOffsetY + 'px';
+  } else if (anchor.indexOf('top') !== -1) {
+    boxContainer.style.top = effectiveOffsetY + 'px';
   } else {
-    boxContainer.style.top = offsetY + 'px';
+    // middle — vertically center
+    boxContainer.style.top = '50%';
+    boxContainer.style.marginTop = '-' + Math.round(height / 2) + 'px';
   }
   if (anchor.indexOf('right') !== -1) {
-    boxContainer.style.right = offsetX + 'px';
+    boxContainer.style.right = effectiveOffsetX + 'px';
+  } else if (anchor.indexOf('left') !== -1) {
+    boxContainer.style.left = effectiveOffsetX + 'px';
   } else {
-    boxContainer.style.left = offsetX + 'px';
+    // center — horizontally center
+    boxContainer.style.left = '50%';
+    boxContainer.style.marginLeft = '-' + Math.round(width / 2) + 'px';
   }
 
   // 2. Create iframe inside box container — pass anchor/offset params for overlay positioning
-  // Overlay mode: iframe sized to tightly fit the drawer + open-state headroom,
-  // avoiding a large invisible area that blocks pointer events on the host page.
-  var overlayW = Math.max(width, 420);
-  var overlayH = Math.max(height, 350);
+  // Size the overlay tightly around the drawer dimensions (no oversized minimums)
+  var overlayW = width;
+  var overlayH = height;
   boxContainer.style.width = overlayW + 'px';
   boxContainer.style.height = overlayH + 'px';
   var overlayParams = 'mode=overlay&anchor=' + encodeURIComponent(anchor) +
@@ -253,7 +284,15 @@
     }, 100);
   });
 
-  document.body.appendChild(boxContainer);
+  // Append to container div (container-relative mode) or document body (viewport mode)
+  if (containerEl) {
+    // Ensure the container is a positioning context
+    var containerPos = getComputedStyle(containerEl).position;
+    if (containerPos === 'static') containerEl.style.position = 'relative';
+    containerEl.appendChild(boxContainer);
+  } else {
+    document.body.appendChild(boxContainer);
+  }
 
   // 3. Create full-viewport canvas overlay (renders items streamed from iframe physics)
   var canvas = document.createElement('canvas');
@@ -695,6 +734,23 @@
   function handleResize() {
     if (resizeTimer) clearTimeout(resizeTimer);
     resizeTimer = setTimeout(function () {
+      // Recompute responsive scale and update offsets
+      responsiveScale = computeResponsiveScale();
+      effectiveOffsetX = Math.round(offsetX * responsiveScale);
+      effectiveOffsetY = Math.round(offsetY * responsiveScale);
+
+      // Update container position offsets
+      if (anchor.indexOf('bottom') !== -1) {
+        boxContainer.style.bottom = effectiveOffsetY + 'px';
+      } else if (anchor.indexOf('top') !== -1) {
+        boxContainer.style.top = effectiveOffsetY + 'px';
+      }
+      if (anchor.indexOf('right') !== -1) {
+        boxContainer.style.right = effectiveOffsetX + 'px';
+      } else if (anchor.indexOf('left') !== -1) {
+        boxContainer.style.left = effectiveOffsetX + 'px';
+      }
+
       // Update canvas size
       var curDpr = window.devicePixelRatio || 1;
       canvas.width = window.innerWidth * curDpr;

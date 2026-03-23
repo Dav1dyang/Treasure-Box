@@ -1,17 +1,70 @@
+import type { AnchorCorner } from './types';
+
+/** Padding (px) between the drawer edge and the container edge when anchored */
+const ANCHOR_PAD = 8;
+
 /**
- * Compute a centered drawer position within a container.
- * Places the drawer at 50% horizontal, 50% vertical (true center).
+ * Compute drawer CSS position within an iframe/container based on the anchor corner.
+ * The drawer is placed near the anchor edge with minimal padding so it hugs the corner.
  */
+export function computeAnchoredDrawerPosition(
+  containerW: number,
+  containerH: number,
+  anchor: AnchorCorner = 'bottom-right',
+): React.CSSProperties {
+  const style: React.CSSProperties = { position: 'absolute' };
+
+  // Vertical
+  if (anchor.startsWith('top')) {
+    style.top = ANCHOR_PAD;
+  } else if (anchor.startsWith('middle')) {
+    style.top = containerH / 2;
+    style.transform = 'translateY(-50%)';
+  } else {
+    // bottom (default)
+    style.bottom = ANCHOR_PAD;
+  }
+
+  // Horizontal
+  if (anchor.endsWith('left')) {
+    style.left = ANCHOR_PAD;
+  } else if (anchor.endsWith('center')) {
+    style.left = containerW / 2;
+    style.transform = (style.transform || '') + ' translateX(-50%)';
+  } else {
+    // right (default)
+    style.right = ANCHOR_PAD;
+  }
+
+  return style;
+}
+
+/**
+ * Compute spawn origin (0-1 fraction) for items based on anchor.
+ * Items spawn from the anchor corner where the drawer lives.
+ */
+export function computeAnchoredSpawnOrigin(anchor: AnchorCorner = 'bottom-right'): { x: number; y: number } {
+  let x = 0.5;
+  let y = 0.5;
+
+  if (anchor.endsWith('left')) x = 0.15;
+  else if (anchor.endsWith('right')) x = 0.85;
+
+  if (anchor.startsWith('top')) y = 0.15;
+  else if (anchor.startsWith('bottom')) y = 0.85;
+
+  return { x, y };
+}
+
+// ---- Backward-compatible aliases ----
+
 export function computeCenteredDrawerPosition(
   containerW: number,
   containerH: number,
 ): React.CSSProperties {
-  return { left: containerW / 2, top: containerH * 0.5, transform: 'translate(-50%, -50%)' };
+  return computeAnchoredDrawerPosition(containerW, containerH, 'middle-center');
 }
 
-/**
- * Spawn origin for centered drawer: items spawn at center of container.
- */
 export function computeCenteredSpawnOrigin(): { x: number; y: number } {
-  return { x: 0.5, y: 0.5 };
+  return computeAnchoredSpawnOrigin('middle-center');
 }
