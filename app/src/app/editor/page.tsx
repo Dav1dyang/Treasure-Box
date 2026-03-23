@@ -532,7 +532,13 @@ export default function EditorPage() {
                       <CfgToggle active={!config.isPublic} first onClick={() => setConfig({ ...config, isPublic: false })}>private</CfgToggle>
                       <CfgToggle active={config.isPublic} onClick={() => setConfig({ ...config, isPublic: true })}>public</CfgToggle>
                     </div>
-                    <CfgHint>public boxes appear in the gallery on the landing page</CfgHint>
+                    <CfgHint>
+                      {config.isPublic
+                        ? 'your box title, owner name, photos, stories, and links are visible to anyone. '
+                        : 'public boxes appear in the gallery on the landing page. '}
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer"
+                        style={{ color: 'var(--tb-accent)', textDecoration: 'underline' }}>privacy policy</a>
+                    </CfgHint>
                   </CfgSection>
 
                   {isAdmin && (

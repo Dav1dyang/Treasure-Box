@@ -208,6 +208,13 @@ export default function Home() {
             ))}
           </div>
         )}</section>
+
+      {/* ═══ FOOTER ═══ */}
+      <footer className="py-6 text-center text-[9px] tracking-[0.12em]" style={{ color: 'var(--tb-fg-ghost)' }}>
+        <Link href="/privacy" className="no-underline transition-colors" style={{ color: 'var(--tb-fg-faint)' }}>
+          privacy
+        </Link>
+      </footer>
     </div>
   );
 }

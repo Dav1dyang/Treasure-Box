@@ -19,19 +19,29 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Owner can read/write their box
+    // Owner can read/write their box; public boxes are readable by anyone
     match /boxes/{userId} {
-      allow read: if true;
+      allow read: if resource.data.isPublic == true
+                  || (request.auth != null && request.auth.uid == userId);
       allow write: if request.auth != null && request.auth.uid == userId;
 
       match /items/{itemId} {
-        allow read: if true;
+        allow read: if get(/databases/$(database)/documents/boxes/$(userId)).data.isPublic == true
+                    || (request.auth != null && request.auth.uid == userId);
         allow write: if request.auth != null && request.auth.uid == userId;
       }
+    }
+
+    // Settings (read-only, admin manages via Firebase Console)
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if false;
     }
   }
 }
 ```
+
+> **Important:** After updating these rules in Firebase Console, private boxes will only be readable by their owner. Previously, all boxes were readable by anyone who knew the user ID. Make sure to apply these updated rules.
 
 ### Storage
 - Go to **Storage**

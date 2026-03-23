@@ -231,7 +231,10 @@ export async function getPublicBoxesWithItems(limitCount = 20): Promise<{ config
 
 export async function getPublicBoxConfig(boxId: string): Promise<BoxConfig | null> {
   const snap = await getDoc(doc(getDb(), 'boxes', boxId));
-  return snap.exists() ? (snap.data() as BoxConfig) : null;
+  if (!snap.exists()) return null;
+  const data = snap.data() as BoxConfig;
+  if (!data.isPublic) return null;
+  return data;
 }
 
 export async function getPublicItems(boxId: string): Promise<TreasureItem[]> {
