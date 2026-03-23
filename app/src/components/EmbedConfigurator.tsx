@@ -180,6 +180,50 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
         )}
       </div>
 
+      {/* Share Link */}
+      <div className="pb-4" style={{ borderBottom: '0.5px solid var(--tb-border)' }}>
+        <div className="flex items-center justify-between mb-2">
+          <span style={label}>Share Link</span>
+          <button
+            onClick={() => {
+              const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+              const url = `${baseUrl}/box/${userId}`;
+              navigator.clipboard.writeText(url);
+              setCopied('link');
+              setTimeout(() => setCopied(null), 2000);
+            }}
+            className="tb-pill cursor-pointer uppercase"
+            style={{
+              fontFamily: MONO, fontSize: 12, fontWeight: 600, letterSpacing: '0.08em',
+              padding: '5px 14px',
+              border: `1px solid ${copied === 'link' ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
+              color: copied === 'link' ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
+              background: 'transparent', transition: 'all 0.15s',
+            }}
+          >
+            {copied === 'link' ? 'Copied ✓' : 'Copy'}
+          </button>
+        </div>
+        <div
+          onClick={() => {
+            const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+            const url = `${baseUrl}/box/${userId}`;
+            navigator.clipboard.writeText(url);
+            setCopied('link');
+            setTimeout(() => setCopied(null), 2000);
+          }}
+          style={{
+            fontFamily: MONO, fontSize: 13, lineHeight: 1.5, padding: '8px 12px',
+            background: 'var(--tb-bg-muted)', color: 'var(--tb-fg-muted)',
+            border: `0.5px solid ${copied === 'link' ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
+            wordBreak: 'break-all', cursor: 'pointer', transition: 'border-color 0.15s',
+          }}
+        >
+          {typeof window !== 'undefined' ? window.location.origin : ''}/box/{userId}
+        </div>
+        <p style={hint}>Anyone can view your drawer at this link — no embed needed</p>
+      </div>
+
       {/* Embed Code */}
       <div>
         <div className="flex items-center justify-between mb-2">
