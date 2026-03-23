@@ -19,22 +19,30 @@
     PLACEHOLDER_COLOR: 'rgba(180,160,100,0.6)',
   };
 
-  // 3-tier fallback: direct currentScript, querySelector with data attr, querySelector with URL params
+  // Multi-tier fallback for finding the script element:
+  // 1. document.currentScript (works for synchronous <script> tags)
+  // 2. querySelector with data-box-id attr (dynamic insertion, attrs preserved)
+  // 3. querySelector with query params in src (dynamic insertion, attrs stripped)
+  // 4. querySelector with hash fragment in src (broadest: survives aggressive sanitization)
+  // 5. Any script with "widget.js" in src (last resort)
   var script = document.currentScript
     || document.querySelector('script[src*="widget.js"][data-box-id]')
-    || document.querySelector('script[src*="widget.js?"]');
+    || document.querySelector('script[src*="widget.js?"]')
+    || document.querySelector('script[src*="widget.js#"]')
+    || document.querySelector('script[src*="widget.js"]');
 
-  if (!script) {
-    console.warn('[treasure-box] Could not locate widget script element');
-  }
-
-  // Read config from data-* attributes first, fall back to URL query params on script src
+  // Read config from: data-* attributes → URL query params → hash fragment
   var scriptSrc = (script && script.src) || '';
+  var hashStr = scriptSrc.indexOf('#') !== -1 ? scriptSrc.substring(scriptSrc.indexOf('#') + 1) : '';
   function getParam(name) {
     var dataName = 'data-' + name;
     if (script && script.hasAttribute(dataName)) return script.getAttribute(dataName);
-    var match = scriptSrc.match(new RegExp('[?&]' + name.replace(/-/g, '\\-') + '=([^&]*)'));
-    return match ? decodeURIComponent(match[1]) : null;
+    var escaped = name.replace(/-/g, '\\-');
+    var match = scriptSrc.match(new RegExp('[?&]' + escaped + '=([^&#]*)'));
+    if (match) return decodeURIComponent(match[1]);
+    // Fallback: parse from hash fragment (survives platforms that strip attrs + query params)
+    var hashMatch = hashStr.match(new RegExp('(?:^|&)' + escaped + '=([^&]*)'));
+    return hashMatch ? decodeURIComponent(hashMatch[1]) : null;
   }
 
   var boxId = getParam('box-id');

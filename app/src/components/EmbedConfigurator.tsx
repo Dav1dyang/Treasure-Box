@@ -94,7 +94,9 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
     const domAttr = settings.domCollide ? `\n  data-dom-collide="true"` : '';
     const scaleAttr = embedScale !== 1 ? `\n  data-scale="${embedScale}"` : '';
 
-    // Encode config as URL params (fallback for platforms that strip data-* attributes)
+    // Encode config in query params AND hash fragment for maximum compatibility.
+    // Some platforms strip data-* attributes, some strip query params, but hash
+    // fragments (part of the URL identity) survive nearly all sanitization.
     const params = new URLSearchParams();
     params.set('box-id', userId);
     params.set('mode', 'overlay');
@@ -104,7 +106,8 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
     params.set('offset-x', String(ox));
     params.set('offset-y', String(oy));
     if (settings.domCollide) params.set('dom-collide', 'true');
-    const srcUrl = `${baseUrl}/embed/widget.js?${params.toString()}`;
+    const paramStr = params.toString();
+    const srcUrl = `${baseUrl}/embed/widget.js?${paramStr}#${paramStr}`;
 
     return `<script src="${srcUrl}"\n  data-box-id="${userId}"\n  data-mode="overlay"\n  data-bg="${bg}"${scaleAttr}\n  data-anchor="${anchor}"\n  data-offset-x="${ox}" data-offset-y="${oy}"${domAttr}>\n</script>`;
   };
