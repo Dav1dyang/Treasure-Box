@@ -29,7 +29,7 @@ export const DEFAULT_BOX_CONFIG: Omit<BoxConfig, 'id' | 'ownerId' | 'createdAt' 
   title: 'My Treasure Box',
   backgroundColor: 'transparent',
   drawerLabel: 'TREASURE BOX',
-  maxItems: 15,
+  maxItems: 100,
   soundEnabled: true,
   soundVolume: 0.3,
   soundPreset: 'metallic',
