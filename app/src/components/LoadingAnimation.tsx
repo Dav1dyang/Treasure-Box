@@ -3,28 +3,17 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import Matter from 'matter-js';
 
-const PASTEL_PALETTE = [
-  '#FFB3BA', // pink
-  '#FFDFBA', // peach
-  '#FFFFBA', // yellow
-  '#BAFFC9', // mint
-  '#BAE1FF', // sky blue
-  '#D4BAFF', // lavender
-  '#FFB3E6', // rose
-  '#B3FFE6', // seafoam
-];
-
 // --- Tunable animation constants ---
 const SPAWN_INTERVAL = 250;   // ms between each new drawer spawn
 const MAX_BOXES = 80;         // safety cap before forcing a drain cycle
 const DRAIN_DURATION = 2000;  // ms for boxes to fall off-screen during drain
 const RESET_PAUSE = 400;      // ms pause between drain finish and next spawn cycle
-const BOX_SIZES = [250]; // random drawer width in px (height = width × 0.7)
+const BOX_SIZES = [100,150,200]; // random drawer width in px (height = width × 0.7)
 
 type CycleState = 'SPAWNING' | 'DRAINING' | 'RESETTING' | 'FINISHED';
 
 interface BoxBody extends Matter.Body {
-  color?: string;
+  hue?: number;
   boxW?: number;
   boxH?: number;
 }
@@ -102,7 +91,7 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
       chamfer: { radius: 3 },
     }) as BoxBody;
 
-    body.color = PASTEL_PALETTE[Math.floor(Math.random() * PASTEL_PALETTE.length)];
+    body.hue = (spawnCountRef.current * 9) % 360;
     body.boxW = boxW;
     body.boxH = boxH;
 
@@ -288,7 +277,7 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
     boxBodiesRef.current.forEach((body: BoxBody) => {
       const { x, y } = body.position;
       const angle = body.angle;
-      const color = body.color || '#BAE1FF';
+      const hue = body.hue ?? 200;
       const bw = body.boxW || 70;
       const bh = body.boxH || 49;
 
@@ -297,8 +286,8 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
       ctx.rotate(angle);
 
       // --- Drawer styling (adjust these to change appearance) ---
-      ctx.strokeStyle = color;               // outline color (from PASTEL_PALETTE)
-      ctx.fillStyle = color + 'BB';          // tinted fill — hex alpha 'BB' ≈ 73% opacity
+      ctx.strokeStyle = `hsl(${hue}, 70%, 78%)`;
+      ctx.fillStyle = `hsla(${hue}, 70%, 78%, 0.73)`;
       ctx.lineWidth = 2;                     // outline thickness in px
       ctx.lineJoin = 'round';
 
