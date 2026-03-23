@@ -615,7 +615,7 @@ export default function EditorPage() {
             <span className="text-[9px] px-2 py-[2px] tracking-widest uppercase" style={{ ...S.ghost, border: '1px solid var(--tb-border-subtle)' }}>live</span>
           </div>
           <div className="flex-1 flex items-center justify-center relative overflow-hidden"
-            style={{ background: '#ffffff' }}>
+            style={{ background: '#cccccc' }}>
             {config && (
               <UnifiedPreview
                 config={config}

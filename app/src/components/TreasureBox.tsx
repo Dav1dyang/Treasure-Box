@@ -203,7 +203,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         const scaledW = drawerRect.width * cs;
         const scaledH = drawerRect.height * cs;
         const centerX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
-        const bottomY = drawerRect.top - sceneRect.top + drawerRect.height;
+        const centerY = drawerRect.top - sceneRect.top + drawerRect.height / 2;
         // Remove old drawer bodies
         if (walls.drawerBody) Matter.Composite.remove(engine.world, walls.drawerBody);
         if (walls.drawerBodies) walls.drawerBodies.forEach(b => Matter.Composite.remove(engine.world, b));
@@ -218,9 +218,9 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
             const p1 = wallPath[i];
             const p2 = wallPath[i + 1];
             const x1 = centerX - scaledW / 2 + p1.x * scaledW;
-            const y1 = bottomY - scaledH + p1.y * scaledH;
+            const y1 = centerY - scaledH / 2 + p1.y * scaledH;
             const x2 = centerX - scaledW / 2 + p2.x * scaledW;
-            const y2 = bottomY - scaledH + p2.y * scaledH;
+            const y2 = centerY - scaledH / 2 + p2.y * scaledH;
             const midX = (x1 + x2) / 2;
             const midY = (y1 + y2) / 2;
             const segLen = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
@@ -236,7 +236,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           }
         } else {
           const bodyH = scaledH * 0.75;
-          const bodyY = bottomY - scaledH * 3 / 8;
+          const bodyY = centerY + scaledH * 0.125;
           const newDrawerBody = Matter.Bodies.rectangle(centerX, bodyY, scaledW, bodyH, {
             isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
           });
@@ -249,9 +249,9 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       const sceneRect = scene.getBoundingClientRect();
       const drawerRect = drawerElRef.current.getBoundingClientRect();
       const scaledH = drawerRect.height * cs;
-      const bottomY = drawerRect.top - sceneRect.top + drawerRect.height;
+      const centerY = drawerRect.top - sceneRect.top + drawerRect.height / 2;
       const boxCenterX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
-      const floorY = bottomY - scaledH * 0.75;
+      const floorY = centerY - scaledH * 0.25;
       const boxW = Math.max(drawerRect.width * cs, 200 * cs);
 
       // Remove old walls, create new ones at updated positions/sizes
@@ -570,7 +570,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
 
     // Drawer collision body — uses contour-based wall segments if available, else rectangle fallback.
     // drawerElRef rect is UNSCALED (CSS transform is on inner child),
-    // so multiply by boxScale and account for transform-origin: bottom center.
+    // so multiply by boxScale and account for transform-origin: center center.
     if (drawerElRef.current && sceneRef.current) {
       const sceneRect = sceneRef.current.getBoundingClientRect();
       const drawerRect = drawerElRef.current.getBoundingClientRect();
@@ -579,8 +579,8 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       const scaledW = dw * cs;
       const scaledH = dh * cs;
       const centerX = drawerRect.left - sceneRect.left + dw / 2;
-      // transform-origin: bottom center — bottom stays fixed
-      const bottomY = drawerRect.top - sceneRect.top + dh;
+      // transform-origin: center center — center stays fixed
+      const centerY = drawerRect.top - sceneRect.top + dh / 2;
       const wallPath = drawerWallPathRef.current;
 
       if (wallPath && wallPath.length >= 4) {
@@ -592,9 +592,9 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           const p2 = wallPath[i + 1];
           // Convert normalized 0-1 to absolute pixel coords relative to the drawer
           const x1 = centerX - scaledW / 2 + p1.x * scaledW;
-          const y1 = bottomY - scaledH + p1.y * scaledH;
+          const y1 = centerY - scaledH / 2 + p1.y * scaledH;
           const x2 = centerX - scaledW / 2 + p2.x * scaledW;
-          const y2 = bottomY - scaledH + p2.y * scaledH;
+          const y2 = centerY - scaledH / 2 + p2.y * scaledH;
           const midX = (x1 + x2) / 2;
           const midY = (y1 + y2) / 2;
           const segLen = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
@@ -612,7 +612,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       } else {
         // Fallback: rectangle covering bottom 3/4
         const bodyH = scaledH * 0.75;
-        const rectY = bottomY - scaledH * 3 / 8;
+        const rectY = centerY + scaledH * 0.125;
         const drawerBody = Matter.Bodies.rectangle(centerX, rectY, scaledW, bodyH, {
           isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
         });
@@ -719,13 +719,13 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           const dh = dRect.height;
           const scaledW = dw * cs;
           const scaledH = dh * cs;
-          // transform-origin: bottom center — bottom stays fixed, sides/top shrink inward
+          // transform-origin: center center — scaling is symmetric around center
           const centerX = dRect.left - sceneRect.left + dw / 2;
-          const bottomY = dRect.top - sceneRect.top + dh;
+          const centerY = dRect.top - sceneRect.top + dh / 2;
           const dLeft = centerX - scaledW / 2;
           const dRight = centerX + scaledW / 2;
-          const dTop = bottomY - scaledH;
-          const dBottom = bottomY;
+          const dTop = centerY - scaledH / 2;
+          const dBottom = centerY + scaledH / 2;
           const bx = body.position.x;
           const by = body.position.y;
           if (bx >= dLeft && bx <= dRight && by >= dTop && by <= dBottom) {
@@ -846,10 +846,10 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       const sceneRect = scene.getBoundingClientRect();
       const drawerRect = drawerElRef.current.getBoundingClientRect();
       centerX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
-      // drawerRect is unscaled — compute visual top accounting for transform-origin: bottom center
-      const bottomY = drawerRect.top - sceneRect.top + drawerRect.height;
+      // drawerRect is unscaled — compute visual top accounting for transform-origin: center center
+      const centerY = drawerRect.top - sceneRect.top + drawerRect.height / 2;
       const scaledH = drawerRect.height * cs;
-      const visualTop = bottomY - scaledH;
+      const visualTop = centerY - scaledH / 2;
       spawnY = visualTop - 20 * cs;
     } else {
       spawnY = h - 200 * cs;
@@ -1556,7 +1556,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         onPointerMove={effectiveOverlay?.onDrag ? handleDrawerPointerMove : undefined}
         onPointerUp={effectiveOverlay?.onDrag ? handleDrawerPointerUp : undefined}
       >
-        <div style={{ transform: `scale(${boxScale})${config.drawerFlipped ? ' scaleX(-1)' : ''}`, transformOrigin: 'bottom center' }}>
+        <div style={{ transform: `scale(${boxScale})${config.drawerFlipped ? ' scaleX(-1)' : ''}`, transformOrigin: 'center center' }}>
           {hasGeneratedImages ? (
             // === AI-Generated Image Drawer ===
             <DrawerImage
@@ -1593,16 +1593,6 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         <StoryCard item={activeStory} onClose={() => setActiveStory(null)} isLight={isLightBg} />
       )}
 
-      {/* Subtle scanlines — skip in embed mode for transparency */}
-      {!embedded && (
-        <div
-          className="absolute inset-0 pointer-events-none z-[999]"
-          style={{
-            background: `repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.015) 2px, rgba(0,0,0,0.015) 4px)`,
-            mixBlendMode: 'multiply',
-          }}
-        />
-      )}
     </div>
   );
 }

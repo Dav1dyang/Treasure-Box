@@ -158,7 +158,7 @@ export default function Home() {
               />
             </div>
           ) : demoConfig ? (
-            <TreasureBox items={demoItems} config={demoConfig} textColliders={textColliders} />
+            <TreasureBox items={demoItems} config={demoConfig} textColliders={textColliders} backgroundColor="transparent" />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
               <pre className="text-[9px] leading-relaxed text-center" style={{ color: 'var(--tb-fg-faint)' }}>
@@ -247,7 +247,7 @@ function GalleryBox({ config, items, index }: { config: BoxConfig; items: Treasu
         style={{ boxShadow: 'inset 0 1px 6px rgba(0,0,0,0.08)' }}
       >
         {isVisible && (
-          <TreasureBox items={items} config={config} />
+          <TreasureBox items={items} config={config} backgroundColor="transparent" />
         )}
       </div>
       {/* Index number */}
