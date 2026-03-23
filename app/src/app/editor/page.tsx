@@ -832,33 +832,38 @@ function UnifiedPreview({
     if (useEmbedPosition && config.embedSettings) {
       const pos = config.embedSettings.position || { anchor: 'bottom-right' as const, offsetX: 20, offsetY: 20 };
       const anchor = pos.anchor || 'bottom-right';
-      const ox = pos.offsetX ?? 20;
-      const oy = pos.offsetY ?? 20;
-      // The drawer element's layout size is unscaled, but the visual size is scaled by boxScale.
-      // transform-origin: center means scaling leaves equal invisible space on all sides.
-      // Compensate by shifting the position by half the difference between layout and visual size.
       const scale = config.boxScale ?? 1;
-      // We don't know the exact drawer dimensions here, but we can use a transform
-      // to shift the drawer so its visual edge aligns with the offset.
-      // translateX/Y shifts by percentage of the element's own size.
-      const shiftPct = ((1 - scale) / 2) * 100; // % of element size that's invisible on each side
+      const shiftPct = ((1 - scale) / 2) * 100;
+      const pad = 20; // default edge padding
 
       const style: React.CSSProperties = { position: 'absolute' };
-      if (anchor.includes('top')) {
-        style.top = oy;
-        style.transform = `translateY(-${shiftPct}%)`;
+      const transforms: string[] = [];
+
+      // Vertical position
+      if (anchor.startsWith('top')) {
+        style.top = pad;
+        transforms.push(`translateY(-${shiftPct}%)`);
+      } else if (anchor.startsWith('middle')) {
+        style.top = '50%';
+        transforms.push('translateY(-50%)');
       } else {
-        style.bottom = oy;
-        style.transform = `translateY(${shiftPct}%)`;
-      }
-      if (anchor.includes('left')) {
-        style.left = ox;
-        style.transform = (style.transform || '') + ` translateX(-${shiftPct}%)`;
-      } else {
-        style.right = ox;
-        style.transform = (style.transform || '') + ` translateX(${shiftPct}%)`;
+        style.bottom = pad;
+        transforms.push(`translateY(${shiftPct}%)`);
       }
 
+      // Horizontal position
+      if (anchor.endsWith('left')) {
+        style.left = pad;
+        transforms.push(`translateX(-${shiftPct}%)`);
+      } else if (anchor.endsWith('center')) {
+        style.left = '50%';
+        transforms.push('translateX(-50%)');
+      } else {
+        style.right = pad;
+        transforms.push(`translateX(${shiftPct}%)`);
+      }
+
+      style.transform = transforms.join(' ');
       return style;
     }
 

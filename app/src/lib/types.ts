@@ -103,12 +103,12 @@ export type SoundPreset = 'metallic' | 'wooden' | 'glass' | 'paper' | 'pixel' | 
 
 // ===== Embed Settings =====
 
-export type AnchorCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+export type AnchorCorner = 'top-left' | 'top-center' | 'top-right' | 'middle-left' | 'middle-center' | 'middle-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
 
 export interface EmbedPosition {
-  anchor: AnchorCorner;       // nearest corner (auto-calculated from drag)
-  offsetX: number;            // px from anchor corner's X edge
-  offsetY: number;            // px from anchor corner's Y edge
+  anchor: AnchorCorner;       // 3x3 grid position
+  offsetX: number;            // px from anchor X edge
+  offsetY: number;            // px from anchor Y edge
 }
 
 export interface EmbedSettings {
