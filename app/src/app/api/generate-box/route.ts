@@ -278,14 +278,14 @@ async function removeGreenChromaKey(
 /**
  * Post-process alpha channel to remove green fringe artifacts:
  * 1. Erode alpha mask by `erodeRadius` pixels (trim outermost fringe)
- * 2. Gaussian blur alpha channel by `blurSigma` (soften hard edges)
+ * 2. Box blur alpha channel (soften hard edges into gentle feather)
  */
 async function refineAlphaEdges(
   pixels: Uint8Array,
   width: number,
   height: number,
   erodeRadius = 2,
-  blurSigma = 1.5,
+  blurRadius = 2,
 ): Promise<Buffer> {
   // --- Step 1: Alpha erosion — remove pixels within erodeRadius of transparency ---
   const alphaSnapshot = new Uint8Array(width * height);
@@ -317,18 +317,35 @@ async function refineAlphaEdges(
     }
   }
 
-  // --- Step 2: Gaussian blur on alpha channel only (soft feather) ---
-  const rawBuffer = Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length);
+  // --- Step 2: Box blur on alpha channel only (soft feather) ---
+  const alphaIn = new Uint8Array(width * height);
+  for (let i = 0; i < alphaIn.length; i++) {
+    alphaIn[i] = pixels[i * 4 + 3];
+  }
 
-  const blurredAlpha = await sharp(rawBuffer, { raw: { width, height, channels: 4 } })
-    .extractChannel(3)
-    .blur(blurSigma)
-    .raw()
-    .toBuffer();
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let sum = 0;
+      let count = 0;
+      for (let dy = -blurRadius; dy <= blurRadius; dy++) {
+        for (let dx = -blurRadius; dx <= blurRadius; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+            sum += alphaIn[ny * width + nx];
+            count++;
+          }
+        }
+      }
+      pixels[(y * width + x) * 4 + 3] = Math.round(sum / count);
+    }
+  }
 
-  const result = await sharp(rawBuffer, { raw: { width, height, channels: 4 } })
-    .removeAlpha()
-    .joinChannel(blurredAlpha, { raw: { width, height, channels: 1 } })
+  // Encode to PNG
+  const result = await sharp(
+    Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length),
+    { raw: { width, height, channels: 4 } },
+  )
     .png()
     .toBuffer();
 
