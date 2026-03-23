@@ -107,7 +107,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
     params.set('offset-y', String(oy));
     if (settings.domCollide) params.set('dom-collide', 'true');
     const paramStr = params.toString();
-    const srcUrl = `${baseUrl}/embed/widget.js?${paramStr}#${paramStr}`;
+    const srcUrl = `${baseUrl}/embed/b/${encodeURIComponent(userId)}/widget.js?${paramStr}#${paramStr}`;
 
     return `<script src="${srcUrl}"\n  data-box-id="${userId}"\n  data-mode="overlay"\n  data-bg="${bg}"${scaleAttr}\n  data-anchor="${anchor}"\n  data-offset-x="${ox}" data-offset-y="${oy}"${domAttr}>\n</script>`;
   };
