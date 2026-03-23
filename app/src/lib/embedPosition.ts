@@ -1,12 +1,12 @@
 /**
  * Compute a centered drawer position within a container.
- * Places the drawer at 50% horizontal, 60% vertical (lower portion, leaving room above for items).
+ * Places the drawer at 50% horizontal, 50% vertical (true center).
  */
 export function computeCenteredDrawerPosition(
   containerW: number,
   containerH: number,
 ): React.CSSProperties {
-  return { left: containerW / 2, top: containerH * 0.6, transform: 'translate(-50%, -50%)' };
+  return { left: containerW / 2, top: containerH * 0.5, transform: 'translate(-50%, -50%)' };
 }
 
 /**
