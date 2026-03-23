@@ -5,56 +5,63 @@ import type { TreasureItem } from '@/lib/types';
 interface Props {
   item: TreasureItem;
   onClose: () => void;
-  isLight: boolean;
 }
 
-export default function StoryCard({ item, onClose, isLight }: Props) {
-  const bg = isLight ? '#f5f0e8' : '#0e0e0e';
-  const border = isLight ? '#d0c8b8' : '#3a3a32';
-  const accent = isLight ? '#6a5a3a' : '#b0a080';
-  const fg = isLight ? '#4a4a40' : '#8a8a7a';
-  const rust = isLight ? '#8a5a30' : '#8a6a4a';
-
+export default function StoryCard({ item, onClose }: Props) {
   return (
     <div
       className="fixed inset-0 z-[300] flex items-center justify-center cursor-pointer"
-      style={{ background: 'rgba(0,0,0,0.88)' }}
+      style={{ background: 'rgba(0,0,0,0.82)' }}
       onClick={onClose}
     >
       <div
-        className="font-mono rounded-sm max-w-[400px] w-full mx-4"
+        className="rounded-sm max-w-[420px] w-full mx-5"
         style={{
-          background: bg,
-          border: `1px solid ${border}`,
-          padding: '28px 32px',
+          background: 'var(--tb-bg)',
+          border: '1px solid var(--tb-border)',
+          padding: '32px 36px 28px',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Item photo */}
         {item.imageUrl && (
-          <div className="flex justify-center mb-4">
+          <div className="flex justify-center mb-5">
             <img
               src={item.imageUrl}
               alt={item.label}
-              className="max-w-[120px] max-h-[120px] object-contain"
-              style={{ filter: 'drop-shadow(2px 4px 8px rgba(0,0,0,0.3))' }}
+              className="max-w-[140px] max-h-[140px] object-contain"
+              style={{ filter: 'drop-shadow(2px 4px 10px rgba(0,0,0,0.25))' }}
             />
           </div>
         )}
 
-        {/* Label */}
+        {/* Label — Barlow Condensed to match hero title */}
         <div
-          className="text-center text-[14px] font-medium mb-2"
-          style={{ color: accent }}
+          className="text-center uppercase mb-2"
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 700,
+            fontSize: 'clamp(18px, 2.4vw, 22px)',
+            letterSpacing: '0.04em',
+            color: 'var(--tb-fg)',
+            lineHeight: 1.1,
+          }}
         >
           {item.label}
         </div>
 
-        {/* Story text */}
+        {/* Story text — Inconsolata body */}
         {item.story && (
           <div
-            className="text-center text-[12px] leading-[1.7] mb-4"
-            style={{ color: fg }}
+            className="text-center mt-3 mb-5"
+            style={{
+              fontFamily: "'Inconsolata', monospace",
+              fontWeight: 400,
+              fontSize: 'clamp(12px, 1.5vw, 14px)',
+              lineHeight: 1.75,
+              letterSpacing: '0.01em',
+              color: 'var(--tb-fg-muted)',
+            }}
           >
             &ldquo;{item.story}&rdquo;
           </div>
@@ -63,23 +70,40 @@ export default function StoryCard({ item, onClose, isLight }: Props) {
         {/* Link */}
         {item.link && (
           <div
-            className="text-center pt-3"
-            style={{ borderTop: `1px solid ${border}` }}
+            className="text-center pt-4"
+            style={{ borderTop: '1px solid var(--tb-border-subtle)' }}
           >
             <a
               href={item.link}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[11px] no-underline transition-colors hover:opacity-80"
-              style={{ color: rust }}
+              className="no-underline uppercase transition-colors"
+              style={{
+                fontFamily: "'Inconsolata', monospace",
+                fontWeight: 600,
+                fontSize: '12px',
+                letterSpacing: '0.1em',
+                color: 'var(--tb-accent)',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--tb-accent-hover)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--tb-accent)')}
             >
-              → visit link
+              Visit Link →
             </a>
           </div>
         )}
 
         {/* Close hint */}
-        <div className="text-center mt-4 text-[9px] opacity-30">
+        <div
+          className="text-center mt-5"
+          style={{
+            fontFamily: "'Inconsolata', monospace",
+            fontWeight: 400,
+            fontSize: '10px',
+            letterSpacing: '0.08em',
+            color: 'var(--tb-fg-faint)',
+          }}
+        >
           click anywhere to close
         </div>
       </div>

@@ -1756,7 +1756,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
 
       {/* Story overlay */}
       {activeStory && (typeof window === 'undefined' || window.parent === window) && (
-        <StoryCard item={activeStory} onClose={() => setActiveStory(null)} isLight={isLightBg} />
+        <StoryCard item={activeStory} onClose={() => setActiveStory(null)} />
       )}
 
     </div>
