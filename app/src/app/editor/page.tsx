@@ -113,7 +113,7 @@ export default function EditorPage() {
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!user || !e.target.files?.length) return;
-    if (items.length >= (config?.maxItems || 15)) return;
+    if (items.length >= (config?.maxItems || 100)) return;
     const file = e.target.files[0];
     const id = `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     setSaving(true);
@@ -342,7 +342,7 @@ export default function EditorPage() {
             {tab === 'items' && (
               <div>
                 <h2 className="text-[11px] tracking-[0.12em] uppercase mb-3" style={S.accent}>
-                  items ({items.length}/{config?.maxItems || 15})
+                  items ({items.length}/{config?.maxItems || 100})
                 </h2>
                 {removingBg && <div className="text-[10px] mb-3 animate-pulse" style={{ color: 'var(--tb-highlight)' }}>removing background...</div>}
                 {bgError && <div className="text-[10px] mb-3" style={{ color: '#c44' }}>bg removal failed: {bgError}</div>}
@@ -392,7 +392,7 @@ export default function EditorPage() {
                         );
                       })}
                       {/* Upload cell */}
-                      {items.length < (config?.maxItems || 15) && (
+                      {items.length < (config?.maxItems || 100) && (
                         <label
                           className="aspect-square flex flex-col items-center justify-center cursor-pointer transition-colors"
                           style={{ background: 'var(--tb-bg)', border: 'none' }}
