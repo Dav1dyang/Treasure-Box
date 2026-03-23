@@ -94,9 +94,10 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
     const domAttr = settings.domCollide ? `\n  data-dom-collide="true"` : '';
     const scaleAttr = embedScale !== 1 ? `\n  data-scale="${embedScale}"` : '';
 
-    // Encode config in query params AND hash fragment for maximum compatibility.
-    // Some platforms strip data-* attributes, some strip query params, but hash
-    // fragments (part of the URL identity) survive nearly all sanitization.
+    // Encode config in: (1) companion div data-attrs, (2) URL path, (3) query
+    // params, (4) hash fragment, (5) script data-attrs. Platforms like Cargo
+    // proxy scripts through their own CDN and strip all script attributes/params,
+    // so the companion div is the most resilient carrier.
     const params = new URLSearchParams();
     params.set('box-id', userId);
     params.set('mode', 'overlay');
@@ -109,7 +110,12 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
     const paramStr = params.toString();
     const srcUrl = `${baseUrl}/embed/b/${encodeURIComponent(userId)}/widget.js?${paramStr}#${paramStr}`;
 
-    return `<script src="${srcUrl}"\n  data-box-id="${userId}"\n  data-mode="overlay"\n  data-bg="${bg}"${scaleAttr}\n  data-anchor="${anchor}"\n  data-offset-x="${ox}" data-offset-y="${oy}"${domAttr}>\n</script>`;
+    // Companion div: survives platforms that rewrite/proxy script URLs
+    const domCollideDiv = settings.domCollide ? `\n  data-dom-collide="true"` : '';
+    const scaleDiv = embedScale !== 1 ? `\n  data-scale="${embedScale}"` : '';
+    const configDiv = `<div id="treasure-box-embed"\n  data-box-id="${userId}"\n  data-origin="${baseUrl}"\n  data-mode="overlay"\n  data-bg="${bg}"${scaleDiv}\n  data-anchor="${anchor}"\n  data-offset-x="${ox}" data-offset-y="${oy}"${domCollideDiv}\n  style="display:none">\n</div>`;
+
+    return `${configDiv}\n<script src="${srcUrl}"\n  data-box-id="${userId}"\n  data-mode="overlay"\n  data-bg="${bg}"${scaleAttr}\n  data-anchor="${anchor}"\n  data-offset-x="${ox}" data-offset-y="${oy}"${domAttr}>\n</script>`;
   };
 
   const handleCopy = () => {

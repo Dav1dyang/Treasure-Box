@@ -45,20 +45,39 @@
     return hashMatch ? decodeURIComponent(hashMatch[1]) : null;
   }
 
+  // ── Read config with multi-tier fallback ──
+  // Tier 1-3: script tag attrs → URL query → hash fragment (via getParam)
   var boxId = getParam('box-id');
-  // Fallback: extract box ID from URL path (survives all platform sanitization)
+  // Tier 4: box ID embedded in URL path (/embed/b/<id>/widget.js)
   if (!boxId) {
     var pathMatch = scriptSrc.match(/\/embed\/b\/([^/?#]+)\/widget\.js/);
     if (pathMatch) boxId = decodeURIComponent(pathMatch[1]);
   }
-  var bg = getParam('bg') || 'transparent';
-  var scale = parseFloat(getParam('scale') || String(DEFAULTS.SCALE));
+
+  // Tier 5: companion <div id="treasure-box-embed"> element
+  // Platforms like Cargo proxy scripts through their own CDN, rewriting the URL
+  // and stripping all attributes. A companion div preserves config in the DOM.
+  var configEl = document.getElementById('treasure-box-embed');
+  function getConfigElParam(name) {
+    if (!configEl) return null;
+    var val = configEl.getAttribute('data-' + name);
+    return val || null;
+  }
+  if (!boxId) boxId = getConfigElParam('box-id');
+
+  var bg = getParam('bg') || getConfigElParam('bg') || 'transparent';
+  var scale = parseFloat(getParam('scale') || getConfigElParam('scale') || String(DEFAULTS.SCALE));
   var rawW = getParam('width');
   var rawH = getParam('height');
   var width = rawW ? parseInt(rawW, 10) : Math.round(DEFAULTS.WIDTH * scale);
   var height = rawH ? parseInt(rawH, 10) : Math.round(DEFAULTS.HEIGHT * scale);
-  var mode = getParam('mode') || 'overlay';
-  var origin = scriptSrc.replace(/\/embed\/(?:b\/[^/]+\/)?widget\.js.*$/, '') || window.location.origin;
+  var mode = getParam('mode') || getConfigElParam('mode') || 'overlay';
+
+  // Derive origin: from script src path → companion div → current page (last resort)
+  var origin = scriptSrc.replace(/\/embed\/(?:b\/[^/]+\/)?widget\.js.*$/, '');
+  if (!origin || origin === scriptSrc) {
+    origin = getConfigElParam('origin') || window.location.origin;
+  }
 
   if (!boxId) {
     console.error('[treasure-box] Missing data-box-id attribute (and no ?box-id= URL param)');
@@ -108,12 +127,12 @@
   // Box is fixed-positioned on the page; physics runs inside the iframe,
   // body positions are streamed via postMessage and rendered on a host-page canvas.
 
-  var anchor = getParam('anchor') || DEFAULTS.ANCHOR;
-  var offsetX = parseInt(getParam('offset-x') || String(DEFAULTS.OFFSET_X), 10);
-  var offsetY = parseInt(getParam('offset-y') || String(DEFAULTS.OFFSET_Y), 10);
+  var anchor = getParam('anchor') || getConfigElParam('anchor') || DEFAULTS.ANCHOR;
+  var offsetX = parseInt(getParam('offset-x') || getConfigElParam('offset-x') || String(DEFAULTS.OFFSET_X), 10);
+  var offsetY = parseInt(getParam('offset-y') || getConfigElParam('offset-y') || String(DEFAULTS.OFFSET_Y), 10);
 
   // DOM collision opt-in
-  var domCollide = getParam('dom-collide') === 'true';
+  var domCollide = (getParam('dom-collide') || getConfigElParam('dom-collide')) === 'true';
 
   // 1. Create fixed-position box container
   var boxContainer = document.createElement('div');
