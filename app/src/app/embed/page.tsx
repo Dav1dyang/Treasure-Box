@@ -102,6 +102,8 @@ function EmbedContent() {
     }, '*');
   }, []);
 
+  const handleReady = useCallback(() => setReady(true), []);
+
   if (error) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-transparent">
@@ -119,8 +121,6 @@ function EmbedContent() {
   const effectiveConfig = scaleOverride && scaleOverride !== 1
     ? { ...config, boxScale: scaleOverride }
     : config;
-
-  const handleReady = useCallback(() => setReady(true), []);
 
   // Overlay mode with frame sync: position drawer and run physics locally
   if (hostViewport) {
