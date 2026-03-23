@@ -1297,6 +1297,19 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       return Math.abs(x - bx) < size / 2 && Math.abs(y - by) < size / 2;
     });
     if (!clickedBody) {
+      // Only close if click is on/near the drawer itself, not random whitespace
+      const drawerEl = drawerElRef.current;
+      if (drawerEl) {
+        const drawerRect = drawerEl.getBoundingClientRect();
+        const margin = 20;
+        const insideDrawer = (
+          e.clientX >= drawerRect.left - margin &&
+          e.clientX <= drawerRect.right + margin &&
+          e.clientY >= drawerRect.top - margin &&
+          e.clientY <= drawerRect.bottom + margin
+        );
+        if (!insideDrawer) return;
+      }
       closeDrawerRef.current();
     }
   }, [boxState]);
