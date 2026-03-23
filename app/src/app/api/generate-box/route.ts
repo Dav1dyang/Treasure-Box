@@ -226,7 +226,12 @@ async function removeGreenWithVision(
     }
   }
 
-  const result = await refineAlphaEdges(pixels, info.width, info.height);
+  const result = await sharp(Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length), {
+    raw: { width: info.width, height: info.height, channels: 4 },
+  })
+    .png()
+    .toBuffer();
+
   return result.toString('base64');
 }
 
@@ -271,68 +276,13 @@ async function removeGreenChromaKey(
     }
   }
 
-  const result = await refineAlphaEdges(pixels, info.width, info.height);
-  return result.toString('base64');
-}
-
-/**
- * Post-process alpha channel to remove green fringe artifacts:
- * 1. Erode alpha mask by `erodeRadius` pixels (trim outermost fringe)
- * 2. Gaussian blur alpha channel by `blurSigma` (soften hard edges)
- */
-async function refineAlphaEdges(
-  pixels: Uint8Array,
-  width: number,
-  height: number,
-  erodeRadius = 2,
-  blurSigma = 1.5,
-): Promise<Buffer> {
-  // --- Step 1: Alpha erosion — remove pixels within erodeRadius of transparency ---
-  const alphaSnapshot = new Uint8Array(width * height);
-  for (let i = 0; i < alphaSnapshot.length; i++) {
-    alphaSnapshot[i] = pixels[i * 4 + 3];
-  }
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = y * width + x;
-      if (alphaSnapshot[idx] === 0) continue;
-
-      let touchesTransparent = false;
-      for (let dy = -erodeRadius; dy <= erodeRadius && !touchesTransparent; dy++) {
-        for (let dx = -erodeRadius; dx <= erodeRadius && !touchesTransparent; dx++) {
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
-            touchesTransparent = true;
-          } else if (alphaSnapshot[ny * width + nx] === 0) {
-            touchesTransparent = true;
-          }
-        }
-      }
-
-      if (touchesTransparent) {
-        pixels[idx * 4 + 3] = 0;
-      }
-    }
-  }
-
-  // --- Step 2: Gaussian blur on alpha channel only (soft feather) ---
-  const rawBuffer = Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length);
-
-  const blurredAlpha = await sharp(rawBuffer, { raw: { width, height, channels: 4 } })
-    .extractChannel(3)
-    .blur(blurSigma)
-    .raw()
-    .toBuffer();
-
-  const result = await sharp(rawBuffer, { raw: { width, height, channels: 4 } })
-    .removeAlpha()
-    .joinChannel(blurredAlpha, { raw: { width, height, channels: 1 } })
+  const result = await sharp(Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length), {
+    raw: { width: info.width, height: info.height, channels: 4 },
+  })
     .png()
     .toBuffer();
 
-  return result;
+  return result.toString('base64');
 }
 
 /**
