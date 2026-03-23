@@ -8,7 +8,7 @@ const SPAWN_INTERVAL = 250;   // ms between each new drawer spawn
 const MAX_BOXES = 80;         // safety cap before forcing a drain cycle
 const DRAIN_DURATION = 2000;  // ms for boxes to fall off-screen during drain
 const RESET_PAUSE = 400;      // ms pause between drain finish and next spawn cycle
-const BOX_SIZES = [100,150,200]; // random drawer width in px (height = width × 0.7)
+const BOX_SIZES = [140,175,200]; // random drawer width in px (height = width × 0.7)
 
 type CycleState = 'SPAWNING' | 'DRAINING' | 'RESETTING' | 'FINISHED';
 
@@ -287,7 +287,6 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
 
       // --- Drawer styling (adjust these to change appearance) ---
       ctx.strokeStyle = `hsl(${hue}, 70%, 78%)`;
-      ctx.fillStyle = `hsla(${hue}, 70%, 78%, 0.73)`;
       ctx.lineWidth = 2;                     // outline thickness in px
       ctx.lineJoin = 'round';
 
@@ -306,7 +305,6 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
       ctx.lineTo(-hw, -hh + r);
       ctx.arcTo(-hw, -hh, -hw + r, -hh, r);
       ctx.closePath();
-      ctx.fill();
       ctx.stroke();
 
       // Rim line near the top edge (drawer front lip)

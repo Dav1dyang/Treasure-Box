@@ -6,7 +6,7 @@ import { DEFAULT_BOX_DIMENSIONS, DECOR_ITEMS } from './config';
 // ═══════════════════════════════════════════════════════════════
 
 export const MATERIAL_MAP: Record<DrawerStylePreset, string> = {
-  clay: 'clay with visible claymation handmade textures',
+  clay: 'clay with visible claymation handmade textures really fluffy and thick',
   metal: 'metal with brass accents and aged patina',
   wood: 'wood with polished grain and warm lacquer',
   pixel: 'pixel-art surface, 8-bit crisp edges, limited palette',
