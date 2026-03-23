@@ -312,7 +312,7 @@ export default function EditorPage() {
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--tb-bg)', color: 'var(--tb-fg)', fontFamily: MONO }}>
       {/* Header */}
       <header className="relative px-3 sm:px-5 h-12 flex items-center justify-between shrink-0 uppercase" style={{ borderBottom: '0.5px solid var(--tb-border)', fontWeight: 500, fontSize: '13px', letterSpacing: '0.08em' }}>
-        <Link href="/" className="no-underline shrink-0" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: '16px', letterSpacing: '0.02em', ...S.accent }}>Junk Drawer</Link>
+        <a href="/" className="no-underline shrink-0" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: '16px', letterSpacing: '0.02em', ...S.accent }}>Junk Drawer</a>
         {/* Editable owner title — centered, hidden on small screens */}
         {config && (
           <div className="absolute left-1/2 -translate-x-1/2 hidden sm:flex items-baseline gap-0">
@@ -336,7 +336,7 @@ export default function EditorPage() {
           <button onClick={toggleTheme} className="cursor-pointer" style={S.faint} title="Toggle theme">
             {theme === 'dark' ? '○' : '●'}
           </button>
-          <Link href="/" className="no-underline" style={S.muted}>Home</Link>
+          <a href="/" className="no-underline" style={S.muted}>Home</a>
           <button onClick={logOut} className="cursor-pointer uppercase" style={S.faint}>Sign Out</button>
         </div>
       </header>
