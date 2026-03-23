@@ -223,10 +223,13 @@
   boxContainer.appendChild(hitZone);
 
   hitZone.addEventListener('mouseenter', function () {
+    // Don't re-enable iframe events if items are on host canvas or drag is active
+    if (isDraggingItem || frameBodies.length > 0) return;
     boxIframe.style.pointerEvents = 'auto';
     hitZone.style.display = 'none';
   });
   hitZone.addEventListener('touchstart', function () {
+    if (isDraggingItem || frameBodies.length > 0) return;
     boxIframe.style.pointerEvents = 'auto';
     hitZone.style.display = 'none';
   }, { passive: true });
@@ -236,7 +239,7 @@
   boxIframe.addEventListener('mouseleave', function () {
     if (isDraggingItem) return;
     setTimeout(function () {
-      if (isDraggingItem) return;
+      if (isDraggingItem || frameBodies.length > 0) return;
       if (boxIframe.style.pointerEvents === 'auto' && hitZone.style.display === 'none') {
         boxIframe.style.pointerEvents = 'none';
         hitZone.style.display = 'block';
@@ -693,6 +696,8 @@
       // items to get "stuck" when dragged outside the boxContainer area.
       if (!hadBodies && frameBodies.length > 0) {
         boxIframe.style.pointerEvents = 'none';
+        boxContainer.style.pointerEvents = 'none';
+        hitZone.style.display = 'none';
       }
       // Canvas stays pointer-events:none — interaction is document-level
 
@@ -712,6 +717,8 @@
       frameBodies = [];
       itemImages = {};
       document.body.style.cursor = '';
+      boxContainer.style.pointerEvents = '';
+      hitZone.style.display = 'block';
     }
 
     // Single item returned to drawer via drag
@@ -719,6 +726,8 @@
       frameBodies = frameBodies.filter(function (b) { return b.id !== event.data.itemId; });
       if (frameBodies.length === 0) {
         document.body.style.cursor = '';
+        boxContainer.style.pointerEvents = '';
+        hitZone.style.display = 'block';
       }
     }
 
