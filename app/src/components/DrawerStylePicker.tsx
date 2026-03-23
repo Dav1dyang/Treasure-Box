@@ -170,14 +170,20 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
     } catch (e: any) {
       setOptionsError(e.message);
       // On error, fall back to static options and select the first one
-      if (!stylePattern) setStylePattern(STYLE_PRESETS[0].id);
+      setStylePattern(prev => prev || STYLE_PRESETS[0].id);
     } finally {
       setOptionsLoading(false);
     }
-  }, [stylePattern]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Fetch on mount
-  useEffect(() => { fetchOptions(); }, [fetchOptions]);
+  // Fetch once on mount
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (mountedRef.current) return;
+    mountedRef.current = true;
+    fetchOptions();
+  }, [fetchOptions]);
 
   // Resolved option lists: dynamic if available, static fallback
   const styleOptions = dynStyles || (STYLE_PRESETS as unknown as DynOption[]);
