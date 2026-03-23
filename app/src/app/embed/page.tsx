@@ -117,7 +117,7 @@ function EmbedContent() {
   const bg = bgOverride ? decodeURIComponent(bgOverride) : config.backgroundColor;
   const scaleOverride = scaleParam ? parseFloat(scaleParam) : undefined;
   const effectiveConfig = scaleOverride && scaleOverride !== 1
-    ? { ...config, contentScale: scaleOverride }
+    ? { ...config, boxScale: scaleOverride }
     : config;
 
   const handleReady = useCallback(() => setReady(true), []);
@@ -127,7 +127,7 @@ function EmbedContent() {
     const overlayConfig = {
       ...effectiveConfig,
       backgroundColor: 'transparent',
-      contentScale: effectiveConfig.contentScale ?? 1,
+      boxScale: effectiveConfig.boxScale ?? 1,
     };
 
     const containerW = sceneRef.current?.offsetWidth || window.innerWidth;
