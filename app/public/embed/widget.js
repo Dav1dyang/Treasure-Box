@@ -574,8 +574,6 @@
       startHostCanvasDrag(e.clientX, e.clientY);
     } else if (isInsideDrawerRect(e.clientX, e.clientY)) {
       e.stopPropagation();
-      boxIframe.style.pointerEvents = 'auto';
-      hitZone.style.display = 'none';
       boxIframe.contentWindow.postMessage({
         type: 'treasure-box-host', action: 'drawer-click',
       }, '*');
@@ -601,8 +599,6 @@
       }, 800);
       startHostCanvasDrag(touch.clientX, touch.clientY);
     } else if (isInsideDrawerRect(touch.clientX, touch.clientY)) {
-      boxIframe.style.pointerEvents = 'auto';
-      hitZone.style.display = 'none';
       boxIframe.contentWindow.postMessage({
         type: 'treasure-box-host', action: 'drawer-click',
       }, '*');
@@ -687,8 +683,17 @@
 
     if (event.data.action === 'frame-sync') {
       // Receive body positions from iframe physics engine
+      var hadBodies = frameBodies.length > 0;
       frameBodies = event.data.bodies || [];
       frameEffects = event.data.effects || frameEffects;
+
+      // When items first appear on host canvas, disable iframe pointer-events
+      // so ALL interaction goes through the host document-level path.
+      // This prevents dual-path conflicts at the iframe boundary that cause
+      // items to get "stuck" when dragged outside the boxContainer area.
+      if (!hadBodies && frameBodies.length > 0) {
+        boxIframe.style.pointerEvents = 'none';
+      }
       // Canvas stays pointer-events:none — interaction is document-level
 
       // Preload images for new items
@@ -746,6 +751,7 @@
     // Item drag: forward host-page mouse events into iframe during drag
     if (event.data.action === 'item-drag-start') {
       isDraggingItem = true;
+      boxIframe.style.pointerEvents = 'none'; // Force host path during drag
       document.addEventListener('mousemove', onHostMouseMove, true);
       document.addEventListener('mouseup', onHostMouseUp, true);
       document.addEventListener('touchmove', onHostTouchMove, { capture: true, passive: false });
