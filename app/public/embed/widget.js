@@ -46,6 +46,11 @@
   }
 
   var boxId = getParam('box-id');
+  // Fallback: extract box ID from URL path (survives all platform sanitization)
+  if (!boxId) {
+    var pathMatch = scriptSrc.match(/\/embed\/b\/([^/?#]+)\/widget\.js/);
+    if (pathMatch) boxId = decodeURIComponent(pathMatch[1]);
+  }
   var bg = getParam('bg') || 'transparent';
   var scale = parseFloat(getParam('scale') || String(DEFAULTS.SCALE));
   var rawW = getParam('width');
@@ -53,7 +58,7 @@
   var width = rawW ? parseInt(rawW, 10) : Math.round(DEFAULTS.WIDTH * scale);
   var height = rawH ? parseInt(rawH, 10) : Math.round(DEFAULTS.HEIGHT * scale);
   var mode = getParam('mode') || 'overlay';
-  var origin = scriptSrc.replace(/\/embed\/widget\.js.*$/, '') || window.location.origin;
+  var origin = scriptSrc.replace(/\/embed\/(?:b\/[^/]+\/)?widget\.js.*$/, '') || window.location.origin;
 
   if (!boxId) {
     console.error('[treasure-box] Missing data-box-id attribute (and no ?box-id= URL param)');
