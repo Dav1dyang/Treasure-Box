@@ -5,7 +5,7 @@ export default function EmbedLayout({ children }: { children: React.ReactNode })
     <html lang="en" style={{ background: 'transparent' }}>
       <head>
         <link
-          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inconsolata:wght@300;400;500;600&display=swap"
           rel="stylesheet"
         />
       </head>
