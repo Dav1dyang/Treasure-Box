@@ -13,7 +13,7 @@ import StoryCard from './StoryCard';
 const ITEM_BASE_SIZE = 52;
 const SPAWN_ANIM_DURATION = 300;
 
-type PhysicsBody = Matter.Body & { itemData?: TreasureItem; spawnTime?: number; closeT?: number };
+type PhysicsBody = Matter.Body & { itemData?: TreasureItem; spawnTime?: number; closeT?: number; returnT?: number; returningToDrawer?: boolean };
 
 interface OverlayPreviewConfig {
   /** CSS styles to position the drawer at the anchor point */
@@ -83,6 +83,11 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const onReadyFiredRef = useRef(false);
   const drawerElRef = useRef<HTMLDivElement>(null);
 
+  // Drag-to-return: gulp animation + per-item return intervals
+  const [gulpState, setGulpState] = useState<BoxState | null>(null);
+  const gulpTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const returnAnimIntervalsRef = useRef<ReturnType<typeof setInterval>[]>([]);
+
   // Wall body references for dynamic repositioning
   const wallsRef = useRef<{
     floor?: Matter.Body;
@@ -150,6 +155,9 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const clearAllTimeouts = useCallback(() => {
     timeoutsRef.current.forEach(id => clearTimeout(id));
     timeoutsRef.current.clear();
+    // Also clear gulp animation timeouts
+    gulpTimeoutsRef.current.forEach(id => clearTimeout(id));
+    gulpTimeoutsRef.current = [];
   }, []);
 
   // Keep contentScale ref in sync for use inside initPhysics closure
@@ -455,6 +463,9 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     runnerRef.current = null;
     bodiesRef.current = [];
     appliedScaleRef.current.clear();
+    // Clear any in-progress return animations
+    returnAnimIntervalsRef.current.forEach(id => clearInterval(id));
+    returnAnimIntervalsRef.current = [];
     // Clear canvas
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx && canvasRef.current) {
@@ -609,6 +620,27 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           }
         }
       }
+      // Drag-to-return: if item was dragged near the drawer, return it
+      if (body?.itemData && didDragRef.current && !longPressFiredRef.current && !closingAnimRef.current) {
+        const drawerEl = drawerElRef.current;
+        const sceneEl = sceneRef.current;
+        if (drawerEl && sceneEl) {
+          const sceneRect = sceneEl.getBoundingClientRect();
+          const dRect = drawerEl.getBoundingClientRect();
+          // Drawer bounds in scene coordinates, expanded by 30px for forgiveness
+          const margin = 30;
+          const dLeft = dRect.left - sceneRect.left - margin;
+          const dRight = dRect.right - sceneRect.left + margin;
+          const dTop = dRect.top - sceneRect.top - margin;
+          const dBottom = dRect.bottom - sceneRect.top + margin;
+          const bx = body.position.x;
+          const by = body.position.y;
+          if (bx >= dLeft && bx <= dRight && by >= dTop && by <= dBottom) {
+            returnItemToDrawerRef.current(body);
+          }
+        }
+      }
+
       mouseDownBodyRef.current = null;
       mouseDownPosRef.current = null;
     });
@@ -654,6 +686,16 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       }
       if (event.data.action === 'dismiss-story') {
         setActiveStory(null);
+      }
+      // Host canvas: drag-to-return item
+      if (event.data.action === 'return-item' && event.data.itemId) {
+        // Release mouse constraint first
+        mouse.button = -1;
+        // Find the body and trigger return animation
+        const targetBody = bodiesRef.current.find(b => b.itemData?.id === event.data.itemId);
+        if (targetBody) {
+          returnItemToDrawerRef.current(targetBody);
+        }
       }
       // Host canvas drawer interaction forwarding (overlay embed)
       if (event.data.action === 'drawer-click') {
@@ -829,6 +871,17 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         if (size < 2) return;
       }
 
+      // Individual return-to-drawer animation (independent of global close)
+      if ((body as PhysicsBody).returningToDrawer) {
+        const rt = (body as PhysicsBody).returnT ?? 0;
+        const returnScale = Math.max(0.05, 1 - rt * rt);
+        const returnOpacity = Math.max(0, 1 - Math.pow(rt, 3));
+        closeScale *= returnScale;
+        closeOpacity *= returnOpacity;
+        size *= returnScale;
+        if (size < 2) return;
+      }
+
       const img = imagesRef.current.get(item.id);
 
       ctx.save();
@@ -884,7 +937,11 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         const syncCloseT = (body as PhysicsBody).closeT ?? 0;
         const syncCloseScale = closingAnimRef.current ? Math.max(0.05, 1 - syncCloseT * syncCloseT) : 1;
         const syncCloseOpacity = closingAnimRef.current ? Math.max(0, 1 - Math.pow(syncCloseT, 3)) : 1;
-        const finalSize = baseSize * syncSpawnScale * syncCloseScale;
+        // Individual return-to-drawer animation
+        const syncReturnT = (body as PhysicsBody).returnT ?? 0;
+        const syncReturnScale = (body as PhysicsBody).returningToDrawer ? Math.max(0.05, 1 - syncReturnT * syncReturnT) : 1;
+        const syncReturnOpacity = (body as PhysicsBody).returningToDrawer ? Math.max(0, 1 - Math.pow(syncReturnT, 3)) : 1;
+        const finalSize = baseSize * syncSpawnScale * syncCloseScale * syncReturnScale;
         return {
           id: item?.id ?? '',
           x: body.position.x + ox,
@@ -894,7 +951,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           height: finalSize,
           imageUrl: item?.imageUrl ?? '',
           scale: item?.scale ?? 1,
-          opacity: syncSpawnOpacity * syncCloseOpacity,
+          opacity: syncSpawnOpacity * syncCloseOpacity * syncReturnOpacity,
           link: item?.link,
           label: item?.label,
           story: item?.story,
@@ -945,6 +1002,9 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const closeDrawer = useCallback(() => {
     // Guard: only close from open states
     if (!isOpen) return;
+
+    // Reset any in-progress gulp animation from single-item returns
+    setGulpState(null);
 
     // Cancel all pending open timeouts + spawn interval
     clearAllTimeouts();
@@ -1055,6 +1115,129 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       }, maxStagger + 300);
     }, Math.round(duration * 0.6 + maxStagger));
   }, [isOpen, clearPhysics, clearAllTimeouts, managedTimeout, onItemsReturned]);
+
+  // === Return a single dragged item back into the drawer ===
+  const returnItemToDrawer = useCallback((body: PhysicsBody) => {
+    const engine = engineRef.current;
+    const scene = sceneRef.current;
+    const drawerEl = drawerElRef.current;
+    if (!engine || !body.itemData) return;
+    // Guard: only when drawer is open and not already closing
+    if (closingAnimRef.current) return;
+    if (body.returningToDrawer) return;
+
+    // Calculate drawer center in scene coords
+    let drawerCenterX: number;
+    let drawerY: number;
+    if (drawerEl && scene) {
+      const sceneRect = scene.getBoundingClientRect();
+      const drawerRect = drawerEl.getBoundingClientRect();
+      drawerCenterX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
+      drawerY = drawerRect.top - sceneRect.top + drawerRect.height / 2;
+    } else {
+      drawerCenterX = scene ? scene.offsetWidth / 2 : 200;
+      drawerY = scene ? scene.offsetHeight - 150 : 300;
+    }
+
+    // Make body static so it stops interacting with other items
+    Matter.Body.setStatic(body, true);
+    Matter.Body.setVelocity(body, { x: 0, y: 0 });
+    body.returningToDrawer = true;
+    body.returnT = 0;
+
+    // Bezier arc: start → control point (arc above) → drawer center
+    const start = { x: body.position.x, y: body.position.y };
+    const midX = (start.x + drawerCenterX) / 2;
+    const highestY = Math.min(start.y, drawerY);
+    const arcHeight = 100 + Math.random() * 80;
+    const xJitter = (Math.random() - 0.5) * 60;
+    const cp = { x: midX + xJitter, y: highestY - arcHeight };
+
+    const duration = 400;
+    const startTime = performance.now();
+    const itemId = body.itemData.id;
+
+    const returnInterval = setInterval(() => {
+      const elapsed = performance.now() - startTime;
+      const t = Math.min(1, elapsed / duration);
+      const eased = t < 0.5
+        ? 2 * t * t
+        : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+      // Quadratic Bezier
+      const oneMinusT = 1 - eased;
+      const x = oneMinusT * oneMinusT * start.x + 2 * oneMinusT * eased * cp.x + eased * eased * drawerCenterX;
+      const y = oneMinusT * oneMinusT * start.y + 2 * oneMinusT * eased * cp.y + eased * eased * drawerY;
+
+      Matter.Body.setPosition(body, { x, y });
+      body.returnT = eased;
+
+      // Gentle spin
+      if (t < 0.9) {
+        Matter.Body.setAngularVelocity(body, (Math.random() > 0.5 ? 1 : -1) * 0.02);
+      }
+
+      if (t >= 1) {
+        clearInterval(returnInterval);
+        returnAnimIntervalsRef.current = returnAnimIntervalsRef.current.filter(id => id !== returnInterval);
+
+        // Remove body from physics world and tracking array
+        if (engineRef.current) {
+          Matter.Composite.remove(engineRef.current.world, body);
+        }
+        bodiesRef.current = bodiesRef.current.filter(b => b !== body);
+
+        // Notify overlay mode
+        if (window.parent !== window) {
+          window.parent.postMessage({ type: 'treasure-box', action: 'item-returned-single', itemId }, '*');
+        }
+
+        // Check if this was the last item
+        if (bodiesRef.current.filter(b => !b.returningToDrawer).length === 0 && bodiesRef.current.length === 0) {
+          // Last item: finish gulp at closed, transition to IDLE
+          gulpTimeoutsRef.current.forEach(tid => clearTimeout(tid));
+          gulpTimeoutsRef.current = [];
+          const t1 = setTimeout(() => {
+            setGulpState(null);
+            setBoxState('IDLE');
+            clearPhysics();
+            if (onItemsReturned) onItemsReturned();
+          }, 200);
+          gulpTimeoutsRef.current.push(t1);
+        }
+      }
+    }, 16);
+    returnAnimIntervalsRef.current.push(returnInterval);
+
+    // --- Drawer gulp animation ---
+    // Clear any previous gulp chain
+    gulpTimeoutsRef.current.forEach(tid => clearTimeout(tid));
+    gulpTimeoutsRef.current = [];
+
+    soundEngine.playDrawerClose();
+
+    // Determine if this will be the last item (excluding already-returning bodies)
+    const remainingAfter = bodiesRef.current.filter(b => b !== body && !b.returningToDrawer).length;
+
+    // Gulp frames: close down then reopen (unless last item)
+    setGulpState('HOVER_CLOSE');
+    const g1 = setTimeout(() => setGulpState('CLOSING'), 80);
+    const g2 = setTimeout(() => setGulpState('SLAMMING'), 160);
+    gulpTimeoutsRef.current.push(g1, g2);
+
+    if (remainingAfter > 0) {
+      // Reopen after gulp
+      const g3 = setTimeout(() => setGulpState('HOVER_PEEK'), 280);
+      const g4 = setTimeout(() => {
+        setGulpState(null); // back to normal OPEN frame
+      }, 380);
+      gulpTimeoutsRef.current.push(g3, g4);
+    }
+    // If last item, gulp stays at SLAMMING — the interval completion handler above transitions to IDLE
+  }, [clearPhysics, onItemsReturned]);
+
+  const returnItemToDrawerRef = useRef(returnItemToDrawer);
+  useEffect(() => { returnItemToDrawerRef.current = returnItemToDrawer; }, [returnItemToDrawer]);
 
   // Stable refs so handlers don't go stale across re-renders
   const openDrawerRef = useRef(openDrawer);
@@ -1260,7 +1443,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
             // === AI-Generated Image Drawer ===
             <DrawerImage
               images={config.drawerImages!}
-              currentState={boxState}
+              currentState={gulpState ?? boxState}
               isLight={isLightBg}
               displaySize={config.drawerDisplaySize}
             />
@@ -1269,7 +1452,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
             <DynamicASCIIBox
               dimensions={normalizeDimensions(config.boxDimensions || DEFAULT_BOX_DIMENSIONS)}
               label={config.drawerLabel || 'TREASURE BOX'}
-              state={boxState}
+              state={gulpState ?? boxState}
               isOpen={isOpen}
               isLight={isLightBg}
             />

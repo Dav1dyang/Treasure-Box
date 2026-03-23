@@ -638,6 +638,14 @@
       canvas.style.pointerEvents = 'none';
     }
 
+    // Single item returned to drawer via drag
+    if (event.data.action === 'item-returned-single' && event.data.itemId) {
+      frameBodies = frameBodies.filter(function(b) { return b.id !== event.data.itemId; });
+      if (frameBodies.length === 0) {
+        canvas.style.pointerEvents = 'none';
+      }
+    }
+
     if (event.data.action === 'request-viewport-info') {
       sendViewportInfo();
     }
