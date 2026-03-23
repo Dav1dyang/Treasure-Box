@@ -519,52 +519,101 @@
   // ═══════════════════════════════════════════════════════════════
   var storyOverlay = null;
 
+  // Inject reactive CSS custom properties for story overlay theming.
+  // Uses @media (prefers-color-scheme) so it auto-switches with OS setting,
+  // and also checks host page data-theme attribute for manual toggles.
+  function injectStoryStyles() {
+    if (document.querySelector('style[data-tb-story-vars]')) return;
+    var style = document.createElement('style');
+    style.setAttribute('data-tb-story-vars', '1');
+    style.textContent =
+      ':root {' +
+        '--tbs-bg:#0e0e0e;--tbs-border:#3a3a34;--tbs-border-subtle:#2a2a26;' +
+        '--tbs-fg:#b8b8a8;--tbs-fg-muted:#8a8a7a;--tbs-fg-faint:#5e5e52;' +
+        '--tbs-accent:#d0b888;--tbs-accent-hover:#e0c898;' +
+      '}' +
+      '@media(prefers-color-scheme:light){:root{' +
+        '--tbs-bg:#f5f2ec;--tbs-border:#d0ccc2;--tbs-border-subtle:#ddd9d0;' +
+        '--tbs-fg:#3a3832;--tbs-fg-muted:#6a685e;--tbs-fg-faint:#9a9888;' +
+        '--tbs-accent:#8a6a3a;--tbs-accent-hover:#7a5a2a;' +
+      '}}' +
+      '[data-theme="light"]{' +
+        '--tbs-bg:#f5f2ec;--tbs-border:#d0ccc2;--tbs-border-subtle:#ddd9d0;' +
+        '--tbs-fg:#3a3832;--tbs-fg-muted:#6a685e;--tbs-fg-faint:#9a9888;' +
+        '--tbs-accent:#8a6a3a;--tbs-accent-hover:#7a5a2a;' +
+      '}' +
+      '[data-theme="dark"]{' +
+        '--tbs-bg:#0e0e0e;--tbs-border:#3a3a34;--tbs-border-subtle:#2a2a26;' +
+        '--tbs-fg:#b8b8a8;--tbs-fg-muted:#8a8a7a;--tbs-fg-faint:#5e5e52;' +
+        '--tbs-accent:#d0b888;--tbs-accent-hover:#e0c898;' +
+      '}';
+    document.head.appendChild(style);
+  }
+
   function showStoryOverlay(body) {
     if (storyOverlay) dismissStoryOverlay();
+
+    injectStoryStyles();
+
+    // Inject font if not already present
+    if (!document.querySelector('link[data-tb-story-font]')) {
+      var fontLink = document.createElement('link');
+      fontLink.rel = 'stylesheet';
+      fontLink.setAttribute('data-tb-story-font', '1');
+      fontLink.href = 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=Inconsolata:wght@400;600&display=swap';
+      document.head.appendChild(fontLink);
+    }
+
     storyOverlay = document.createElement('div');
     storyOverlay.style.cssText = 'position:fixed;inset:0;z-index:10000000;display:flex;' +
-      'align-items:center;justify-content:center;background:rgba(0,0,0,0.88);cursor:pointer;font-family:monospace;';
+      'align-items:center;justify-content:center;background:rgba(0,0,0,0.82);cursor:pointer;';
 
     var card = document.createElement('div');
-    card.style.cssText = 'background:#0e0e0e;border:1px solid #3a3a32;padding:28px 32px;' +
-      'border-radius:2px;max-width:400px;width:calc(100% - 32px);';
+    card.style.cssText = 'background:var(--tbs-bg);border:1px solid var(--tbs-border);padding:32px 36px 28px;' +
+      'border-radius:2px;max-width:420px;width:calc(100% - 40px);';
     card.addEventListener('click', function (e) { e.stopPropagation(); });
 
     if (body.imageUrl) {
       var imgWrap = document.createElement('div');
-      imgWrap.style.cssText = 'text-align:center;margin-bottom:16px';
+      imgWrap.style.cssText = 'text-align:center;margin-bottom:20px';
       var img = document.createElement('img');
       img.src = body.imageUrl;
-      img.style.cssText = 'max-width:120px;max-height:120px;object-fit:contain;filter:drop-shadow(2px 4px 8px rgba(0,0,0,0.3))';
+      img.style.cssText = 'max-width:140px;max-height:140px;object-fit:contain;filter:drop-shadow(2px 4px 10px rgba(0,0,0,0.25))';
       imgWrap.appendChild(img);
       card.appendChild(imgWrap);
     }
     if (body.label) {
       var labelEl = document.createElement('div');
-      labelEl.style.cssText = 'text-align:center;font-size:14px;font-weight:500;margin-bottom:8px;color:#b0a080';
+      labelEl.style.cssText = 'text-align:center;font-family:"Barlow Condensed",sans-serif;font-weight:700;' +
+        'font-size:20px;letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;margin-bottom:8px;color:var(--tbs-fg)';
       labelEl.textContent = body.label;
       card.appendChild(labelEl);
     }
     if (body.story) {
       var storyEl = document.createElement('div');
-      storyEl.style.cssText = 'text-align:center;font-size:12px;line-height:1.7;margin-bottom:16px;color:#8a8a7a';
+      storyEl.style.cssText = 'text-align:center;font-family:"Inconsolata",monospace;font-weight:400;' +
+        'font-size:13px;line-height:1.75;letter-spacing:0.01em;margin:12px 0 20px;color:var(--tbs-fg-muted)';
       storyEl.textContent = '\u201c' + body.story + '\u201d';
       card.appendChild(storyEl);
     }
     if (body.link) {
       var linkWrap = document.createElement('div');
-      linkWrap.style.cssText = 'text-align:center;padding-top:12px;border-top:1px solid #3a3a32';
+      linkWrap.style.cssText = 'text-align:center;padding-top:16px;border-top:1px solid var(--tbs-border-subtle)';
       var linkEl = document.createElement('a');
       linkEl.href = body.link;
       linkEl.target = '_blank';
       linkEl.rel = 'noopener noreferrer';
-      linkEl.style.cssText = 'color:#8a6a4a;font-size:11px;text-decoration:none';
-      linkEl.textContent = '\u2192 visit link';
+      linkEl.style.cssText = 'font-family:"Inconsolata",monospace;font-weight:600;font-size:12px;' +
+        'letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;color:var(--tbs-accent)';
+      linkEl.textContent = 'Visit Link \u2192';
+      linkEl.addEventListener('mouseenter', function () { linkEl.style.color = 'var(--tbs-accent-hover)'; });
+      linkEl.addEventListener('mouseleave', function () { linkEl.style.color = 'var(--tbs-accent)'; });
       linkWrap.appendChild(linkEl);
       card.appendChild(linkWrap);
     }
     var hint = document.createElement('div');
-    hint.style.cssText = 'text-align:center;margin-top:16px;font-size:9px;opacity:0.3;color:#8a8a7a';
+    hint.style.cssText = 'text-align:center;margin-top:20px;font-family:"Inconsolata",monospace;' +
+      'font-weight:400;font-size:10px;letter-spacing:0.08em;color:var(--tbs-fg-faint)';
     hint.textContent = 'click anywhere to close';
     card.appendChild(hint);
 
