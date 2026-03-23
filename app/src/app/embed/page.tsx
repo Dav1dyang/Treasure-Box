@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { getPublicBoxConfig, getPublicItems } from '@/lib/firestore';
 import type { TreasureItem, BoxConfig, FrameSyncBody, HostViewport, AnchorCorner, DomColliderRect } from '@/lib/types';
 import TreasureBox from '@/components/TreasureBox';
-import { computeCenteredDrawerPosition, computeCenteredSpawnOrigin } from '@/lib/embedPosition';
+import { computeAnchoredDrawerPosition, computeAnchoredSpawnOrigin } from '@/lib/embedPosition';
 import { Suspense } from 'react';
 
 function EmbedContent() {
@@ -157,8 +157,8 @@ function EmbedContent() {
             backgroundColor="transparent"
             embedded
             overlayPreview={{
-              drawerStyle: computeCenteredDrawerPosition(containerW, containerH),
-              spawnOrigin: computeCenteredSpawnOrigin(),
+              drawerStyle: computeAnchoredDrawerPosition(containerW, containerH, anchorParam),
+              spawnOrigin: computeAnchoredSpawnOrigin(anchorParam),
             }}
             hostViewport={hostViewport}
             domColliderRects={domColliderRects}
