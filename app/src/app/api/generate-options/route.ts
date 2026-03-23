@@ -17,7 +17,6 @@ Return ONLY valid JSON in this exact format, no markdown, no explanation:
 {"styles":[{"id":"example-id","label":"Example","prompt":"example description for image generation"}],"features":[{"id":"example-id","label":"Example","prompt":"example description for image generation"}]}`;
 
 export async function GET(request: NextRequest) {
-  // Optional seed param to get different results
   const seed = request.nextUrl.searchParams.get('seed') || String(Date.now());
 
   const apiKey = process.env.GOOGLE_AI_STUDIO_KEY;
@@ -30,12 +29,31 @@ export async function GET(request: NextRequest) {
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: `${PROMPT}\n\nSeed for variety: ${seed}`,
-      config: { temperature: 1.2 },
+      config: {
+        responseModalities: ['TEXT'],
+        temperature: 1.2,
+      },
     });
 
-    const text = response.text?.trim() || '';
+    // Extract text from response candidates (same pattern as generate-box)
+    let text = '';
+    const candidates = response.candidates;
+    if (candidates && candidates.length > 0) {
+      const parts = candidates[0].content?.parts ?? [];
+      for (const part of parts) {
+        if (part.text) {
+          text += part.text;
+        }
+      }
+    }
+
+    text = text.trim();
+    if (!text) {
+      throw new Error('Empty response from Gemini');
+    }
+
     // Strip markdown fences if present
-    const json = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+    const json = text.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
     const parsed = JSON.parse(json);
 
     // Validate structure

@@ -278,11 +278,13 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
           </button>
         </div>
         <pre
+          onClick={handleCopy}
           style={{
             fontFamily: MONO, fontSize: 11, lineHeight: 1.5, padding: 12,
             background: 'var(--tb-bg-muted)', color: 'var(--tb-fg-muted)',
-            border: '0.5px solid var(--tb-border)',
+            border: `0.5px solid ${copied === 'embed' ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
             whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflow: 'auto', maxHeight: 200, margin: 0,
+            cursor: 'pointer', transition: 'border-color 0.15s',
           }}
         >
           {getEmbedCode()}
