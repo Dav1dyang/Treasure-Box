@@ -23,6 +23,7 @@ function EmbedContent() {
   const [items, setItems] = useState<TreasureItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [hostViewport, setHostViewport] = useState<HostViewport | null>(null);
+  const [ready, setReady] = useState(false);
   const sceneRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,6 +51,15 @@ function EmbedContent() {
 
         setConfig(cfg);
         setItems(itms);
+
+        // Send item URLs to parent for early preloading
+        if (window.parent !== window && itms.length > 0) {
+          window.parent.postMessage({
+            type: 'treasure-box',
+            action: 'item-urls',
+            urls: itms.map(i => ({ id: i.id, url: i.imageUrl })),
+          }, '*');
+        }
       } catch {
         setError('Failed to load box');
       }
@@ -101,11 +111,7 @@ function EmbedContent() {
   }
 
   if (!config) {
-    return (
-      <div className="w-full h-screen flex items-center justify-center bg-transparent">
-        <div className="text-[#3a3a32] font-mono text-xs animate-pulse">loading...</div>
-      </div>
-    );
+    return <div className="w-full h-screen bg-transparent" />;
   }
 
   const bg = bgOverride ? decodeURIComponent(bgOverride) : config.backgroundColor;
@@ -113,6 +119,8 @@ function EmbedContent() {
   const effectiveConfig = scaleOverride && scaleOverride !== 1
     ? { ...config, contentScale: scaleOverride }
     : config;
+
+  const handleReady = () => setReady(true);
 
   // Overlay mode with frame sync: position drawer and run physics locally
   if (hostViewport) {
@@ -127,18 +135,21 @@ function EmbedContent() {
 
     return (
       <div ref={sceneRef} className="w-full h-screen overflow-hidden" style={{ background: 'transparent' }}>
-        <TreasureBox
-          items={items}
-          config={overlayConfig}
-          backgroundColor="transparent"
-          embedded
-          overlayPreview={{
-            drawerStyle: computeCenteredDrawerPosition(containerW, containerH),
-            spawnOrigin: computeCenteredSpawnOrigin(),
-          }}
-          hostViewport={hostViewport}
-          onFrameSync={handleFrameSync}
-        />
+        <div style={{ opacity: ready ? 1 : 0, transition: 'opacity 0.3s ease-out', width: '100%', height: '100%' }}>
+          <TreasureBox
+            items={items}
+            config={overlayConfig}
+            backgroundColor="transparent"
+            embedded
+            overlayPreview={{
+              drawerStyle: computeCenteredDrawerPosition(containerW, containerH),
+              spawnOrigin: computeCenteredSpawnOrigin(),
+            }}
+            hostViewport={hostViewport}
+            onFrameSync={handleFrameSync}
+            onReady={handleReady}
+          />
+        </div>
       </div>
     );
   }
@@ -146,11 +157,12 @@ function EmbedContent() {
   // Fallback: direct browser visit or no parent frame — render standalone
   return (
     <div className="w-full h-screen overflow-hidden">
-      <div className="w-full h-full">
+      <div className="w-full h-full" style={{ opacity: ready ? 1 : 0, transition: 'opacity 0.3s ease-out' }}>
         <TreasureBox
           items={items}
           config={effectiveConfig}
           backgroundColor={bg}
+          onReady={handleReady}
         />
       </div>
     </div>
@@ -159,13 +171,7 @@ function EmbedContent() {
 
 export default function EmbedPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="w-full h-screen flex items-center justify-center bg-transparent">
-          <div className="text-[#3a3a32] font-mono text-xs animate-pulse">loading...</div>
-        </div>
-      }
-    >
+    <Suspense fallback={<div className="w-full h-screen bg-transparent" />}>
       <EmbedContent />
     </Suspense>
   );

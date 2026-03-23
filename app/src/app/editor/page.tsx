@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/components/ThemeProvider';
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import {
   getBoxConfig, saveBoxConfig,
@@ -10,14 +10,14 @@ import {
   uploadImage, uploadProcessedImage,
   clearDrawerImages, deleteItemWithCleanup, deleteBox,
 } from '@/lib/firestore';
-import type { TreasureItem, BoxConfig, DrawerImages, EmbedSettings, AnchorCorner } from '@/lib/types';
-import { DEFAULT_EMBED_SETTINGS, DEFAULT_BOX_CONFIG, MATERIAL_SOUND_MAP } from '@/lib/config';
+import type { TreasureItem, BoxConfig, DrawerImages, EmbedSettings } from '@/lib/types';
+import { DEFAULT_BOX_CONFIG, MATERIAL_SOUND_MAP } from '@/lib/config';
 import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
 import LoadingAnimation from '@/components/LoadingAnimation';
 import { extractContourFromImage } from '@/lib/contour';
 import EmbedConfigurator from '@/components/EmbedConfigurator';
-import { computeDrawerPosition, computeSpawnOrigin, computeCenteredDrawerPosition, computeCenteredSpawnOrigin, positionFromPointer } from '@/lib/embedPosition';
+import { computeCenteredDrawerPosition, computeCenteredSpawnOrigin } from '@/lib/embedPosition';
 
 function Slider({ value, min, max, step, label, format, onChange, snap }: {
   value: number; min: number; max: number; step: number;
@@ -505,31 +505,11 @@ export default function EditorPage() {
             <span className="text-[9px] px-2 py-[2px] tracking-widest uppercase" style={{ ...S.ghost, border: '1px solid var(--tb-border-subtle)' }}>live</span>
           </div>
           <div className="flex-1 flex items-center justify-center relative overflow-hidden"
-            style={{
-              background: config?.backgroundColor === 'transparent'
-                ? 'repeating-conic-gradient(var(--tb-bg-muted) 0% 25%, var(--tb-bg-subtle) 0% 50%) 50% / 16px 16px'
-                : config?.backgroundColor || 'var(--tb-bg)',
-            }}>
+            style={{ background: '#ffffff' }}>
             {config && (
               <UnifiedPreview
                 config={config}
                 items={items}
-                tab={tab}
-                onPositionChange={(pos) => {
-                  setConfig({
-                    ...config,
-                    embedSettings: {
-                      ...(config.embedSettings || DEFAULT_EMBED_SETTINGS),
-                      position: pos,
-                    },
-                  });
-                }}
-                onScaleChange={(s: number) => {
-                  setConfig({
-                    ...config,
-                    contentScale: s,
-                  });
-                }}
               />
             )}
             {showLoadingOverlay && (
@@ -579,199 +559,50 @@ function CfgToggle({ active, first, children, onClick }: { active: boolean; firs
   );
 }
 
-/** Interactive embed preview — TreasureBox fills the preview, drawer is draggable */
-/** Unified preview — single persistent TreasureBox across all tabs.
- *  Drawer position changes smoothly via CSS transition when switching tabs. */
+/** Unified preview — single centered TreasureBox with pop-in transition */
 function UnifiedPreview({
   config,
   items,
-  tab,
-  onPositionChange,
-  onScaleChange,
 }: {
   config: BoxConfig;
   items: TreasureItem[];
-  tab: 'items' | 'settings';
-  onPositionChange: (pos: { anchor: AnchorCorner; offsetX: number; offsetY: number }) => void;
-  onScaleChange?: (scale: number) => void;
 }) {
   const previewRef = useRef<HTMLDivElement>(null);
-  const es = config.embedSettings || DEFAULT_EMBED_SETTINGS;
-  const isSettingsTab = tab === 'settings';
-  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
-  const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+  const [previewReady, setPreviewReady] = useState(false);
 
-  // Compute drawer position: centered for items tab, stored anchor for settings tab
-  const getDrawerStyle = useCallback((): React.CSSProperties => {
-    if (dragPos) {
-      return { left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)' };
-    }
-    if (!isSettingsTab) {
-      if (!previewRef.current) return { left: '50%', top: '60%', transform: 'translate(-50%, -50%)' };
-      const w = previewRef.current.offsetWidth;
-      const h = previewRef.current.offsetHeight;
-      return computeCenteredDrawerPosition(w, h);
-    }
-    if (!previewRef.current) return { bottom: 24, right: 24 };
-    return computeDrawerPosition(
-      es.position.anchor, es.position.offsetX, es.position.offsetY,
-      previewRef.current.offsetWidth, previewRef.current.offsetHeight,
-    );
-  }, [isSettingsTab, es.position, dragPos]);
+  // Reset readiness when drawer images change
+  useEffect(() => {
+    setPreviewReady(false);
+  }, [config.drawerImages?.spriteUrl]);
 
-  // Compute spawn origin
-  const getSpawnOrigin = useCallback(() => {
-    if (!isSettingsTab) return computeCenteredSpawnOrigin();
-    if (!previewRef.current) return { x: 0.8, y: 0.8 };
-    return computeSpawnOrigin(
-      es.position.anchor, es.position.offsetX, es.position.offsetY,
-      previewRef.current.offsetWidth, previewRef.current.offsetHeight,
-    );
-  }, [isSettingsTab, es.position]);
-
-  // Handle drag from TreasureBox drawer — follow mouse during move, commit on end
-  const handleDrag = useCallback((e: PointerEvent, phase: 'start' | 'move' | 'end') => {
-    if (!previewRef.current) return;
-
-    const rect = previewRef.current.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    if (phase === 'start') {
-      // Record offset between mouse and drawer center so the box doesn't jump
-      const style = computeDrawerPosition(
-        es.position.anchor, es.position.offsetX, es.position.offsetY,
-        rect.width, rect.height,
-      );
-      const cx = typeof style.left === 'number' ? style.left : 0;
-      const cy = typeof style.top === 'number' ? style.top : 0;
-      dragOffsetRef.current = { dx: mouseX - cx, dy: mouseY - cy };
-      return;
-    }
-
-    const posX = mouseX - dragOffsetRef.current.dx;
-    const posY = mouseY - dragOffsetRef.current.dy;
-
-    if (phase === 'move') {
-      setDragPos({ x: posX, y: posY });
-      return;
-    }
-
-    // phase === 'end' — commit position and clear drag state
-    setDragPos(null);
-    onPositionChange(positionFromPointer(posX, posY, rect.width, rect.height));
-  }, [es.position, onPositionChange]);
-
-  // Drawer style with CSS transition for smooth tab-switch animation (disabled during drag)
-  const drawerStyleWithTransition = useMemo(() => ({
-    ...getDrawerStyle(),
-    ...(dragPos ? {} : { transition: 'left 0.5s ease-out, top 0.5s ease-out' }),
-  }), [getDrawerStyle, dragPos]);
-
-  const previewConfig = useMemo(() => config, [config]);
+  const drawerStyle = useMemo(() => {
+    if (!previewRef.current) return { left: '50%', top: '60%', transform: 'translate(-50%, -50%)' };
+    return computeCenteredDrawerPosition(previewRef.current.offsetWidth, previewRef.current.offsetHeight);
+  }, [config]);
 
   return (
     <div ref={previewRef} className="w-full h-full relative">
-      {/* Website background — only visible on settings tab */}
-      {isSettingsTab && (
-        <div style={{ opacity: 1, transition: 'opacity 0.3s' }}>
-          <MockWebsitePlaceholder />
-          {/* Screenshot preview */}
-          {es.previewMode === 'screenshot' && es.previewImageUrl && (
-            <>
-              <img
-                src={es.previewImageUrl}
-                alt=""
-                className="absolute inset-0 w-full h-full pointer-events-none"
-                style={{ opacity: 0.4, zIndex: 1, objectFit: 'cover', objectPosition: 'top left' }}
-              />
-              <div className="absolute top-2 left-3 z-30 text-[7px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
-                screenshot preview
-              </div>
-            </>
-          )}
-          {/* Live URL iframe preview */}
-          {es.previewMode === 'url' && es.previewUrl && (
-            <>
-              <iframe
-                src={es.previewUrl}
-                sandbox="allow-scripts"
-                referrerPolicy="no-referrer"
-                className="absolute inset-0 w-full h-full pointer-events-none"
-                style={{ opacity: 0.4, zIndex: 1, border: 'none' }}
-              />
-              <div className="absolute top-2 left-3 z-30 text-[7px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
-                site preview (may be blocked by X-Frame-Options)
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      <div className="absolute inset-0" style={{ zIndex: 5 }}>
+      <div className="absolute inset-0" style={{
+        zIndex: 5,
+        opacity: previewReady ? 1 : 0,
+        transition: 'opacity 0.3s ease-out',
+      }}>
         <TreasureBox
           items={items}
-          config={previewConfig}
+          config={config}
           overlayPreview={{
-            drawerStyle: drawerStyleWithTransition,
-            spawnOrigin: getSpawnOrigin(),
-            onDrag: isSettingsTab ? handleDrag : undefined,
+            drawerStyle,
+            spawnOrigin: computeCenteredSpawnOrigin(),
           }}
+          onReady={() => setPreviewReady(true)}
         />
       </div>
 
-      {/* Position readout — only on settings tab */}
-      {isSettingsTab && (
-        <>
-          <div className="absolute bottom-2 left-3 z-30 text-[8px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
-            {es.position.anchor} &middot; {es.position.offsetX}px, {es.position.offsetY}px
-          </div>
-          <div className="absolute bottom-2 right-3 z-30 text-[8px] pointer-events-none" style={{ color: 'var(--tb-fg-ghost)' }}>
-            drag drawer to reposition
-          </div>
-        </>
-      )}
-
-      {/* Owner name — shown on items tab */}
-      {!isSettingsTab && config.ownerName && (
+      {config.ownerName && (
         <div className="absolute bottom-2 left-3 text-[8px] tracking-wider z-30 pointer-events-none" style={{ color: 'var(--tb-fg-faint)' }}>
           {config.ownerName}
         </div>
       )}
-    </div>
-  );
-}
-
-/** Fake website skeleton — grey placeholder blocks, adapts to light/dark via CSS vars */
-function MockWebsitePlaceholder() {
-  const bar = { background: 'var(--tb-border)' };
-  const block = { background: 'var(--tb-border-subtle)' };
-  return (
-    <div className="absolute inset-0 p-5 space-y-3 opacity-20 pointer-events-none overflow-hidden">
-      {/* Nav bar */}
-      <div className="flex items-center gap-3 pb-3" style={{ borderBottom: '1px solid var(--tb-border-subtle)' }}>
-        <div className="h-3 w-8 rounded" style={bar} />
-        <div className="flex-1" />
-        <div className="h-2 w-10 rounded" style={block} />
-        <div className="h-2 w-10 rounded" style={block} />
-        <div className="h-2 w-10 rounded" style={block} />
-      </div>
-      {/* Hero */}
-      <div className="h-5 w-2/3 rounded" style={bar} />
-      <div className="h-3 w-full rounded" style={block} />
-      <div className="h-3 w-5/6 rounded" style={block} />
-      {/* Image placeholder */}
-      <div className="h-24 w-full rounded" style={block} />
-      {/* Body text */}
-      <div className="h-3 w-full rounded" style={block} />
-      <div className="h-3 w-4/5 rounded" style={block} />
-      <div className="h-3 w-full rounded" style={block} />
-      <div className="h-3 w-2/3 rounded" style={block} />
-      {/* Two-column cards */}
-      <div className="flex gap-3 mt-2">
-        <div className="flex-1 h-16 rounded" style={block} />
-        <div className="flex-1 h-16 rounded" style={block} />
-      </div>
     </div>
   );
 }

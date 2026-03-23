@@ -38,11 +38,13 @@ interface Props {
   onFrameSync?: (bodies: FrameSyncBody[], effects: Record<string, unknown>) => void;
   /** Host viewport dimensions for wall placement when embedded in an iframe */
   hostViewport?: HostViewport;
+  /** Called once when the component is ready to display (images loaded or ASCII fallback) */
+  onReady?: () => void;
 }
 
 const ALL_BOX_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
 
-export default function TreasureBox({ items, config, backgroundColor, onItemsEscaped, onItemsReturned, overlayPreview, embedded, onFrameSync, hostViewport }: Props) {
+export default function TreasureBox({ items, config, backgroundColor, onItemsEscaped, onItemsReturned, overlayPreview, embedded, onFrameSync, hostViewport, onReady }: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
@@ -78,6 +80,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const spawnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const itemsHandedOffRef = useRef(false);
   const closingAnimRef = useRef(false);
+  const onReadyFiredRef = useRef(false);
   const drawerElRef = useRef<HTMLDivElement>(null);
 
   // Wall body references for dynamic repositioning
@@ -344,7 +347,15 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
 
   // Preload drawer images (sprite sheet or legacy per-state) and extract contour
   useEffect(() => {
-    if (!config.drawerImages) return;
+    if (!config.drawerImages) {
+      // ASCII fallback — ready immediately
+      if (!onReadyFiredRef.current) {
+        onReadyFiredRef.current = true;
+        onReady?.();
+      }
+      return;
+    }
+    onReadyFiredRef.current = false;
     if (config.drawerImages.spriteUrl) {
       loadImageAsBlobUrl('drawer_sprite', config.drawerImages.spriteUrl, () => {
         // Extract wall path from OPEN frame (frame 4) once sprite loads
@@ -355,15 +366,24 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
             drawerWallPathRef.current = extractDrawerWallPath(frameData);
           }
         }
+        if (!onReadyFiredRef.current) {
+          onReadyFiredRef.current = true;
+          onReady?.();
+        }
       });
     } else if (config.drawerImages.urls) {
       const urls = config.drawerImages.urls;
       ALL_BOX_STATES.forEach(state => {
         const url = urls[state];
-        if (url) loadImageAsBlobUrl(`drawer_${state}`, url);
+        if (url) loadImageAsBlobUrl(`drawer_${state}`, url, state === 'IDLE' ? () => {
+          if (!onReadyFiredRef.current) {
+            onReadyFiredRef.current = true;
+            onReady?.();
+          }
+        } : undefined);
       });
     }
-  }, [config.drawerImages, loadImageAsBlobUrl]);
+  }, [config.drawerImages, loadImageAsBlobUrl, onReady]);
 
   // Init sound
   useEffect(() => {

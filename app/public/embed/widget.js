@@ -600,6 +600,19 @@
   window.addEventListener('message', function handleMessage(event) {
     if (!event.data || event.data.type !== 'treasure-box') return;
 
+    if (event.data.action === 'item-urls') {
+      // Early preload: iframe sends item URLs before physics starts
+      var urls = event.data.urls || [];
+      for (var j = 0; j < urls.length; j++) {
+        if (urls[j].url && !itemImages[urls[j].id]) {
+          var preImg = new Image();
+          preImg.crossOrigin = 'anonymous';
+          preImg.src = urls[j].url;
+          itemImages[urls[j].id] = preImg;
+        }
+      }
+    }
+
     if (event.data.action === 'frame-sync') {
       // Receive body positions from iframe physics engine
       frameBodies = event.data.bodies || [];
