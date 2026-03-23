@@ -87,9 +87,26 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
 
   const getEmbedCode = () => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const bg = config.backgroundColor || 'transparent';
+    const anchor = settings.position.anchor;
+    const ox = settings.position.offsetX;
+    const oy = settings.position.offsetY;
     const domAttr = settings.domCollide ? `\n  data-dom-collide="true"` : '';
     const scaleAttr = embedScale !== 1 ? `\n  data-scale="${embedScale}"` : '';
-    return `<script src="${baseUrl}/embed/widget.js"\n  data-box-id="${userId}"\n  data-mode="overlay"\n  data-bg="${config.backgroundColor || 'transparent'}"${scaleAttr}\n  data-anchor="${settings.position.anchor}"\n  data-offset-x="${settings.position.offsetX}" data-offset-y="${settings.position.offsetY}"${domAttr}>\n</script>`;
+
+    // Encode config as URL params (fallback for platforms that strip data-* attributes)
+    const params = new URLSearchParams();
+    params.set('box-id', userId);
+    params.set('mode', 'overlay');
+    params.set('bg', bg);
+    if (embedScale !== 1) params.set('scale', String(embedScale));
+    params.set('anchor', anchor);
+    params.set('offset-x', String(ox));
+    params.set('offset-y', String(oy));
+    if (settings.domCollide) params.set('dom-collide', 'true');
+    const srcUrl = `${baseUrl}/embed/widget.js?${params.toString()}`;
+
+    return `<script src="${srcUrl}"\n  data-box-id="${userId}"\n  data-mode="overlay"\n  data-bg="${bg}"${scaleAttr}\n  data-anchor="${anchor}"\n  data-offset-x="${ox}" data-offset-y="${oy}"${domAttr}>\n</script>`;
   };
 
   const handleCopy = () => {

@@ -19,21 +19,36 @@
     PLACEHOLDER_COLOR: 'rgba(180,160,100,0.6)',
   };
 
-  var script = document.currentScript;
-  if (!script) return;
+  // 3-tier fallback: direct currentScript, querySelector with data attr, querySelector with URL params
+  var script = document.currentScript
+    || document.querySelector('script[src*="widget.js"][data-box-id]')
+    || document.querySelector('script[src*="widget.js?"]');
 
-  var boxId = script.getAttribute('data-box-id');
-  var bg = script.getAttribute('data-bg') || 'transparent';
-  var scale = parseFloat(script.getAttribute('data-scale') || String(DEFAULTS.SCALE));
-  var rawW = script.getAttribute('data-width');
-  var rawH = script.getAttribute('data-height');
+  if (!script) {
+    console.warn('[treasure-box] Could not locate widget script element');
+  }
+
+  // Read config from data-* attributes first, fall back to URL query params on script src
+  var scriptSrc = (script && script.src) || '';
+  function getParam(name) {
+    var dataName = 'data-' + name;
+    if (script && script.hasAttribute(dataName)) return script.getAttribute(dataName);
+    var match = scriptSrc.match(new RegExp('[?&]' + name.replace(/-/g, '\\-') + '=([^&]*)'));
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  var boxId = getParam('box-id');
+  var bg = getParam('bg') || 'transparent';
+  var scale = parseFloat(getParam('scale') || String(DEFAULTS.SCALE));
+  var rawW = getParam('width');
+  var rawH = getParam('height');
   var width = rawW ? parseInt(rawW, 10) : Math.round(DEFAULTS.WIDTH * scale);
   var height = rawH ? parseInt(rawH, 10) : Math.round(DEFAULTS.HEIGHT * scale);
-  var mode = script.getAttribute('data-mode') || 'overlay';
-  var origin = script.src.replace(/\/embed\/widget\.js.*$/, '');
+  var mode = getParam('mode') || 'overlay';
+  var origin = scriptSrc.replace(/\/embed\/widget\.js.*$/, '') || window.location.origin;
 
   if (!boxId) {
-    console.error('[treasure-box] Missing data-box-id attribute');
+    console.error('[treasure-box] Missing data-box-id attribute (and no ?box-id= URL param)');
     return;
   }
 
@@ -61,10 +76,10 @@
     var container = document.getElementById('treasure-box-embed') || script.parentElement;
     if (!container) return;
     // Read padding attributes
-    var padTop = parseInt(script.getAttribute('data-pad-top') || '0', 10) || 0;
-    var padRight = parseInt(script.getAttribute('data-pad-right') || '0', 10) || 0;
-    var padBottom = parseInt(script.getAttribute('data-pad-bottom') || '0', 10) || 0;
-    var padLeft = parseInt(script.getAttribute('data-pad-left') || '0', 10) || 0;
+    var padTop = parseInt(getParam('pad-top') || '0', 10) || 0;
+    var padRight = parseInt(getParam('pad-right') || '0', 10) || 0;
+    var padBottom = parseInt(getParam('pad-bottom') || '0', 10) || 0;
+    var padLeft = parseInt(getParam('pad-left') || '0', 10) || 0;
     var padParams = '';
     if (padTop > 0) padParams += '&pt=' + padTop;
     if (padRight > 0) padParams += '&pr=' + padRight;
@@ -80,12 +95,12 @@
   // Box is fixed-positioned on the page; physics runs inside the iframe,
   // body positions are streamed via postMessage and rendered on a host-page canvas.
 
-  var anchor = script.getAttribute('data-anchor') || DEFAULTS.ANCHOR;
-  var offsetX = parseInt(script.getAttribute('data-offset-x') || String(DEFAULTS.OFFSET_X), 10);
-  var offsetY = parseInt(script.getAttribute('data-offset-y') || String(DEFAULTS.OFFSET_Y), 10);
+  var anchor = getParam('anchor') || DEFAULTS.ANCHOR;
+  var offsetX = parseInt(getParam('offset-x') || String(DEFAULTS.OFFSET_X), 10);
+  var offsetY = parseInt(getParam('offset-y') || String(DEFAULTS.OFFSET_Y), 10);
 
   // DOM collision opt-in
-  var domCollide = script.getAttribute('data-dom-collide') === 'true';
+  var domCollide = getParam('dom-collide') === 'true';
 
   // 1. Create fixed-position box container
   var boxContainer = document.createElement('div');
