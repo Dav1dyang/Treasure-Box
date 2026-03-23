@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     // Single prompt for all 5 states as a sprite sheet
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview',
+      model: 'gemini-3.1-flash-image-preview',
       contents: builtPrompt,
       config: {
         responseModalities: ['TEXT', 'IMAGE'],
