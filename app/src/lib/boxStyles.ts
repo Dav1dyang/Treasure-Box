@@ -138,9 +138,7 @@ export function buildDrawerPrompt(style: DrawerStyle, dims?: BoxDimensions): str
     ? decorParts.join(', ')
     : 'No extra hardware or ornamentation';
 
-  return `RULE ZERO: The cabinet body stays at one fixed position across all 5 sprites. It is small and offset to leave room for the drawer. Do not recenter per frame.
-  
-  Sprite sheet: 5 evenly spaced sprites on a single continuous #00FF00 green canvas, 5:1 aspect ratio. No borders, dividers, separators, panel outlines, or black lines anywhere. One unbroken flat green background.
+  return `Sprite sheet: 5 evenly spaced sprites on a single continuous #00FF00 green canvas, 5:1 aspect ratio. No borders, dividers, separators, panel outlines, or black lines anywhere. One unbroken flat green background.
 
 Each sprite must fit within the center 70% of its cell, 30% green margin on every side, even at 100% open. Zero bleed between cells.
 
