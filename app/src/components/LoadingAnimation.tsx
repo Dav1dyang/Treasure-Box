@@ -8,7 +8,7 @@ const SPAWN_INTERVAL = 250;   // ms between each new drawer spawn
 const MAX_BOXES = 80;         // safety cap before forcing a drain cycle
 const DRAIN_DURATION = 2000;  // ms for boxes to fall off-screen during drain
 const RESET_PAUSE = 400;      // ms pause between drain finish and next spawn cycle
-const BOX_SIZES = [140,175,200]; // random drawer width in px (height = width × 0.7)
+const BOX_SIZES = [120,135,150]; // random drawer width in px (height = width × 0.7)
 
 type CycleState = 'SPAWNING' | 'DRAINING' | 'RESETTING' | 'FINISHED';
 
