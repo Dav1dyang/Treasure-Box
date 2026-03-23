@@ -30,26 +30,35 @@ export async function GET(request: NextRequest) {
       model: 'gemini-2.5-flash',
       contents: `${PROMPT}\n\nSeed for variety: ${seed}`,
       config: {
-        responseModalities: ['TEXT'],
         temperature: 1.2,
+        httpOptions: { timeout: 25_000 },
       },
     });
 
-    // Extract text from response candidates (same pattern as generate-box)
+    // Extract text — try direct .text first, then candidates pattern
     let text = '';
-    const candidates = response.candidates;
-    if (candidates && candidates.length > 0) {
-      const parts = candidates[0].content?.parts ?? [];
-      for (const part of parts) {
-        if (part.text) {
-          text += part.text;
+    try {
+      // Newer SDK versions expose .text directly
+      if (typeof response.text === 'string') {
+        text = response.text;
+      } else if (typeof response.text === 'function') {
+        text = (response as any).text();
+      }
+    } catch { /* fall through to candidates */ }
+
+    if (!text) {
+      const candidates = response.candidates;
+      if (candidates && candidates.length > 0) {
+        const parts = candidates[0].content?.parts ?? [];
+        for (const part of parts) {
+          if (part.text) text += part.text;
         }
       }
     }
 
     text = text.trim();
     if (!text) {
-      throw new Error('Empty response from Gemini');
+      throw new Error(`Empty response from Gemini. Raw: ${JSON.stringify(response).slice(0, 200)}`);
     }
 
     // Strip markdown fences if present

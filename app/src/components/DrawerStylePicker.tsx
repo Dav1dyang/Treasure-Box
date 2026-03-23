@@ -20,7 +20,8 @@ function validateStyle(style: DrawerStyle): string | null {
   if (!HEX6_RE.test(style.color)) return `Invalid primary color: ${style.color}`;
   if (style.accentColor && !HEX6_RE.test(style.accentColor))
     return `Invalid accent color: ${style.accentColor}`;
-  if (style.stylePattern && !VALID_PATTERNS.has(style.stylePattern))
+  // Only validate stylePattern against static presets if no dynamic stylePrompt is provided
+  if (style.stylePattern && !style.stylePrompt && !VALID_PATTERNS.has(style.stylePattern))
     return `Invalid style pattern: ${style.stylePattern}`;
   const w = style.drawerWidth ?? 3;
   const h = style.drawerHeight ?? 2;
