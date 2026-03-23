@@ -130,33 +130,22 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
   useEffect(() => {
     return () => { abortRef.current?.abort(); };
   }, []);
-  // 1. Material (= old preset)
+  // ── Persisted state (survives across generations) ──
+  // Material + colors are the user's core identity — always restored from Firestore
   const [preset, setPreset] = useState<DrawerStylePreset>(
     currentImages?.style.preset || 'clay'
   );
-  // 2. Colors
   const [color, setColor] = useState(currentImages?.style.color || '#8B4513');
   const [accentColor, setAccentColor] = useState(currentImages?.style.accentColor || '#B08D57');
-  // 3. Style (surface pattern)
-  const [stylePattern, setStylePattern] = useState(() => {
-    const s = currentImages?.style;
-    if (s?.stylePattern) return s.stylePattern;
-    // Backward compat: old docs stored label in customPrompt — match it back to ID
-    if (s?.customPrompt) {
-      const match = STYLE_PRESETS.find(p => p.label === s.customPrompt);
-      if (match) return match.id;
-    }
-    return 'modern-minimal';
-  });
-  // 4. Decor (hardware items)
-  const [selectedDecor, setSelectedDecor] = useState<string[]>(() => {
-    const d = currentImages?.style.decor;
-    return d ? d.split(', ') : [];
-  });
-  const [customDecor, setCustomDecor] = useState(currentImages?.style.customDecorText || '');
-  // 5. Size & angle
   const drawerWidth = currentImages?.style.drawerWidth || 3;
   const drawerHeight = currentImages?.style.drawerHeight || 2;
+
+  // ── Ephemeral state (cleared on each new options load) ──
+  // Style pattern + decor selections reference dynamic Gemini option IDs/labels,
+  // so they must be cleared when new options are fetched. Don't restore from Firestore.
+  const [stylePattern, setStylePattern] = useState('');
+  const [selectedDecor, setSelectedDecor] = useState<string[]>([]);
+  const [customDecor, setCustomDecor] = useState('');
 
   // Dynamic options from Gemini
   type DynOption = { id: string; label: string; prompt: string };
@@ -174,15 +163,18 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
       const data = await res.json();
       setDynStyles(data.styles);
       setDynFeatures(data.features);
-      // Reset selections to first dynamic option
+      // Clear all ephemeral selections — old IDs/labels don't match new options
       if (data.styles?.[0]) setStylePattern(data.styles[0].id);
       setSelectedDecor([]);
+      setCustomDecor('');
     } catch (e: any) {
       setOptionsError(e.message);
+      // On error, fall back to static options and select the first one
+      if (!stylePattern) setStylePattern(STYLE_PRESETS[0].id);
     } finally {
       setOptionsLoading(false);
     }
-  }, []);
+  }, [stylePattern]);
 
   // Fetch on mount
   useEffect(() => { fetchOptions(); }, [fetchOptions]);
@@ -347,6 +339,10 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
 
       await saveDrawerImages(userId, drawerImages);
       onComplete(drawerImages);
+
+      // After successful generation, fetch fresh options for the next round.
+      // This clears stale style/feature selections that reference old dynamic IDs.
+      fetchOptions();
     } catch (e: any) {
       if (e.name === 'AbortError') return; // component unmounted or new generation started
       console.error('Generation error:', e);
