@@ -108,11 +108,37 @@ export default function Home() {
 
       {/* ═══ HERO ═══ */}
       <section
-        className="h-screen flex flex-col items-center justify-center relative overflow-hidden"
+        className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden px-6 py-20"
         onClick={handleHeroInteraction}
         onMouseMove={handleHeroInteraction}
       >
-        <div className="w-[90vw] max-w-[600px] aspect-square relative">
+        <h1
+          className="text-center uppercase leading-none"
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 900,
+            fontSize: 'clamp(48px, 10vw, 80px)',
+            letterSpacing: '-0.02em',
+            color: 'var(--tb-fg)',
+          }}
+        >
+          Junk Drawer
+        </h1>
+        <p
+          className="mt-3 text-center"
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 700,
+            fontSize: 'clamp(18px, 3.5vw, 28px)',
+            letterSpacing: '0.02em',
+            textTransform: 'uppercase',
+            color: 'var(--tb-fg-muted)',
+          }}
+        >
+          a tiny widget for your most treasured things
+        </p>
+
+        <div className="w-[90vw] max-w-[600px] aspect-square relative mt-12">
           {demoLoading ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div
@@ -142,64 +168,88 @@ export default function Home() {
 
         {/* Idle hint */}
         <div
-          className={`absolute bottom-[25%] text-[10px] tracking-[0.2em] uppercase transition-opacity duration-1000 ${
+          className={`mt-6 text-[10px] tracking-[0.2em] uppercase transition-opacity duration-1000 ${
             idleHintVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
           style={{ color: 'var(--tb-fg-faint)' }}
         >
           pull the drawer
         </div>
-
-        {/* Scroll hint */}
-        <div
-          className={`absolute bottom-8 text-[9px] tracking-[0.15em] uppercase transition-opacity duration-700 ${
-            hasInteracted ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
-          style={{ color: 'var(--tb-fg-ghost)' }}
-        >
-          scroll to explore
-          <div className="mt-2 flex justify-center">
-            <div className="w-px h-4 animate-bounce" style={{ background: 'var(--tb-fg-ghost)' }} />
-          </div>
-        </div>
       </section>
 
-      {/* ═══ ABOUT ═══ */}
+      {/* ═══ CREATE CTA ═══ */}
       <section
-        className="min-h-[60vh] flex items-center justify-center px-6 py-20"
+        className="flex items-center justify-center px-6 py-12"
         style={{ borderTop: '1px solid var(--tb-border)' }}
       >
-        <div className="max-w-md text-center">
-          <h2
-            className="text-[11px] tracking-[0.12em] uppercase mb-6"
-            style={{ color: 'var(--tb-accent)' }}
-          >
-            treasure box
-          </h2>
-          <p className="text-[11px] leading-relaxed mb-8" style={{ color: 'var(--tb-fg-muted)' }}>
-            a tangible memory box for the web. upload photos of things that
-            matter to you — old keys, letters, polaroids, shells — attach stories
-            and links to people you care about, and embed your treasure box
-            anywhere. physics makes them feel real. long-press to read the story.
-          </p>
-          <Link
-            href={user ? '/editor' : '#'}
-            onClick={e => {
-              if (!user) {
-                e.preventDefault();
-                signIn();
-              }
-            }}
-            className="inline-block text-[10px] px-8 py-3 transition-colors no-underline tracking-[0.12em] uppercase"
-            style={{
-              border: '1px solid var(--tb-border)',
-              color: 'var(--tb-accent)',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--tb-bg-muted)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-          >
-            {user ? 'open editor' : 'sign in to make yours'}
-          </Link>
+        <Link
+          href={user ? '/editor' : '#'}
+          onClick={e => {
+            if (!user) {
+              e.preventDefault();
+              signIn();
+            }
+          }}
+          className="inline-block px-10 py-4 no-underline transition-colors uppercase"
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 700,
+            fontSize: '18px',
+            letterSpacing: '0.04em',
+            borderRadius: '8px',
+            background: 'var(--tb-accent)',
+            color: 'var(--tb-bg)',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--tb-accent-hover)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'var(--tb-accent)'}
+        >
+          {user ? 'Create Your Drawer' : 'Sign In to Create Yours'}
+        </Link>
+      </section>
+
+      {/* ═══ FULL-WIDTH SPECIMEN ═══ */}
+      <section
+        className="w-full relative"
+        style={{
+          borderTop: '1px solid var(--tb-border)',
+          height: '100vh',
+          maxHeight: '900px',
+        }}
+      >
+        <div className="absolute inset-0">
+          {demoLoading ? (
+            <div className="w-full h-full flex items-center justify-center">
+              <div
+                className="animate-pulse w-full h-full"
+                style={{ background: 'var(--tb-bg-subtle)' }}
+              />
+            </div>
+          ) : demoConfig ? (
+            <TreasureBox items={demoItems} config={demoConfig} />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center" style={{ background: 'var(--tb-bg-subtle)' }}>
+              <pre className="text-[10px] leading-relaxed text-center" style={{ color: 'var(--tb-fg-faint)' }}>
+{`┌──────────────────────────────────────────────┐
+│                                              │
+│        specimen drawer — full width          │
+│                                              │
+│   sign in and create your own to see it      │
+│   come alive with physics and sound          │
+│                                              │
+│        ┌──────────────────────────┐          │
+│        │    [ ═══ PULL ═══ ]     │          │
+│        └──────────────────────────┘          │
+│                                              │
+└──────────────────────────────────────────────┘`}
+              </pre>
+            </div>
+          )}
+        </div>
+        <div
+          className="absolute bottom-6 left-0 right-0 text-center text-[10px] tracking-[0.15em] uppercase pointer-events-none"
+          style={{ color: 'var(--tb-fg-faint)' }}
+        >
+          full-width specimen — pull to explore
         </div>
       </section>
 
@@ -236,7 +286,7 @@ export default function Home() {
       {/* ═══ FOOTER ═══ */}
       <footer className="py-12 text-center" style={{ borderTop: '1px solid var(--tb-border)' }}>
         <p className="text-[9px] tracking-[0.2em]" style={{ color: 'var(--tb-fg-ghost)' }}>
-          physics &middot; memories &middot; webring
+          junk drawer &middot; physics &middot; memories
         </p>
       </footer>
     </div>
