@@ -98,25 +98,11 @@ export interface BoxConfig {
   itemCount?: number;            // cached count of items in the box
   drawerDisplaySize?: { width: number; height: number }; // fixed pixel size for drawer frame (default 420×420)
   contentScale?: number;         // 0.5-2.0, scales drawer + items + physics (default 1.0)
-  itemBrightness?: number;       // 0.5-1.5, default 1.0
-  itemContrast?: number;         // 0.5-1.5, default 1.0
-  itemTint?: string;             // hex color e.g. "#ff0000", undefined = no tint
 }
 
 export type SoundPreset = 'metallic' | 'wooden' | 'glass' | 'paper' | 'pixel' | 'clay' | 'silent';
 
-// ===== Embed Padding =====
-
-export interface EmbedPadding {
-  top: number;
-  right: number;
-  bottom: number;
-  left: number;
-}
-
 // ===== Embed Settings =====
-
-export type EmbedMode = 'overlay' | 'contained';
 
 export type AnchorCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
 
@@ -127,15 +113,11 @@ export interface EmbedPosition {
 }
 
 export interface EmbedSettings {
-  mode: EmbedMode;
-  width: number;              // drawer element width (px), derived from contentScale
-  height: number;             // drawer element height (px), derived from contentScale
   position: EmbedPosition;    // overlay positioning
   domCollide?: boolean;       // optional: items collide with DOM elements
   previewUrl?: string;        // optional: user's website URL for preview background
   previewImageUrl?: string;   // optional: Firebase Storage URL for uploaded screenshot
   previewMode?: 'url' | 'screenshot'; // which preview source is active
-  padding?: EmbedPadding;     // contained mode: CSS inset padding around active area
 }
 
 // ===== Frame Sync (postMessage position streaming) =====

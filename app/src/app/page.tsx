@@ -5,7 +5,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/components/ThemeProvider';
-import { getPublicBoxes, getRandomPublicBox } from '@/lib/firestore';
+import { getPublicBoxesWithItems, getRandomPublicBox } from '@/lib/firestore';
 import type { TreasureItem, BoxConfig } from '@/lib/types';
 
 const TreasureBox = dynamic(() => import('@/components/TreasureBox'), { ssr: false });
@@ -17,7 +17,7 @@ export default function Home() {
   const [demoConfig, setDemoConfig] = useState<BoxConfig | null>(null);
   const [demoItems, setDemoItems] = useState<TreasureItem[]>([]);
   const [demoLoading, setDemoLoading] = useState(true);
-  const [publicBoxes, setPublicBoxes] = useState<BoxConfig[]>([]);
+  const [galleryBoxes, setGalleryBoxes] = useState<{ config: BoxConfig; items: TreasureItem[] }[]>([]);
   const [galleryError, setGalleryError] = useState<string | null>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
   const [idleHintVisible, setIdleHintVisible] = useState(true);
@@ -39,8 +39,8 @@ export default function Home() {
 
     (async () => {
       try {
-        const boxes = await getPublicBoxes();
-        setPublicBoxes(boxes);
+        const boxes = await getPublicBoxesWithItems(20);
+        setGalleryBoxes(boxes);
       } catch (err) {
         console.error('Gallery fetch failed:', err);
         const msg = err instanceof Error ? err.message : String(err);
@@ -205,13 +205,13 @@ export default function Home() {
 
       {/* ═══ PUBLIC GALLERY ═══ */}
       <section id="gallery" className="px-6 py-16" style={{ borderTop: '1px solid var(--tb-border)' }}>
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <div className="flex items-baseline justify-between mb-8">
             <h2 className="text-[11px] tracking-[0.12em] uppercase" style={{ color: 'var(--tb-accent)' }}>
               public boxes
             </h2>
             <span className="text-[9px]" style={{ color: 'var(--tb-fg-ghost)' }}>
-              {publicBoxes.length} {publicBoxes.length === 1 ? 'box' : 'boxes'}
+              {galleryBoxes.length} {galleryBoxes.length === 1 ? 'box' : 'boxes'}
             </span>
           </div>
 
@@ -219,14 +219,14 @@ export default function Home() {
             <div className="text-center py-16 text-[10px]" style={{ color: '#f87171' }}>
               {galleryError}
             </div>
-          ) : publicBoxes.length === 0 ? (
+          ) : galleryBoxes.length === 0 ? (
             <div className="text-center py-16 text-[10px]" style={{ color: 'var(--tb-fg-faint)' }}>
               no public boxes yet — toggle yours to public in the editor
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px" style={{ background: 'var(--tb-border)' }}>
-              {publicBoxes.map((box, i) => (
-                <GalleryCard key={box.id} box={box} index={i} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {galleryBoxes.map((entry) => (
+                <GalleryBox key={entry.config.id} config={entry.config} items={entry.items} />
               ))}
             </div>
           )}
@@ -243,42 +243,46 @@ export default function Home() {
   );
 }
 
-function GalleryCard({ box, index }: { box: BoxConfig; index: number }) {
+function GalleryBox({ config, items }: { config: BoxConfig; items: TreasureItem[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '100px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <Link
-      href={`/embed?box=${box.ownerId}`}
-      target="_blank"
-      className="p-5 no-underline block transition-colors group"
-      style={{ background: 'var(--tb-bg)' }}
-      onMouseEnter={e => e.currentTarget.style.background = 'var(--tb-bg-subtle)'}
-      onMouseLeave={e => e.currentTarget.style.background = 'var(--tb-bg)'}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <span className="text-[9px] tabular-nums" style={{ color: 'var(--tb-fg-ghost)' }}>
-          {String(index + 1).padStart(2, '0')}
-        </span>
-        <div
-          className="w-4 h-4"
-          style={{
-            border: '1px solid var(--tb-border)',
-            background: box.backgroundColor === 'transparent'
-              ? 'repeating-conic-gradient(var(--tb-bg-muted) 0% 25%, var(--tb-bg-subtle) 0% 50%) 50% / 4px 4px'
-              : box.backgroundColor,
-          }}
-        />
-      </div>
-      <div className="text-[10px] mb-1 transition-colors" style={{ color: 'var(--tb-fg-muted)' }}>
-        {box.title || 'untitled'}
-      </div>
-      {box.ownerName && (
-        <div className="text-[8px]" style={{ color: 'var(--tb-fg-ghost)' }}>{box.ownerName}</div>
-      )}
+    <div ref={ref} className="flex flex-col">
       <div
-        className="mt-3 text-[8px] tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity"
-        style={{ color: 'var(--tb-fg-faint)' }}
+        className="aspect-square relative overflow-hidden"
+        style={{ border: '1px solid var(--tb-border-subtle)' }}
       >
-        pull &rarr;
+        {isVisible && (
+          <TreasureBox items={items} config={config} />
+        )}
       </div>
-    </Link>
+      <div className="pt-3 pb-1">
+        <div className="text-[10px] truncate" style={{ color: 'var(--tb-fg-muted)' }}>
+          {config.title || 'untitled'}
+        </div>
+        {config.ownerName && (
+          <div className="text-[8px] mt-[2px]" style={{ color: 'var(--tb-fg-ghost)' }}>
+            {config.ownerName}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
