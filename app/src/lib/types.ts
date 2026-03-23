@@ -58,16 +58,19 @@ export interface DrawerImages {
 
 export interface TreasureItem {
   id: string;
-  imageUrl: string;          // URL to the uploaded image (bg removed)
+  imageUrl: string;          // URL to the active image (bg-removed or original)
   originalImageUrl: string;  // URL to the original upload
+  processedImageUrl?: string; // URL to bg-removed image (so imageUrl can be swapped)
   label: string;
   story?: string;
   link?: string;
   order: number;
   rotation?: number;         // initial rotation in degrees (-25 to 25), default random
   scale?: number;            // size multiplier (0.5-3.0), default 1
+  bgRemoved?: boolean;       // undefined/true = bg removed (default), false = original shown
   // Contour points for irregular physics shape (normalized 0-1)
   contourPoints?: { x: number; y: number }[];
+  contourPointsCache?: { x: number; y: number }[]; // preserved contour when bg toggled off
   createdAt: number;
 }
 
