@@ -336,7 +336,7 @@ export default function EditorPage() {
           <button onClick={toggleTheme} className="cursor-pointer" style={S.faint} title="Toggle theme">
             {theme === 'dark' ? '○' : '●'}
           </button>
-          <Link href="/" className="no-underline hidden sm:inline" style={S.muted}>Home</Link>
+          <Link href="/" className="no-underline" style={S.muted}>Home</Link>
           <button onClick={logOut} className="cursor-pointer uppercase" style={S.faint}>Sign Out</button>
         </div>
       </header>

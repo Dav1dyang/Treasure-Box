@@ -451,7 +451,7 @@ function GalleryBox({ config, items, index }: { config: BoxConfig; items: Treasu
           fontVariantNumeric: 'tabular-nums',
         }}
       >
-        {String(index).padStart(2, '0')}&ensp;—&ensp;{config.ownerName ? `${config.ownerName}\u2019s drawer` : 'untitled'}
+        {String(index).padStart(2, '0')}&ensp;—&ensp;{config.ownerName || 'untitled'}
       </span>
     </div>
   );
