@@ -98,6 +98,7 @@ export interface BoxConfig {
   itemCount?: number;            // cached count of items in the box
   drawerDisplaySize?: { width: number; height: number }; // fixed pixel size for drawer frame (default 420×420)
   contentScale?: number;         // 0.5-2.0, scales drawer + items + physics (default 1.0)
+  drawerFlipped?: boolean;       // horizontally flip/mirror the drawer
 }
 
 export type SoundPreset = 'metallic' | 'wooden' | 'glass' | 'paper' | 'pixel' | 'clay' | 'silent';
