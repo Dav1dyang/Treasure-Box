@@ -689,7 +689,7 @@ function UnifiedPreview({
   }, [config.drawerImages?.spriteUrl]);
 
   const drawerStyle = useMemo(() => {
-    if (!previewRef.current) return { left: '50%', top: '60%', transform: 'translate(-50%, -50%)' };
+    if (!previewRef.current) return { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' };
     return computeCenteredDrawerPosition(previewRef.current.offsetWidth, previewRef.current.offsetHeight);
   }, [config]);
 
