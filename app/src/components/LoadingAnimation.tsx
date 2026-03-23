@@ -286,6 +286,7 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
       ctx.rotate(angle);
 
       // --- Drawer styling (adjust these to change appearance) ---
+      ctx.fillStyle = `hsl(${hue}, 70%, 78%)`;
       ctx.strokeStyle = `hsl(${hue}, 70%, 78%)`;
       ctx.lineWidth = 2;                     // outline thickness in px
       ctx.lineJoin = 'round';
@@ -305,6 +306,7 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
       ctx.lineTo(-hw, -hh + r);
       ctx.arcTo(-hw, -hh, -hw + r, -hh, r);
       ctx.closePath();
+      ctx.fill();
       ctx.stroke();
 
       // Rim line near the top edge (drawer front lip)
