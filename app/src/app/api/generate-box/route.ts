@@ -323,11 +323,12 @@ async function refineAlphaEdges(
   const blurredAlpha = await sharp(rawBuffer, { raw: { width, height, channels: 4 } })
     .extractChannel(3)
     .blur(blurSigma)
+    .raw()
     .toBuffer();
 
   const result = await sharp(rawBuffer, { raw: { width, height, channels: 4 } })
     .removeAlpha()
-    .joinChannel(blurredAlpha)
+    .joinChannel(blurredAlpha, { raw: { width, height, channels: 1 } })
     .png()
     .toBuffer();
 
