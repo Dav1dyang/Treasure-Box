@@ -6,10 +6,10 @@ import { DEFAULT_BOX_DIMENSIONS, DECOR_ITEMS } from './config';
 // ═══════════════════════════════════════════════════════════════
 
 export const MATERIAL_MAP: Record<DrawerStylePreset, string> = {
-  clay: 'clay with visible fingerprint textures',
+  clay: 'clay with visible claymation handmade textures',
   metal: 'metal with brass accents and aged patina',
   wood: 'wood with polished grain and warm lacquer',
-  pixel: 'pixel-art surface, 16-bit crisp edges, limited palette',
+  pixel: 'pixel-art surface, 8-bit crisp edges, limited palette',
   paper: 'paper-craft with visible fold lines and creases',
   glass: 'glass with soft refractions and iridescent edges',
 };
@@ -93,7 +93,7 @@ export function buildDrawerPrompt(style: DrawerStyle, dims?: BoxDimensions): str
   const d = normalizeDimensions(dims ?? DEFAULT_BOX_DIMENSIONS);
 
   // Resolve variables
-  const ANGLE = Math.random() < 0.5 ? 'left 45-degree' : 'right 45-degree';
+  const ANGLE = 'left 45-degree';
   const STYLE = STYLE_MAP[style.stylePattern ?? 'modern-minimal'] ?? 'modern minimal';
   const MATERIAL = MATERIAL_MAP[style.preset];
   const MAIN_COLOR = style.color || '#8B4513';
