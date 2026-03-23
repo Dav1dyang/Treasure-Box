@@ -1465,7 +1465,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         onPointerMove={effectiveOverlay?.onDrag ? handleDrawerPointerMove : undefined}
         onPointerUp={effectiveOverlay?.onDrag ? handleDrawerPointerUp : undefined}
       >
-        <div style={{ transform: `scale(${contentScale})`, transformOrigin: 'bottom center' }}>
+        <div style={{ transform: `scale(${contentScale})${config.drawerFlipped ? ' scaleX(-1)' : ''}`, transformOrigin: 'bottom center' }}>
           {hasGeneratedImages ? (
             // === AI-Generated Image Drawer ===
             <DrawerImage

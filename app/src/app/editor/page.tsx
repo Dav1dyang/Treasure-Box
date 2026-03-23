@@ -426,6 +426,15 @@ export default function EditorPage() {
                     </div>
                     <CfgHint>public boxes appear in the gallery on the landing page</CfgHint>
                   </CfgSection>
+
+                  <CfgSection>
+                    <CfgLabel>drawer direction</CfgLabel>
+                    <div className="flex">
+                      <CfgToggle active={!config.drawerFlipped} first onClick={() => setConfig({ ...config, drawerFlipped: false })}>normal</CfgToggle>
+                      <CfgToggle active={!!config.drawerFlipped} onClick={() => setConfig({ ...config, drawerFlipped: true })}>flipped</CfgToggle>
+                    </div>
+                    <CfgHint>mirror the drawer horizontally</CfgHint>
+                  </CfgSection>
                 </CfgGroup>
 
                 {/* ── 3. EMBED ── */}
