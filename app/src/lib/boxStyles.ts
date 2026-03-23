@@ -125,7 +125,7 @@ export function buildDrawerPrompt(style: DrawerStyle, dims?: BoxDimensions): str
 
   return `Sprite sheet: 5 evenly spaced sprites on a single continuous #00FF00 green canvas, 5:1 aspect ratio. No borders, dividers, separators, panel outlines, or black lines anywhere. One unbroken flat green background.
 
-Each sprite is centered within its cell and must fit within the center 70% of its cell, 30% green margin on every side, even at 100% open. Zero bleed between cells.
+Each sprite is centered within its cell and must fit within the center 70% of its cell, 30% green margin on every side, even at 100% open with the drawer fully extended. Zero bleed between cells.
 
 Subject: a single one-drawer cabinet, ${ANGLE} view, ${STYLE} style, ${MATERIAL}. ${MAIN_COLOR} body with ${ACCENT_COLOR} accents. ${HANDLE}, ${CORNERS}. ${DECOR}. Exactly one drawer, no stacked drawers, no multi-drawer, no extra compartments.
 
