@@ -94,7 +94,7 @@
   // ═══════════════════════════════════════════════════════════════
   // DOM Collision scanning — reads host DOM rects, sends to iframe
   // ═══════════════════════════════════════════════════════════════
-  var DOM_COLLIDE_DEFAULTS = 'h1,h2,h3,h4,h5,h6,img,video,[data-tb-collide],article,.card';
+  var DOM_COLLIDE_DEFAULTS = 'h1,h2,h3,h4,h5,h6,img,video,[data-tb-collide],article,.card,column-set,media-item,hr';
   var DOM_COLLIDE_MAX = 30;
   var domCollideSelector = '';
   var domCollidePrevRects = [];
