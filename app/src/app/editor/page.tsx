@@ -115,7 +115,7 @@ export default function EditorPage() {
     if (!user || !e.target.files?.length) return;
     if (items.length >= (config?.maxItems || 100)) return;
     const file = e.target.files[0];
-    const id = `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const id = `item_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
     setSaving(true);
     setBgError(null);
     const originalUrl = await uploadImage(user.uid, file, `${id}_original`);
