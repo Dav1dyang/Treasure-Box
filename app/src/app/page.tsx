@@ -113,7 +113,7 @@ export default function Home() {
         onMouseMove={handleHeroInteraction}
       >
         <h1
-          className="text-center uppercase leading-none"
+          className="text-center uppercase leading-none relative z-10 pointer-events-none"
           style={{
             fontFamily: "'Barlow Condensed', sans-serif",
             fontWeight: 900,
@@ -125,7 +125,7 @@ export default function Home() {
           Junk Drawer
         </h1>
         <p
-          className="mt-3 text-center"
+          className="mt-3 text-center relative z-10 pointer-events-none"
           style={{
             fontFamily: "'Barlow Condensed', sans-serif",
             fontWeight: 700,
@@ -138,7 +138,7 @@ export default function Home() {
           a tiny widget for your most treasured things
         </p>
 
-        <div className="w-[90vw] max-w-[600px] aspect-square relative mt-12">
+        <div className="absolute inset-0">
           {demoLoading ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div
@@ -168,7 +168,7 @@ export default function Home() {
 
         {/* Idle hint */}
         <div
-          className={`mt-6 text-[10px] tracking-[0.2em] uppercase transition-opacity duration-1000 ${
+          className={`mt-6 text-[10px] tracking-[0.2em] uppercase transition-opacity duration-1000 relative z-10 pointer-events-none ${
             idleHintVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
           style={{ color: 'var(--tb-fg-faint)' }}
