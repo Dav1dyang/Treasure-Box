@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import Matter from 'matter-js';
+import chroma from 'chroma-js';
 
 // --- Tunable animation constants ---
 const SPAWN_INTERVAL = 250;   // ms between each new drawer spawn
@@ -12,8 +13,22 @@ const BOX_SIZES = [120,135,150]; // random drawer width in px (height = width ×
 
 type CycleState = 'SPAWNING' | 'DRAINING' | 'RESETTING' | 'FINISHED';
 
+/** Interpolate between two colors in Oklab space and return a CSS hex string. */
+function lerpOklab(a: string, b: string, t: number): string {
+  return chroma.mix(a, b, t, 'oklab').hex();
+}
+
+/** Interpolate then darken by 35% for a deeper stroke. */
+function lerpOklabDark(a: string, b: string, t: number): string {
+  return chroma.mix(a, b, t, 'oklab').darken(1.5).hex();
+}
+
+// Number of boxes in one full gradient cycle (start → end color)
+const GRADIENT_CYCLE = 40;
+
 interface BoxBody extends Matter.Body {
-  hue?: number;
+  fillColor?: string;
+  strokeColor?: string;
   boxW?: number;
   boxH?: number;
 }
@@ -24,9 +39,13 @@ interface LoadingAnimationProps {
   finishing?: boolean;
   /** Called after the finishing drain completes and canvas is clear */
   onFinished?: () => void;
+  /** Start color for the gradient (hex). Defaults to '#8B4513'. */
+  startColor?: string;
+  /** End color for the gradient (hex). Defaults to '#B08D57'. */
+  endColor?: string;
 }
 
-export default function LoadingAnimation({ className, finishing, onFinished }: LoadingAnimationProps) {
+export default function LoadingAnimation({ className, finishing, onFinished, startColor, endColor }: LoadingAnimationProps) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
@@ -41,10 +60,14 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
   const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const finishingRef = useRef(false);
   const onFinishedRef = useRef(onFinished);
+  const startColorRef = useRef(startColor);
+  const endColorRef = useRef(endColor);
   const [opacity, setOpacity] = useState(1);
 
-  // Keep ref in sync with prop
+  // Keep refs in sync with props
   onFinishedRef.current = onFinished;
+  startColorRef.current = startColor;
+  endColorRef.current = endColor;
 
   const scheduleTimeout = useCallback((fn: () => void, ms: number) => {
     const id = setTimeout(() => {
@@ -85,13 +108,19 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
     const x = 40 + Math.random() * (w - 80); // horizontal spawn range (40px margin each side)
 
     const body = Matter.Bodies.rectangle(x, -60, boxW, boxH, {
-      restitution: 0.15,
-      friction: 0.7,
-      density: 0.002,
+      restitution: 0.05,
+      friction: 0.8,
+      density: 0.008,
       chamfer: { radius: 3 },
     }) as BoxBody;
 
-    body.hue = (spawnCountRef.current * 9) % 360;
+    const colA = startColorRef.current || '#8B4513';
+    const colB = endColorRef.current || '#B08D57';
+    // Ping-pong: go start→end then end→start for seamless cycling
+    const raw = (spawnCountRef.current % (GRADIENT_CYCLE * 2)) / GRADIENT_CYCLE;
+    const t = raw <= 1 ? raw : 2 - raw;
+    body.fillColor = lerpOklab(colA, colB, t);
+    body.strokeColor = lerpOklabDark(colA, colB, t);
     body.boxW = boxW;
     body.boxH = boxH;
 
@@ -277,7 +306,6 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
     boxBodiesRef.current.forEach((body: BoxBody) => {
       const { x, y } = body.position;
       const angle = body.angle;
-      const hue = body.hue ?? 200;
       const bw = body.boxW || 70;
       const bh = body.boxH || 49;
 
@@ -286,8 +314,8 @@ export default function LoadingAnimation({ className, finishing, onFinished }: L
       ctx.rotate(angle);
 
       // --- Drawer styling (adjust these to change appearance) ---
-      ctx.fillStyle = `hsl(${hue}, 70%, 78%)`;
-      ctx.strokeStyle = `hsl(${hue}, 70%, 78%)`;
+      ctx.fillStyle = body.fillColor || 'rgb(139,69,19)';
+      ctx.strokeStyle = body.strokeColor || 'rgb(90,45,12)';
       ctx.lineWidth = 2;                     // outline thickness in px
       ctx.lineJoin = 'round';
 

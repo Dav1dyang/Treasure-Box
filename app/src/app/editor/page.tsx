@@ -526,6 +526,8 @@ export default function EditorPage() {
                 <LoadingAnimation
                   finishing={!generating}
                   onFinished={() => setShowLoadingOverlay(false)}
+                  startColor={config?.drawerImages?.style?.color}
+                  endColor={config?.drawerImages?.style?.accentColor}
                 />
               </div>
             )}
