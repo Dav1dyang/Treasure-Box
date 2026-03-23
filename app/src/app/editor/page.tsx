@@ -152,8 +152,11 @@ export default function EditorPage() {
     } catch (err) {
       setBgError(err instanceof Error ? err.message : 'Unknown error');
     } finally { setRemovingBg(null); }
+    const bgDidRemove = processedUrl !== originalUrl;
     const newItem: TreasureItem = {
       id, imageUrl: processedUrl, originalImageUrl: originalUrl,
+      ...(bgDidRemove && { processedImageUrl: processedUrl }),
+      bgRemoved: bgDidRemove,
       label: file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '),
       story: '', link: '', order: items.length, rotation: 0, createdAt: Date.now(),
       ...(contourPoints && { contourPoints }),
@@ -176,6 +179,84 @@ export default function EditorPage() {
     if (!user) return;
     await deleteItemWithCleanup(user.uid, id);
     setItems(prev => prev.filter(i => i.id !== id));
+  };
+
+  const handleToggleBgRemoval = async (itemId: string, bgOn: boolean) => {
+    if (!user) return;
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+
+    if (!bgOn) {
+      // Toggle OFF: show original image
+      const updates: Partial<TreasureItem> = {
+        bgRemoved: false,
+        imageUrl: item.originalImageUrl,
+        // Preserve processed URL (capture from legacy items that only have imageUrl)
+        processedImageUrl: item.processedImageUrl || (item.imageUrl !== item.originalImageUrl ? item.imageUrl : undefined),
+        // Cache contour points so we can restore them later
+        contourPointsCache: item.contourPoints || item.contourPointsCache,
+        contourPoints: undefined,
+      };
+      await handleUpdateItem(itemId, updates);
+    } else {
+      // Toggle ON: show bg-removed image
+      if (item.processedImageUrl) {
+        // Already have a processed version — just swap back
+        await handleUpdateItem(itemId, {
+          bgRemoved: true,
+          imageUrl: item.processedImageUrl,
+          contourPoints: item.contourPointsCache || item.contourPoints,
+          contourPointsCache: undefined,
+        });
+      } else {
+        // No processed version yet — run bg removal on original
+        try {
+          setRemovingBg(itemId);
+          setBgError(null);
+          const response = await fetch(item.originalImageUrl);
+          const originalBlob = await response.blob();
+          const file = new File([originalBlob], 'image.png', { type: originalBlob.type });
+
+          const { removeBackground } = await import('@imgly/background-removal');
+          const resultBlob = await removeBackground(file, {
+            model: 'isnet_quint8',
+            output: { format: 'image/png' },
+          });
+
+          // Extract contour points
+          const img = new Image();
+          const blobUrl = URL.createObjectURL(resultBlob);
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = reject;
+            img.src = blobUrl;
+          });
+          URL.revokeObjectURL(blobUrl);
+
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d')!;
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, img.width, img.height);
+          const contourPoints = extractContourFromImage(imageData);
+
+          const processedUrl = await uploadProcessedImage(user.uid, resultBlob, itemId);
+
+          await handleUpdateItem(itemId, {
+            bgRemoved: true,
+            imageUrl: processedUrl,
+            processedImageUrl: processedUrl,
+            ...(contourPoints && { contourPoints }),
+            contourPointsCache: undefined,
+          });
+        } catch (err) {
+          setBgError(err instanceof Error ? err.message : 'Background removal failed');
+        } finally {
+          setRemovingBg(null);
+        }
+      }
+    }
   };
 
   if (loading) {
@@ -344,6 +425,22 @@ export default function EditorPage() {
                               <textarea value={item.story || ''} onChange={e => handleUpdateItem(item.id, { story: e.target.value })} placeholder="story (shown on long-press)" rows={2}
                                 className="w-full bg-transparent text-[10px] pb-[2px] outline-none resize-none" style={{ borderBottom: '1px solid var(--tb-border-subtle)', color: 'var(--tb-fg)' }} />
                             </div>
+                          </div>
+                          {/* Background removal toggle */}
+                          <div className="flex items-center gap-2 pt-1" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
+                            <span className="text-[9px] tracking-[0.12em] shrink-0" style={{ color: 'var(--tb-fg-faint)' }}>bg removal</span>
+                            <button
+                              onClick={() => handleToggleBgRemoval(item.id, item.bgRemoved === false)}
+                              disabled={removingBg === item.id}
+                              className="text-[9px] px-[8px] py-[2px] cursor-pointer tracking-[0.08em] transition-colors"
+                              style={{
+                                border: '1px solid var(--tb-border-subtle)',
+                                color: (item.bgRemoved !== false) ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
+                                background: (item.bgRemoved !== false) ? 'var(--tb-accent-bg, transparent)' : 'transparent',
+                              }}
+                            >
+                              {removingBg === item.id ? 'processing...' : (item.bgRemoved !== false) ? 'on' : 'off'}
+                            </button>
                           </div>
                           {/* Sliders + delete */}
                           <div className="flex flex-col gap-[6px] pt-1" style={{ borderTop: '1px solid var(--tb-border-subtle)' }}>
