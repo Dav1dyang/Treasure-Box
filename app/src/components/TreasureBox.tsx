@@ -264,8 +264,8 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
             const segLen = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
             if (segLen < 1) continue;
             const angle = Math.atan2(y2 - y1, x2 - x1);
-            bodies.push(Matter.Bodies.rectangle(midX, midY, segLen + thickness * 0.5, thickness, {
-              isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer', angle,
+            bodies.push(Matter.Bodies.rectangle(midX, midY, segLen + thickness * 0.25, thickness, {
+              isStatic: true, friction: 0.3, restitution: 0.6, slop: 0.1, label: 'drawer', angle,
             }));
           }
           if (bodies.length > 0) {
@@ -276,7 +276,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           const bodyH = scaledH * 0.75;
           const bodyY = centerY + scaledH * 0.125;
           const newDrawerBody = Matter.Bodies.rectangle(centerX, bodyY, scaledW, bodyH, {
-            isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
+            isStatic: true, friction: 0.3, restitution: 0.6, slop: 0.1, label: 'drawer',
           });
           Matter.Composite.add(engine.world, newDrawerBody);
           walls.drawerBody = newDrawerBody;
@@ -583,6 +583,8 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     }
 
     const engine = Matter.Engine.create({ gravity: { x: 0, y: 2 } });
+    engine.positionIterations = 10;  // better at resolving overlaps
+    engine.velocityIterations = 8;   // smoother collision response
     engineRef.current = engine;
 
     const w = scene.offsetWidth;
@@ -640,8 +642,8 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           if (segLen < 1) continue;
           const angle = Math.atan2(y2 - y1, x2 - x1);
           // Slightly extend each segment to prevent gaps
-          bodies.push(Matter.Bodies.rectangle(midX, midY, segLen + thickness * 0.5, thickness, {
-            isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer', angle,
+          bodies.push(Matter.Bodies.rectangle(midX, midY, segLen + thickness * 0.25, thickness, {
+            isStatic: true, friction: 0.3, restitution: 0.6, slop: 0.1, label: 'drawer', angle,
           }));
         }
         if (bodies.length > 0) {
@@ -653,7 +655,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         const bodyH = scaledH * 0.75;
         const rectY = centerY + scaledH * 0.125;
         const drawerBody = Matter.Bodies.rectangle(centerX, rectY, scaledW, bodyH, {
-          isStatic: true, friction: 0.9, restitution: 0.3, label: 'drawer',
+          isStatic: true, friction: 0.3, restitution: 0.6, slop: 0.1, label: 'drawer',
         });
         Matter.Composite.add(engine.world, drawerBody);
         wallsRef.current.drawerBody = drawerBody;
@@ -860,6 +862,48 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       });
     });
 
+    // Stuck-detection safety net: nudge items embedded in drawer walls
+    const stuckFrames = new Map<number, number>();
+    Matter.Events.on(engine, 'beforeUpdate', () => {
+      if (closingAnimRef.current) return;
+      bodiesRef.current.forEach(body => {
+        if (body.isStatic || body.returningToDrawer) return;
+        const age = performance.now() - (body.spawnTime ?? 0);
+        if (age < 2000) return;
+        const speed = Math.sqrt(body.velocity.x ** 2 + body.velocity.y ** 2);
+        const key = body.id;
+        if (speed < 0.3) {
+          const allDrawer = [
+            ...(wallsRef.current.drawerBodies ?? []),
+            ...(wallsRef.current.drawerBody ? [wallsRef.current.drawerBody] : []),
+          ];
+          let overlapping = false;
+          for (const sb of allDrawer) {
+            if (Matter.Bounds.overlaps(body.bounds, sb.bounds)) {
+              overlapping = true;
+              break;
+            }
+          }
+          if (overlapping) {
+            const count = (stuckFrames.get(key) ?? 0) + 1;
+            stuckFrames.set(key, count);
+            if (count >= 120) {
+              const drawerCenterX = allDrawer.reduce((s, b) => s + b.position.x, 0) / allDrawer.length;
+              Matter.Body.setVelocity(body, {
+                x: (body.position.x > drawerCenterX) ? -2 : 2,
+                y: -4,
+              });
+              stuckFrames.set(key, 0);
+            }
+          } else {
+            stuckFrames.delete(key);
+          }
+        } else {
+          stuckFrames.delete(key);
+        }
+      });
+    });
+
     const runner = Matter.Runner.create();
     runnerRef.current = runner;
     Matter.Runner.run(runner, engine);
@@ -889,7 +933,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       const centerY = drawerRect.top - sceneRect.top + drawerRect.height / 2;
       const scaledH = drawerRect.height * cs;
       const visualTop = centerY - scaledH / 2;
-      spawnY = visualTop - 20 * cs;
+      spawnY = visualTop - 60 * cs;
     } else {
       spawnY = h - 200 * cs;
       centerX = w / 2;
@@ -927,11 +971,11 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         try {
           const verts = contourToVertices(item.contourPoints, physW, physH);
           body = Matter.Bodies.fromVertices(x, spawnY, [verts], {
-            restitution: 0.25, friction: 0.7, density: 0.003, chamfer: { radius: 2 },
+            restitution: 0.45, friction: 0.4, density: 0.003, chamfer: { radius: 2 },
           }) as any;
         } catch {
           body = Matter.Bodies.rectangle(x, spawnY, physW, physH, {
-            restitution: 0.25, friction: 0.7, density: 0.003, chamfer: { radius: 4 },
+            restitution: 0.45, friction: 0.4, density: 0.003, chamfer: { radius: 4 },
           }) as any;
         }
       } else {
