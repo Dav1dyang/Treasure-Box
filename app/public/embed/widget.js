@@ -94,13 +94,12 @@
   // ═══════════════════════════════════════════════════════════════
   // DOM Collision scanning — reads host DOM rects, sends to iframe
   // ═══════════════════════════════════════════════════════════════
-  var DOM_COLLIDE_DEFAULTS = 'h1,h2,h3,h4,h5,h6,img,video,[data-tb-collide],article,.card,gallery-slideshow,a,br';
+  var DOM_COLLIDE_DEFAULTS = 'h1,h2,h3,h4,h5,h6,img,video,[data-tb-collide],article,.card,gallery-slideshow,a,br,.flier';
   var DOM_COLLIDE_MAX = 30;
   var domCollideSelector = '';
   var domCollidePrevRects = [];
   var domCollidePrevScrollX = 0;
   var domCollidePrevScrollY = 0;
-  var domCollideScanPending = false;
   var domCollideMutationTimer = null;
 
   if (domCollide) {
@@ -184,15 +183,6 @@
     }, '*');
   }
 
-  function scheduleDomCollideScan(iframeEl) {
-    if (domCollideScanPending) return;
-    domCollideScanPending = true;
-    requestAnimationFrame(function () {
-      domCollideScanPending = false;
-      scanDomColliders(iframeEl);
-    });
-  }
-
   // 1. Create fixed-position box container
   var boxContainer = document.createElement('div');
   boxContainer.id = 'treasure-box-overlay';
@@ -274,7 +264,6 @@
   var itemImages = {};
 
   // Drawer interaction state: track drawer rect + state from iframe for forwarding
-  var currentDrawerState = 'IDLE';
   var drawerRect = null;
   var isHoveringDrawer = false;
 
@@ -308,6 +297,7 @@
   // Helper: send mouse-down to iframe physics to grab a body
   function startHostCanvasDrag(clientX, clientY) {
     isDraggingItem = true;
+    document.body.style.cursor = 'grabbing';
     var iframeRect = boxIframe.getBoundingClientRect();
     boxIframe.contentWindow.postMessage({
       type: 'treasure-box-host',
@@ -342,19 +332,6 @@
       dy >= drawerRect.y && dy <= drawerRect.y + drawerRect.height;
   }
 
-  // Helper: pass event through to host page element under canvas
-  function passThroughEvent(e, eventType) {
-    canvas.style.pointerEvents = 'none';
-    var target = document.elementFromPoint(e.clientX, e.clientY);
-    canvas.style.pointerEvents = frameBodies.length > 0 ? 'auto' : 'none';
-    if (target) {
-      target.dispatchEvent(new MouseEvent(eventType || e.type, {
-        bubbles: true, cancelable: true,
-        clientX: e.clientX, clientY: e.clientY,
-        button: e.button, buttons: e.buttons,
-      }));
-    }
-  }
 
   function onHostMouseMove(e) {
     if (!isDraggingItem) return;
@@ -406,6 +383,7 @@
     canvasDragBody = null;
     canvasDragStartPos = null;
     isDraggingItem = false;
+    document.body.style.cursor = '';
     document.removeEventListener('mousemove', onHostMouseMove, true);
     document.removeEventListener('mouseup', onHostMouseUp, true);
     document.removeEventListener('touchmove', onHostTouchMove, true);
@@ -467,6 +445,7 @@
     canvasDragBody = null;
     canvasDragStartPos = null;
     isDraggingItem = false;
+    document.body.style.cursor = '';
     document.removeEventListener('mousemove', onHostMouseMove, true);
     document.removeEventListener('mouseup', onHostMouseUp, true);
     document.removeEventListener('touchmove', onHostTouchMove, true);
@@ -544,71 +523,20 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // Canvas mouse/touch interaction handlers
+  // Document-level interaction handlers
+  // Canvas stays pointer-events:none permanently — it's a render-only surface.
+  // All interaction is detected via document-level listeners so host-page
+  // hover states, links, and clicks work unimpeded.
   // ═══════════════════════════════════════════════════════════════
 
-  // Mousedown on canvas: start interaction with hit item, or pass through
-  canvas.addEventListener('mousedown', function (e) {
-    var hit = hitTestBodies(e.clientX, e.clientY);
-    if (hit) {
-      e.preventDefault();
-      e.stopPropagation();
-      canvasDragBody = hit;
-      canvasDragStartPos = { x: e.clientX, y: e.clientY };
-      canvasDidDrag = false;
-      canvasLongPressFired = false;
-
-      // Start long-press timer (800ms)
-      canvasLongPressTimer = setTimeout(function () {
-        canvasLongPressFired = true;
-        // Release physics body
-        sendMouseUpToIframe(e.clientX, e.clientY);
-        // Show story overlay
-        if (canvasDragBody) {
-          showStoryOverlay(canvasDragBody);
-        }
-      }, 800);
-
-      // Tell iframe physics to grab the body
-      startHostCanvasDrag(e.clientX, e.clientY);
-    } else {
-      // Drawer-aware pass-through
-      if (isInsideDrawerRect(e.clientX, e.clientY)) {
-        // Forward click to iframe drawer
-        boxIframe.style.pointerEvents = 'auto';
-        hitZone.style.display = 'none';
-        boxIframe.contentWindow.postMessage({
-          type: 'treasure-box-host', action: 'drawer-click',
-        }, '*');
-      } else if (currentDrawerState === 'OPEN' || currentDrawerState === 'HOVER_CLOSE') {
-        // Click empty area while drawer open → close drawer
-        boxIframe.contentWindow.postMessage({
-          type: 'treasure-box-host', action: 'drawer-click',
-        }, '*');
-      } else {
-        passThroughEvent(e);
-      }
-    }
-  });
-
-  // Click pass-through for host page links/buttons in empty canvas areas
-  canvas.addEventListener('click', function (e) {
-    if (!hitTestBodies(e.clientX, e.clientY)) {
-      // Don't pass through clicks that were handled as drawer interactions
-      if (isInsideDrawerRect(e.clientX, e.clientY)) return;
-      if (currentDrawerState === 'OPEN' || currentDrawerState === 'HOVER_CLOSE') return;
-      passThroughEvent(e);
-    }
-  });
-
-  // Cursor feedback + drawer hover detection
-  canvas.addEventListener('mousemove', function (e) {
-    if (isDraggingItem) { canvas.style.cursor = 'grabbing'; return; }
+  // Cursor feedback + drawer hover detection (document-level, always fires)
+  document.addEventListener('mousemove', function (e) {
+    if (frameBodies.length === 0 || isDraggingItem) return;
     var onItem = hitTestBodies(e.clientX, e.clientY);
     var onDrawer = isInsideDrawerRect(e.clientX, e.clientY);
 
-    // Cursor feedback
-    canvas.style.cursor = onItem ? 'grab' : (onDrawer ? 'pointer' : 'default');
+    // Cursor feedback on body (canvas has no pointer-events)
+    document.body.style.cursor = onItem ? 'grab' : (onDrawer ? 'pointer' : '');
 
     // Drawer hover state forwarding (mirrors handleCanvasMouseMove in TreasureBox.tsx)
     if (onDrawer && !isHoveringDrawer) {
@@ -622,11 +550,42 @@
         type: 'treasure-box-host', action: 'drawer-hover-leave',
       }, '*');
     }
-  });
+  }, true);
 
-  // Touch support: same state machine as mouse
-  canvas.addEventListener('touchstart', function (e) {
-    if (!e.touches[0]) return;
+  // Mousedown: item drag or drawer click (document-level, capture phase)
+  document.addEventListener('mousedown', function (e) {
+    if (frameBodies.length === 0) return;
+    var hit = hitTestBodies(e.clientX, e.clientY);
+    if (hit) {
+      e.preventDefault();
+      e.stopPropagation();
+      canvasDragBody = hit;
+      canvasDragStartPos = { x: e.clientX, y: e.clientY };
+      canvasDidDrag = false;
+      canvasLongPressFired = false;
+
+      // Start long-press timer (800ms)
+      canvasLongPressTimer = setTimeout(function () {
+        canvasLongPressFired = true;
+        sendMouseUpToIframe(e.clientX, e.clientY);
+        if (canvasDragBody) showStoryOverlay(canvasDragBody);
+      }, 800);
+
+      startHostCanvasDrag(e.clientX, e.clientY);
+    } else if (isInsideDrawerRect(e.clientX, e.clientY)) {
+      e.stopPropagation();
+      boxIframe.style.pointerEvents = 'auto';
+      hitZone.style.display = 'none';
+      boxIframe.contentWindow.postMessage({
+        type: 'treasure-box-host', action: 'drawer-click',
+      }, '*');
+    }
+    // Otherwise: do nothing — event reaches host page naturally
+  }, true);
+
+  // Touch: item drag or drawer tap (document-level, capture phase)
+  document.addEventListener('touchstart', function (e) {
+    if (frameBodies.length === 0 || !e.touches[0]) return;
     var touch = e.touches[0];
     var hit = hitTestBodies(touch.clientX, touch.clientY);
     if (hit) {
@@ -641,31 +600,15 @@
         if (canvasDragBody) showStoryOverlay(canvasDragBody);
       }, 800);
       startHostCanvasDrag(touch.clientX, touch.clientY);
-    } else {
-      // Drawer-aware touch pass-through
-      if (isInsideDrawerRect(touch.clientX, touch.clientY)) {
-        boxIframe.style.pointerEvents = 'auto';
-        hitZone.style.display = 'none';
-        boxIframe.contentWindow.postMessage({
-          type: 'treasure-box-host', action: 'drawer-click',
-        }, '*');
-      } else if (currentDrawerState === 'OPEN' || currentDrawerState === 'HOVER_CLOSE') {
-        boxIframe.contentWindow.postMessage({
-          type: 'treasure-box-host', action: 'drawer-click',
-        }, '*');
-      } else {
-        canvas.style.pointerEvents = 'none';
-        var target = document.elementFromPoint(touch.clientX, touch.clientY);
-        canvas.style.pointerEvents = frameBodies.length > 0 ? 'auto' : 'none';
-        if (target) {
-          target.dispatchEvent(new MouseEvent('mousedown', {
-            bubbles: true, cancelable: true,
-            clientX: touch.clientX, clientY: touch.clientY,
-          }));
-        }
-      }
+    } else if (isInsideDrawerRect(touch.clientX, touch.clientY)) {
+      boxIframe.style.pointerEvents = 'auto';
+      hitZone.style.display = 'none';
+      boxIframe.contentWindow.postMessage({
+        type: 'treasure-box-host', action: 'drawer-click',
+      }, '*');
     }
-  }, { passive: false });
+    // Otherwise: do nothing — tap reaches host page naturally
+  }, { passive: false, capture: true });
 
   // 4. Send viewport info to iframe so it can create correct walls
   function sendViewportInfo() {
@@ -746,8 +689,7 @@
       // Receive body positions from iframe physics engine
       frameBodies = event.data.bodies || [];
       frameEffects = event.data.effects || frameEffects;
-      // Toggle canvas pointer-events based on whether items exist
-      canvas.style.pointerEvents = frameBodies.length > 0 ? 'auto' : 'none';
+      // Canvas stays pointer-events:none — interaction is document-level
 
       // Preload images for new items
       for (var i = 0; i < frameBodies.length; i++) {
@@ -764,14 +706,14 @@
     if (event.data.action === 'items-cleared' || event.data.action === 'items-returned') {
       frameBodies = [];
       itemImages = {};
-      canvas.style.pointerEvents = 'none';
+      document.body.style.cursor = '';
     }
 
     // Single item returned to drawer via drag
     if (event.data.action === 'item-returned-single' && event.data.itemId) {
       frameBodies = frameBodies.filter(function (b) { return b.id !== event.data.itemId; });
       if (frameBodies.length === 0) {
-        canvas.style.pointerEvents = 'none';
+        document.body.style.cursor = '';
       }
     }
 
@@ -818,13 +760,13 @@
       document.removeEventListener('touchend', onHostTouchEnd, true);
     }
 
-    // Drawer state: track all states for interaction forwarding
+    // Drawer state: reset interaction state when drawer returns to IDLE
     if (event.data.action === 'drawer-state') {
-      currentDrawerState = event.data.state;
       if (event.data.state === 'IDLE') {
         boxIframe.style.pointerEvents = 'none';
         hitZone.style.display = 'block';
         isHoveringDrawer = false;
+        document.body.style.cursor = '';
       }
     }
 
