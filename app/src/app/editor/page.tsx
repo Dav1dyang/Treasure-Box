@@ -67,6 +67,7 @@ export default function EditorPage() {
   const skipAutoSaveRef = useRef(false);
   const [generating, setGenerating] = useState(false);
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
+  const [generatingColors, setGeneratingColors] = useState<{ color: string; accentColor: string } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -397,7 +398,10 @@ export default function EditorPage() {
                       setConfig({ ...config, drawerImages: images, soundPreset, soundEnabled: soundPreset !== 'silent' });
                     }}
                     onReset={async () => { await clearDrawerImages(user.uid); setConfig({ ...config, drawerImages: undefined }); }}
-                    onGeneratingChange={setGenerating}
+                    onGeneratingChange={(gen, colors) => {
+                      setGenerating(gen);
+                      if (colors) setGeneratingColors(colors);
+                    }}
                   />
                 </CfgGroup>
 
@@ -526,8 +530,8 @@ export default function EditorPage() {
                 <LoadingAnimation
                   finishing={!generating}
                   onFinished={() => setShowLoadingOverlay(false)}
-                  startColor={config?.drawerImages?.style?.color}
-                  endColor={config?.drawerImages?.style?.accentColor}
+                  startColor={generatingColors?.color ?? config?.drawerImages?.style?.color}
+                  endColor={generatingColors?.accentColor ?? config?.drawerImages?.style?.accentColor}
                 />
               </div>
             )}

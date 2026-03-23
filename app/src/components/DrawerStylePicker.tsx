@@ -61,7 +61,7 @@ interface Props {
   boxDimensions?: BoxDimensions;
   onComplete: (images: DrawerImages) => void;
   onReset: () => void;
-  onGeneratingChange?: (generating: boolean) => void;
+  onGeneratingChange?: (generating: boolean, colors?: { color: string; accentColor: string }) => void;
 }
 
 export default function DrawerStylePicker({ userId, currentImages, boxDimensions, onComplete, onReset, onGeneratingChange }: Props) {
@@ -176,7 +176,7 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
     }
 
     setGenerating(true);
-    onGeneratingChange?.(true);
+    onGeneratingChange?.(true, { color, accentColor });
     setError(null);
     setPreviewUrls({});
     setSpritePreviewUrl(null);
