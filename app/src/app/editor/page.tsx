@@ -9,9 +9,10 @@ import {
   getItems, saveItem,
   uploadImage, uploadProcessedImage,
   clearDrawerImages, deleteItemWithCleanup, deleteBox,
+  getDemoBoxId, setDemoBoxId,
 } from '@/lib/firestore';
 import type { TreasureItem, BoxConfig, DrawerImages, EmbedSettings } from '@/lib/types';
-import { DEFAULT_BOX_CONFIG, MATERIAL_SOUND_MAP } from '@/lib/config';
+import { DEFAULT_BOX_CONFIG, MATERIAL_SOUND_MAP, ADMIN_EMAIL } from '@/lib/config';
 import TreasureBox from '@/components/TreasureBox';
 import DrawerStylePicker from '@/components/DrawerStylePicker';
 import LoadingAnimation from '@/components/LoadingAnimation';
@@ -71,6 +72,8 @@ export default function EditorPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const isAdmin = user?.email === ADMIN_EMAIL;
+  const [isDemoBox, setIsDemoBox] = useState(false);
 
   useEffect(() => {
     if (generating) setShowLoadingOverlay(true);
@@ -87,6 +90,10 @@ export default function EditorPage() {
       }
       setConfig(box);
       setItems(await getItems(user.uid));
+      if (user.email === ADMIN_EMAIL) {
+        const currentDemoId = await getDemoBoxId();
+        setIsDemoBox(currentDemoId === user.uid);
+      }
       // Mark loaded so auto-save doesn't fire on initial load
       setTimeout(() => { configLoadedRef.current = true; }, 100);
     })();
@@ -527,6 +534,23 @@ export default function EditorPage() {
                     </div>
                     <CfgHint>public boxes appear in the gallery on the landing page</CfgHint>
                   </CfgSection>
+
+                  {isAdmin && (
+                  <CfgSection>
+                    <CfgLabel>front page demo</CfgLabel>
+                    <div className="flex">
+                      <CfgToggle active={!isDemoBox} first onClick={async () => {
+                        await setDemoBoxId(null);
+                        setIsDemoBox(false);
+                      }}>off</CfgToggle>
+                      <CfgToggle active={isDemoBox} onClick={async () => {
+                        await setDemoBoxId(user!.uid);
+                        setIsDemoBox(true);
+                      }}>on</CfgToggle>
+                    </div>
+                    <CfgHint>set your box as the landing page hero demo</CfgHint>
+                  </CfgSection>
+                  )}
 
                   <CfgSection>
                     <CfgLabel>drawer direction</CfgLabel>

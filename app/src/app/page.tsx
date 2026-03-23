@@ -5,7 +5,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/components/ThemeProvider';
-import { getPublicBoxesWithItems, getRandomPublicBox } from '@/lib/firestore';
+import { getPublicBoxesWithItems, getDemoBox } from '@/lib/firestore';
 import type { TreasureItem, BoxConfig } from '@/lib/types';
 
 const TreasureBox = dynamic(() => import('@/components/TreasureBox'), { ssr: false });
@@ -33,7 +33,7 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       try {
-        const result = await getRandomPublicBox();
+        const result = await getDemoBox();
         if (result) {
           setDemoConfig(result.config);
           setDemoItems(result.items);

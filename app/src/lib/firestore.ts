@@ -174,6 +174,27 @@ export async function deleteBox(userId: string): Promise<void> {
   await deleteDoc(doc(getDb(), 'boxes', userId));
 }
 
+// ===== Demo Box (front page) =====
+
+export async function getDemoBoxId(): Promise<string | null> {
+  const snap = await getDoc(doc(getDb(), 'settings', 'frontpage'));
+  if (!snap.exists()) return null;
+  return (snap.data() as { demoBoxId?: string }).demoBoxId ?? null;
+}
+
+export async function setDemoBoxId(boxId: string | null): Promise<void> {
+  await setDoc(doc(getDb(), 'settings', 'frontpage'), { demoBoxId: boxId });
+}
+
+export async function getDemoBox(): Promise<{ config: BoxConfig; items: TreasureItem[] } | null> {
+  const demoBoxId = await getDemoBoxId();
+  if (!demoBoxId) return null;
+  const config = await getBoxConfig(demoBoxId);
+  if (!config) return null;
+  const items = await getItems(demoBoxId);
+  return { config, items };
+}
+
 // ===== Public Gallery =====
 
 export async function getPublicBoxes(limitCount = 50): Promise<BoxConfig[]> {
