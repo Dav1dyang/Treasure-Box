@@ -226,7 +226,12 @@ async function removeGreenWithVision(
     }
   }
 
-  const result = await refineAlphaEdges(pixels, info.width, info.height);
+  const result = await sharp(Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length), {
+    raw: { width: info.width, height: info.height, channels: 4 },
+  })
+    .png()
+    .toBuffer();
+
   return result.toString('base64');
 }
 
@@ -271,85 +276,13 @@ async function removeGreenChromaKey(
     }
   }
 
-  const result = await refineAlphaEdges(pixels, info.width, info.height);
-  return result.toString('base64');
-}
-
-/**
- * Post-process alpha channel to remove green fringe artifacts:
- * 1. Erode alpha mask by `erodeRadius` pixels (trim outermost fringe)
- * 2. Box blur alpha channel (soften hard edges into gentle feather)
- */
-async function refineAlphaEdges(
-  pixels: Uint8Array,
-  width: number,
-  height: number,
-  erodeRadius = 2,
-  blurRadius = 2,
-): Promise<Buffer> {
-  // --- Step 1: Alpha erosion — remove pixels within erodeRadius of transparency ---
-  const alphaSnapshot = new Uint8Array(width * height);
-  for (let i = 0; i < alphaSnapshot.length; i++) {
-    alphaSnapshot[i] = pixels[i * 4 + 3];
-  }
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = y * width + x;
-      if (alphaSnapshot[idx] === 0) continue;
-
-      let touchesTransparent = false;
-      for (let dy = -erodeRadius; dy <= erodeRadius && !touchesTransparent; dy++) {
-        for (let dx = -erodeRadius; dx <= erodeRadius && !touchesTransparent; dx++) {
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
-            touchesTransparent = true;
-          } else if (alphaSnapshot[ny * width + nx] === 0) {
-            touchesTransparent = true;
-          }
-        }
-      }
-
-      if (touchesTransparent) {
-        pixels[idx * 4 + 3] = 0;
-      }
-    }
-  }
-
-  // --- Step 2: Box blur on alpha channel only (soft feather) ---
-  const alphaIn = new Uint8Array(width * height);
-  for (let i = 0; i < alphaIn.length; i++) {
-    alphaIn[i] = pixels[i * 4 + 3];
-  }
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      let sum = 0;
-      let count = 0;
-      for (let dy = -blurRadius; dy <= blurRadius; dy++) {
-        for (let dx = -blurRadius; dx <= blurRadius; dx++) {
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-            sum += alphaIn[ny * width + nx];
-            count++;
-          }
-        }
-      }
-      pixels[(y * width + x) * 4 + 3] = Math.round(sum / count);
-    }
-  }
-
-  // Encode to PNG
-  const result = await sharp(
-    Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length),
-    { raw: { width, height, channels: 4 } },
-  )
+  const result = await sharp(Buffer.from(pixels.buffer, pixels.byteOffset, pixels.length), {
+    raw: { width: info.width, height: info.height, channels: 4 },
+  })
     .png()
     .toBuffer();
 
-  return result;
+  return result.toString('base64');
 }
 
 /**
