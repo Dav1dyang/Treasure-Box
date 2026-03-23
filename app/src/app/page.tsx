@@ -422,9 +422,10 @@ function GalleryBox({ config, items, index }: { config: BoxConfig; items: Treasu
           <TreasureBox items={items} config={galleryConfig} backgroundColor="transparent" onReady={() => setBoxReady(true)} />
         )}
       </div>
-      {/* Specimen label — top left, "01 — Name" */}
-      <span
-        className="absolute top-2.5 left-3 right-3 leading-none truncate pointer-events-none z-10 uppercase"
+      {/* Specimen label — top left, "01 — Name" — links to share page */}
+      <Link
+        href={`/box/${config.id}`}
+        className="absolute top-2.5 left-3 right-3 leading-none truncate z-10 uppercase no-underline transition-colors"
         style={{
           fontFamily: "'Inconsolata', monospace",
           fontWeight: 500,
@@ -433,9 +434,11 @@ function GalleryBox({ config, items, index }: { config: BoxConfig; items: Treasu
           color: 'var(--tb-fg-faint)',
           fontVariantNumeric: 'tabular-nums',
         }}
+        onMouseEnter={e => (e.currentTarget.style.color = 'var(--tb-accent)')}
+        onMouseLeave={e => (e.currentTarget.style.color = 'var(--tb-fg-faint)')}
       >
         {String(index).padStart(2, '0')}&ensp;—&ensp;{config.ownerName || 'untitled'}
-      </span>
+      </Link>
     </div>
   );
 }
