@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Embed Widget Test — CSS Transform Scenario</title>
+  <style>
+    /* Simulate Readymag-style body scaling */
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      transform: scale(0.85);
+      transform-origin: top left;
+      width: 117.65%; /* 1/0.85 to fill viewport */
+      height: 117.65%;
+      background: #1a1a2e;
+      color: #eee;
+      font-family: sans-serif;
+    }
+    .content {
+      max-width: 900px;
+      margin: 60px auto;
+      padding: 40px;
+    }
+    h1 { font-size: 2.5rem; margin-bottom: 20px; }
+    p { line-height: 1.8; font-size: 1.1rem; color: #ccc; }
+    .card {
+      background: #16213e;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 30px;
+      margin: 30px 0;
+    }
+    .toggle-btn {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 9999999;
+      background: #e94560;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <button class="toggle-btn" onclick="toggleTransform()">Toggle body transform</button>
+
+  <div class="content">
+    <h1>Portfolio Test Page</h1>
+    <p>This page simulates a Readymag-style body with <code>transform: scale(0.85)</code> to test widget anchoring.</p>
+
+    <div class="card">
+      <h2>Project Alpha</h2>
+      <p>A kinetic installation that engages nonhuman systems through attunement rather than control.</p>
+    </div>
+    <div class="card">
+      <h2>Project Beta</h2>
+      <p>Holiday Fabrication for Macy's 34th Street Holiday Windows in 2025.</p>
+    </div>
+    <div class="card">
+      <h2>Project Gamma</h2>
+      <p>Contributed as PCB designer for schematics and layouts of the modular system.</p>
+    </div>
+    <div class="card">
+      <h2>Project Delta</h2>
+      <p>Filler content to make the page scrollable. Lorem ipsum dolor sit amet.</p>
+    </div>
+    <div class="card">
+      <h2>Project Epsilon</h2>
+      <p>More filler content for scroll testing.</p>
+    </div>
+  </div>
+
+  <script>
+    var transformOn = true;
+    function toggleTransform() {
+      transformOn = !transformOn;
+      document.body.style.transform = transformOn ? 'scale(0.85)' : 'none';
+      document.body.style.width = transformOn ? '117.65%' : '100%';
+      document.body.style.height = transformOn ? '117.65%' : '100%';
+    }
+  </script>
+
+  <!-- Treasure Box embed code -->
+  <script>
+    window.__TB = {
+      boxId: 'wD9V1JrKNiYCrjqKC3FQuaEjkPp2',
+      origin: 'http://localhost:3000',
+      mode: 'overlay',
+      anchor: 'bottom-right',
+      ox: '32',
+      oy: '32',
+    };
+  </script>
+  <script src="http://localhost:3000/embed/widget.js"></script>
+</body>
+</html>
+</html>

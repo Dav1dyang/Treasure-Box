@@ -284,14 +284,36 @@
     }, 100);
   });
 
-  // Append to container div (container-relative mode) or document body (viewport mode)
+  // ═══════════════════════════════════════════════════════════════
+  // CSS Transform Ancestor Detection
+  // When position:fixed is inside a CSS-transformed ancestor
+  // (common in Readymag, Webflow, Squarespace, Framer),
+  // it becomes relative to that ancestor instead of the viewport.
+  // Fix: append widget elements to <html> (documentElement) so they
+  // are siblings of <body>, not descendants — unaffected by its transform.
+  // ═══════════════════════════════════════════════════════════════
+  var fixedParent = document.body;
+  (function detectTransformAncestor() {
+    var probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;visibility:hidden;z-index:-1;';
+    document.body.appendChild(probe);
+    var r = probe.getBoundingClientRect();
+    document.body.removeChild(probe);
+    if (Math.abs(r.left) > 1 || Math.abs(r.top) > 1 ||
+        Math.abs(r.width - window.innerWidth) > 2 || Math.abs(r.height - window.innerHeight) > 2) {
+      // position:fixed is broken inside <body> — use <html> instead
+      fixedParent = document.documentElement;
+    }
+  })();
+
+  // Append to container div (container-relative mode) or fixedParent (viewport mode)
   if (containerEl) {
     // Ensure the container is a positioning context
     var containerPos = getComputedStyle(containerEl).position;
     if (containerPos === 'static') containerEl.style.position = 'relative';
     containerEl.appendChild(boxContainer);
   } else {
-    document.body.appendChild(boxContainer);
+    fixedParent.appendChild(boxContainer);
   }
 
   // 3. Create full-viewport canvas overlay (renders items streamed from iframe physics)
@@ -302,7 +324,7 @@
     'pointer-events:none;z-index:' + DEFAULTS.Z_INDEX_CANVAS + ';';
   canvas.width = window.innerWidth * dpr;
   canvas.height = window.innerHeight * dpr;
-  document.body.appendChild(canvas);
+  fixedParent.appendChild(canvas);
   var ctx = canvas.getContext('2d');
   if (ctx) ctx.scale(dpr, dpr);
 
@@ -315,49 +337,6 @@
     canvas.style.display = hidden ? 'none' : '';
   }
   mobileQuery.addEventListener('change', updateMobileVisibility);
-
-  // ═══════════════════════════════════════════════════════════════
-  // CSS Transform Ancestor Compensation
-  // When position:fixed is inside a CSS-transformed ancestor
-  // (common in Webflow, Squarespace, Framer, Readymag),
-  // it becomes relative to that ancestor instead of the viewport.
-  // We detect this by probing and apply a counter-transform.
-  // ═══════════════════════════════════════════════════════════════
-  function detectFixedOffset() {
-    var probe = document.createElement('div');
-    probe.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;visibility:hidden;z-index:-1;';
-    document.body.appendChild(probe);
-    var r = probe.getBoundingClientRect();
-    document.body.removeChild(probe);
-    return {
-      scaleX: window.innerWidth / (r.width || window.innerWidth),
-      scaleY: window.innerHeight / (r.height || window.innerHeight),
-      offsetX: -r.left,
-      offsetY: -r.top,
-    };
-  }
-
-  function applyFixedCompensation() {
-    var fix = detectFixedOffset();
-    if (Math.abs(fix.scaleX - 1) < 0.001 && Math.abs(fix.scaleY - 1) < 0.001 &&
-        Math.abs(fix.offsetX) < 1 && Math.abs(fix.offsetY) < 1) {
-      boxContainer.style.transform = '';
-      canvas.style.transform = '';
-      return;
-    }
-    // Map anchor string to CSS transform-origin
-    var originMap = {
-      'bottom-right': 'bottom right', 'bottom-left': 'bottom left',
-      'top-right': 'top right', 'top-left': 'top left',
-    };
-    boxContainer.style.transformOrigin = originMap[anchor] || 'bottom right';
-    boxContainer.style.transform = 'scale(' + fix.scaleX + ',' + fix.scaleY + ') translate(' + fix.offsetX + 'px,' + fix.offsetY + 'px)';
-    // Canvas covers the full viewport — always origin top-left
-    canvas.style.transformOrigin = 'top left';
-    canvas.style.transform = 'scale(' + fix.scaleX + ',' + fix.scaleY + ') translate(' + fix.offsetX + 'px,' + fix.offsetY + 'px)';
-  }
-
-  applyFixedCompensation();
 
   // State: latest frame data from iframe physics engine
   var frameBodies = [];
@@ -658,7 +637,7 @@
 
     storyOverlay.appendChild(card);
     storyOverlay.addEventListener('click', dismissStoryOverlay);
-    document.body.appendChild(storyOverlay);
+    fixedParent.appendChild(storyOverlay);
   }
 
   function dismissStoryOverlay() {
@@ -808,8 +787,6 @@
       if (resizeCtx) resizeCtx.scale(curDpr, curDpr);
       // Notify iframe of new viewport
       sendViewportInfo();
-      // Re-check CSS transform compensation (host page may rescale on resize)
-      applyFixedCompensation();
       // Full re-scan on resize (element positions may have changed)
       if (domCollideSelector) scanDomColliders(boxIframe);
     }, DEFAULTS.RESIZE_DEBOUNCE_MS);
