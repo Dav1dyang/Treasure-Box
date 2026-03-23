@@ -307,11 +307,25 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       if (existing && existing.complete && existing.naturalWidth > 0 && onLoad) onLoad();
       return;
     }
-    // Different URL or first load — (re)load
+    // Different URL or first load — revoke previous blob URL if replacing
+    const prevUrl = imageUrlsRef.current.get(key);
+    if (prevUrl) {
+      const prevBlobIdx = blobUrlsRef.current.findIndex(b => {
+        const prevImg = imagesRef.current.get(key);
+        return prevImg && prevImg.src === b;
+      });
+      if (prevBlobIdx !== -1) {
+        URL.revokeObjectURL(blobUrlsRef.current[prevBlobIdx]);
+        blobUrlsRef.current.splice(prevBlobIdx, 1);
+      }
+    }
     imageUrlsRef.current.set(key, url);
     const img = new Image();
     if (onLoad) img.onload = onLoad;
-    img.onerror = () => { if (onLoad) onLoad(); }; // Fire callback even on failure
+    img.onerror = () => {
+      console.warn(`[TreasureBox] Failed to load image: ${key}`);
+      if (onLoad) onLoad();
+    };
     imagesRef.current.set(key, img);
 
     fetch(url)
@@ -456,6 +470,10 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (repositionRafRef.current) cancelAnimationFrame(repositionRafRef.current);
       if (spawnIntervalRef.current) clearInterval(spawnIntervalRef.current);
+      returnAnimIntervalsRef.current.forEach(id => clearInterval(id));
+      returnAnimIntervalsRef.current = [];
+      gulpTimeoutsRef.current.forEach(tid => clearTimeout(tid));
+      gulpTimeoutsRef.current = [];
       timeoutsRef.current.forEach(id => clearTimeout(id));
       timeoutsRef.current.clear();
       blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
@@ -863,6 +881,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     const ctx = canvas?.getContext('2d');
     if (!ctx || !canvas) return;
 
+    try {
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     ctx.clearRect(0, 0, w, h);
@@ -987,6 +1006,10 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         };
       }).filter(b => b.id);
       onFrameSyncRef.current(syncBodies, {});
+    }
+
+    } catch (err) {
+      console.warn('[TreasureBox] Render loop error:', err);
     }
 
     animFrameRef.current = requestAnimationFrame(renderLoop);

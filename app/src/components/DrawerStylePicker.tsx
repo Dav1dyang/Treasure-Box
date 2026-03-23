@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { uploadSpriteSheet, saveDrawerImages } from '@/lib/firestore';
 import { PRESET_MATERIALS, STYLE_PRESETS, DECOR_ITEMS, ADDITIONAL_FEATURES_INPUT_MAX_LENGTH, ADDITIONAL_FEATURES_MAX_KEYWORDS, ADDITIONAL_FEATURES_MAX_CHAR_PER_KEYWORD } from '@/lib/config';
 import type {
@@ -65,6 +65,10 @@ interface Props {
 }
 
 export default function DrawerStylePicker({ userId, currentImages, boxDimensions, onComplete, onReset, onGeneratingChange }: Props) {
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
   // 1. Material (= old preset)
   const [preset, setPreset] = useState<DrawerStylePreset>(
     currentImages?.style.preset || 'clay'
@@ -182,10 +186,13 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
     setSpritePreviewUrl(null);
 
     try {
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
       const res = await fetch('/api/generate-box', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ style, dimensions: boxDimensions }),
+        signal: abortRef.current.signal,
       });
 
       if (!res.ok) {
@@ -227,6 +234,7 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
       await saveDrawerImages(userId, drawerImages);
       onComplete(drawerImages);
     } catch (e: any) {
+      if (e.name === 'AbortError') return; // component unmounted or new generation started
       console.error('Generation error:', e);
       setError(e.message || 'Generation failed');
     } finally {

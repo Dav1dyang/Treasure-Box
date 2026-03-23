@@ -17,6 +17,15 @@ export async function POST(request: NextRequest) {
   let builtPrompt: string | undefined;
 
   try {
+    // Guard against oversized payloads (max 1MB)
+    const contentLength = request.headers.get('content-length');
+    if (contentLength && parseInt(contentLength, 10) > 1_048_576) {
+      return NextResponse.json(
+        { error: 'Request body too large (max 1MB)' },
+        { status: 413 }
+      );
+    }
+
     const body: GenerateBoxRequest = await request.json();
     const { style, dimensions } = body;
 

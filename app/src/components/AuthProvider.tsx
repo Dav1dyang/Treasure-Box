@@ -7,6 +7,7 @@ import { getAuthInstance, googleProvider } from '@/lib/firebase';
 interface AuthCtx {
   user: User | null;
   loading: boolean;
+  authError: string | null;
   signIn: () => Promise<void>;
   logOut: () => Promise<void>;
 }
@@ -14,6 +15,7 @@ interface AuthCtx {
 const AuthContext = createContext<AuthCtx>({
   user: null,
   loading: true,
+  authError: null,
   signIn: async () => {},
   logOut: async () => {},
 });
@@ -21,18 +23,22 @@ const AuthContext = createContext<AuthCtx>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
     const auth = getAuthInstance();
     if (!auth) {
+      setAuthError('Firebase Auth is not available. Check your Firebase configuration.');
       setLoading(false);
       return;
     }
     const unsub = onAuthStateChanged(auth, (u) => {
+      if (!mounted) return;
       setUser(u);
       setLoading(false);
     });
-    return unsub;
+    return () => { mounted = false; unsub(); };
   }, []);
 
   const signIn = async () => {
@@ -48,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, logOut }}>
+    <AuthContext.Provider value={{ user, loading, authError, signIn, logOut }}>
       {children}
     </AuthContext.Provider>
   );
