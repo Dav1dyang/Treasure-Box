@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Treasure Box</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Inconsolata:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ── Reset ── */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  /* ── Theme: Dark (default) ── */
+  :root,
+  html[data-theme="dark"] {
+    --tb-bg: #0e0e0e;
+    --tb-bg-subtle: #181816;
+    --tb-bg-muted: #222220;
+    --tb-border: #3a3a34;
+    --tb-border-subtle: #2a2a26;
+    --tb-fg: #b8b8a8;
+    --tb-fg-muted: #8a8a7a;
+    --tb-fg-faint: #5e5e52;
+    --tb-fg-ghost: #3e3e36;
+    --tb-accent: #d0b888;
+    --tb-accent-hover: #e0c898;
+    --tb-highlight: #9a7a5a;
+  }
+
+  /* ── Theme: Light ── */
+  html[data-theme="light"] {
+    --tb-bg: #f5f2ec;
+    --tb-bg-subtle: #edeae4;
+    --tb-bg-muted: #e4e0d8;
+    --tb-border: #d0ccc2;
+    --tb-border-subtle: #ddd9d0;
+    --tb-fg: #3a3832;
+    --tb-fg-muted: #6a685e;
+    --tb-fg-faint: #9a9888;
+    --tb-fg-ghost: #c0beb4;
+    --tb-accent: #8a6a3a;
+    --tb-accent-hover: #7a5a2a;
+    --tb-highlight: #b08a5a;
+  }
+
+  /* ── Base ── */
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inconsolata', monospace;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--tb-fg);
+    background: var(--tb-bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+
+  /* ── Typography helpers ── */
+  .t-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 56px;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+  }
+  .t-section {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 28px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+  }
+  .t-label {
+    font-family: 'Inconsolata', monospace;
+    font-weight: 400;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .t-nav {
+    font-family: 'Inconsolata', monospace;
+    font-weight: 500;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* ── Nav ── */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 52px;
+    background: var(--tb-bg);
+    border-bottom: 1px solid var(--tb-border);
+  }
+  .nav-brand {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .nav-links a,
+  .nav-links button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 12px;
+    background: none;
+    border: none;
+    color: var(--tb-fg-muted);
+    cursor: pointer;
+    transition: color 150ms;
+  }
+  .nav-links a:hover,
+  .nav-links button:hover {
+    color: var(--tb-fg);
+  }
+  .nav-links a.active {
+    color: var(--tb-fg);
+    box-shadow: inset 0 -2px 0 var(--tb-accent);
+  }
+  .theme-toggle {
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px;
+    text-align: center;
+  }
+  .hero-subtitle {
+    margin-top: 12px;
+    color: var(--tb-fg-muted);
+    font-size: 14px;
+  }
+  .hero-box {
+    margin-top: 48px;
+    width: 280px;
+    height: 280px;
+    border: 1px solid var(--tb-border);
+    background: var(--tb-bg-subtle);
+    border-radius: 4px;
+  }
+  .hero-hint {
+    margin-top: 24px;
+    font-size: 12px;
+    color: var(--tb-fg-faint);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* ── About ── */
+  .about {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 80px 24px;
+  }
+  .about h2 {
+    margin-bottom: 24px;
+  }
+  .about p {
+    color: var(--tb-fg-muted);
+    margin-bottom: 16px;
+  }
+  .about p:last-of-type {
+    margin-bottom: 32px;
+  }
+  .btn-primary {
+    display: inline-block;
+    font-family: 'Inconsolata', monospace;
+    font-weight: 500;
+    font-size: 14px;
+    padding: 14px 32px;
+    border-radius: 8px;
+    background: var(--tb-accent);
+    color: var(--tb-bg);
+    border: none;
+    cursor: pointer;
+    transition: background 150ms;
+  }
+  .btn-primary:hover {
+    background: var(--tb-accent-hover);
+  }
+
+  /* ── Gallery ── */
+  .gallery {
+    padding: 80px 24px;
+  }
+  .gallery-header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .gallery-header h2 {
+    margin-bottom: 8px;
+  }
+  .gallery-count {
+    color: var(--tb-fg-faint);
+  }
+
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    max-width: 960px;
+    margin: 0 auto;
+    border-top: 1px solid var(--tb-border);
+    border-left: 1px solid var(--tb-border);
+  }
+  .gallery-cell {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    background: var(--tb-bg-subtle);
+    border-right: 1px solid var(--tb-border);
+    border-bottom: 1px solid var(--tb-border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    transition: background 150ms;
+    overflow: hidden;
+  }
+  .gallery-cell:hover {
+    background: var(--tb-bg-muted);
+  }
+  .cell-catalog {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    font-family: 'Inconsolata', monospace;
+    font-weight: 400;
+    font-size: 11px;
+    color: var(--tb-fg-ghost);
+  }
+  .cell-open {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    font-family: 'Inconsolata', monospace;
+    font-weight: 500;
+    font-size: 11px;
+    color: var(--tb-accent);
+    opacity: 0;
+    transition: opacity 150ms;
+  }
+  .gallery-cell:hover .cell-open {
+    opacity: 1;
+  }
+  .cell-placeholder {
+    width: 60%;
+    aspect-ratio: 1 / 1;
+    border: 1px dashed var(--tb-border-subtle);
+    border-radius: 2px;
+  }
+  .cell-label {
+    margin-top: 12px;
+    font-family: 'Inconsolata', monospace;
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--tb-accent);
+    text-align: center;
+  }
+  .cell-owner {
+    margin-top: 2px;
+    font-family: 'Inconsolata', monospace;
+    font-weight: 400;
+    font-size: 11px;
+    color: var(--tb-fg-faint);
+    text-align: center;
+  }
+
+  /* ── Footer ── */
+  .footer {
+    border-top: 1px solid var(--tb-border);
+    padding: 40px 24px;
+    text-align: center;
+  }
+  .footer-brand {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin-bottom: 6px;
+  }
+  .footer-tagline {
+    font-size: 12px;
+    color: var(--tb-fg-faint);
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 720px) {
+    .t-title, .hero .t-title { font-size: 40px; }
+    .gallery-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <span class="nav-brand">TREASURE BOX</span>
+  <div class="nav-links">
+    <a href="#gallery" class="t-nav active">Gallery</a>
+    <a href="#about" class="t-nav">Create</a>
+    <button class="t-nav theme-toggle" id="themeToggle" aria-label="Toggle theme"></button>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <h1 class="t-title">Treasure Box</h1>
+  <p class="hero-subtitle">a tangible memory box for the web</p>
+  <div class="hero-box"></div>
+  <p class="hero-hint t-label">&darr; pull the drawer</p>
+</section>
+
+<!-- About -->
+<section class="about" id="about">
+  <h2 class="t-section">What Is This</h2>
+  <p>Treasure Box lets you upload photos of meaningful objects, attach stories and links to each one, and embed a physics-driven drawer widget anywhere on the web. Your items tumble realistically inside a drawer powered by a 2D physics engine, complete with collision sounds and AI-generated artwork for the drawer itself.</p>
+  <p>Think of it as a personal museum you can place on any webpage. Visitors pull the drawer open, watch your treasures spill out, long-press to read the story behind each item, and click through to whatever you've linked. It is a tangible, tactile way to share the things that matter to you.</p>
+  <a href="#" class="btn-primary">CREATE YOUR BOX &rarr;</a>
+</section>
+
+<!-- Gallery -->
+<section class="gallery" id="gallery">
+  <div class="gallery-header">
+    <h2 class="t-section">Public Collection</h2>
+    <span class="t-label gallery-count">12 specimens</span>
+  </div>
+  <div class="gallery-grid">
+
+    <div class="gallery-cell">
+      <span class="cell-catalog">TB-001</span>
+      <span class="cell-open">OPEN &rarr;</span>
+      <div class="cell-placeholder"></div>
+      <span class="cell-label">vintage camera</span>
+      <span class="cell-owner">by user123</span>
+    </div>
+
+    <div class="gallery-cell">
+      <span class="cell-catalog">TB-002</span>
+      <span class="cell-open">OPEN &rarr;</span>
+      <div class="cell-placeholder"></div>
+      <span class="cell-label">brass compass</span>
+      <span class="cell-owner">by mariner44</span>
+    </div>
+
+    <div class="gallery-cell">
+      <span class="cell-catalog">TB-003</span>
+      <span class="cell-open">OPEN &rarr;</span>
+      <div class="cell-placeholder"></div>
+      <span class="cell-label">concert ticket stub</span>
+      <span class="cell-owner">by nnoise</span>
+    </div>
+
+    <div class="gallery-cell">
+      <span class="cell-catalog">TB-004</span>
+      <span class="cell-open">OPEN &rarr;</span>
+      <div class="cell-placeholder"></div>
+      <span class="cell-label">skeleton key</span>
+      <span class="cell-owner">by locksmith9</span>
+    </div>
+
+    <div class="gallery-cell">
+      <span class="cell-catalog">TB-005</span>
+      <span class="cell-open">OPEN &rarr;</span>
+      <div class="cell-placeholder"></div>
+      <span class="cell-label">postcard from tokyo</span>
+      <span class="cell-owner">by wanderlog</span>
+    </div>
+
+    <div class="gallery-cell">
+      <span class="cell-catalog">TB-006</span>
+      <span class="cell-open">OPEN &rarr;</span>
+      <div class="cell-placeholder"></div>
+      <span class="cell-label">sea glass fragment</span>
+      <span class="cell-owner">by tidepool</span>
+    </div>
+
+    <div class="gallery-cell">
+      <span class="cell-catalog">TB-007</span>
+      <span class="cell-open">OPEN &rarr;</span>
+      <div class="cell-placeholder"></div>
+      <span class="cell-label">pocket watch</span>
+      <span class="cell-owner">by chronos22</span>
+    </div>
+
+    <div class="gallery-cell">
+      <span class="cell-catalog">TB-008</span>
+      <span class="cell-open">OPEN &rarr;</span>
+      <div class="cell-placeholder"></div>
+      <span class="cell-label">hand-drawn map</span>
+      <span class="cell-owner">by cartograf</span>
+    </div>
+
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-brand">TREASURE BOX</div>
+  <div class="footer-tagline">embed your treasures anywhere</div>
+</footer>
+
+<script>
+(function() {
+  var toggle = document.getElementById('themeToggle');
+  var html = document.documentElement;
+
+  function applyTheme(theme) {
+    html.setAttribute('data-theme', theme);
+    toggle.textContent = theme === 'dark' ? '\u263D' : '\u2600';
+    try { localStorage.setItem('tb-theme', theme); } catch(e) {}
+  }
+
+  var saved = null;
+  try { saved = localStorage.getItem('tb-theme'); } catch(e) {}
+  applyTheme(saved || 'dark');
+
+  toggle.addEventListener('click', function() {
+    var current = html.getAttribute('data-theme');
+    applyTheme(current === 'dark' ? 'light' : 'dark');
+  });
+})();
+</script>
+</body>
+</html>
