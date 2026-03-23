@@ -40,11 +40,13 @@ interface Props {
   hostViewport?: HostViewport;
   /** Called once when the component is ready to display (images loaded or ASCII fallback) */
   onReady?: () => void;
+  /** DOM elements to create static physics collider bodies from (e.g. title text) */
+  textColliders?: Array<{ ref: React.RefObject<HTMLElement | null>; label: string }>;
 }
 
 const ALL_BOX_STATES: BoxState[] = ['IDLE', 'HOVER_PEEK', 'OPEN', 'HOVER_CLOSE', 'CLOSING', 'SLAMMING'];
 
-export default function TreasureBox({ items, config, backgroundColor, onItemsEscaped, onItemsReturned, overlayPreview, embedded, onFrameSync, hostViewport, onReady }: Props) {
+export default function TreasureBox({ items, config, backgroundColor, onItemsEscaped, onItemsReturned, overlayPreview, embedded, onFrameSync, hostViewport, onReady, textColliders }: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
@@ -89,6 +91,11 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const [gulpState, setGulpState] = useState<BoxState | null>(null);
   const gulpTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const returnAnimIntervalsRef = useRef<ReturnType<typeof setInterval>[]>([]);
+
+  // Text collider bodies (e.g. title text as physics obstacles)
+  const textBodiesRef = useRef<Matter.Body[]>([]);
+  const textCollidersRef = useRef(textColliders);
+  useEffect(() => { textCollidersRef.current = textColliders; }, [textColliders]);
 
   // Wall body references for dynamic repositioning
   const wallsRef = useRef<{
@@ -256,6 +263,26 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       walls.left = Matter.Bodies.rectangle(boxCenterX - boxW / 2 - 7, floorY - 300, 14, 700 * cs, wallOpts);
       walls.right = Matter.Bodies.rectangle(boxCenterX + boxW / 2 + 7, floorY - 300, 14, 700 * cs, wallOpts);
       Matter.Composite.add(engine.world, [walls.floor, walls.left, walls.right]);
+    }
+
+    // Reposition text collider bodies on resize
+    if (textBodiesRef.current.length > 0 && textCollidersRef.current && scene) {
+      const sceneRect = scene.getBoundingClientRect();
+      textCollidersRef.current.forEach(({ ref }, i) => {
+        const el = ref.current;
+        const body = textBodiesRef.current[i];
+        if (!el || !body) return;
+        const rect = el.getBoundingClientRect();
+        const cx = rect.left - sceneRect.left + rect.width / 2;
+        const cy = rect.top - sceneRect.top + rect.height / 2;
+        Matter.Body.setPosition(body, { x: cx, y: cy });
+        // Update size by scaling vertices
+        const scaleX = rect.width / (body.bounds.max.x - body.bounds.min.x);
+        const scaleY = rect.height / (body.bounds.max.y - body.bounds.min.y);
+        if (Math.abs(scaleX - 1) > 0.01 || Math.abs(scaleY - 1) > 0.01) {
+          Matter.Body.scale(body, scaleX, scaleY);
+        }
+      });
     }
   }, []);
 
@@ -576,7 +603,33 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       }
     }
 
+    // Create static physics bodies for text colliders (e.g. hero title)
+    if (textCollidersRef.current && sceneRef.current) {
+      const sceneRect = sceneRef.current.getBoundingClientRect();
+      const newBodies: Matter.Body[] = [];
+      textCollidersRef.current.forEach(({ ref, label }) => {
+        const el = ref.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const cx = rect.left - sceneRect.left + rect.width / 2;
+        const cy = rect.top - sceneRect.top + rect.height / 2;
+        const body = Matter.Bodies.rectangle(cx, cy, rect.width, rect.height, {
+          isStatic: true, friction: 0.5, restitution: 0.4, label,
+        });
+        newBodies.push(body);
+      });
+      if (newBodies.length > 0) {
+        Matter.Composite.add(engine.world, newBodies);
+        textBodiesRef.current = newBodies;
+      }
+    }
+
     const mouse = Matter.Mouse.create(canvas);
+    // Allow page scrolling through the canvas — Matter.js captures wheel events by default
+    if ((mouse as any).mousewheel) {
+      mouse.element.removeEventListener('mousewheel', (mouse as any).mousewheel);
+      mouse.element.removeEventListener('DOMMouseScroll', (mouse as any).mousewheel);
+    }
     mouse.pixelRatio = window.devicePixelRatio || 1;
     const mouseConstraint = Matter.MouseConstraint.create(engine, {
       mouse,
