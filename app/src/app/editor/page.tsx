@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/components/ThemeProvider';
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import {
   getBoxConfig, saveBoxConfig,
@@ -569,6 +569,7 @@ function UnifiedPreview({
 }) {
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewReady, setPreviewReady] = useState(false);
+  const handleReady = useCallback(() => setPreviewReady(true), []);
 
   // Reset readiness when drawer images change
   useEffect(() => {
@@ -594,7 +595,7 @@ function UnifiedPreview({
             drawerStyle,
             spawnOrigin: computeCenteredSpawnOrigin(),
           }}
-          onReady={() => setPreviewReady(true)}
+          onReady={handleReady}
         />
       </div>
 
