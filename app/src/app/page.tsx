@@ -103,7 +103,7 @@ export default function Home() {
           letterSpacing: '0.08em',
         }}
       >
-        <a href="#gallery" className="no-underline transition-colors min-h-[44px] inline-flex items-center" style={{ color: 'var(--tb-fg-muted)' }}
+        <a href="https://drawer.davidyang.work/#junk-shelf" className="no-underline transition-colors min-h-[44px] inline-flex items-center" style={{ color: 'var(--tb-fg-muted)' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--tb-fg)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--tb-fg-muted)'}
         >
