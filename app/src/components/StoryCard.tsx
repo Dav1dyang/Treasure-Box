@@ -8,6 +8,10 @@ interface Props {
 }
 
 export default function StoryCard({ item, onClose }: Props) {
+  // Scale popup image proportionally to the item's drawer scale, clamped to a usable range
+  const imgScale = Math.max(0.7, Math.min(item.scale ?? 1, 1.8));
+  const imgMaxSize = Math.round(140 * imgScale);
+
   return (
     <div
       className="fixed inset-0 z-[300] flex items-center justify-center cursor-pointer"
@@ -15,22 +19,26 @@ export default function StoryCard({ item, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="rounded-sm max-w-[420px] w-full mx-5"
+        className="rounded-sm max-w-[480px] w-full mx-5"
         style={{
           background: 'var(--tb-bg)',
           border: '1px solid var(--tb-border)',
-          padding: '32px 36px 28px',
+          padding: '36px 40px 32px',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Item photo */}
+        {/* Item photo — scaled to match drawer appearance */}
         {item.imageUrl && (
           <div className="flex justify-center mb-5">
             <img
               src={item.imageUrl}
               alt={item.label}
-              className="max-w-[140px] max-h-[140px] object-contain"
-              style={{ filter: 'drop-shadow(2px 4px 10px rgba(0,0,0,0.25))' }}
+              className="object-contain"
+              style={{
+                maxWidth: `${imgMaxSize}px`,
+                maxHeight: `${imgMaxSize}px`,
+                filter: 'drop-shadow(2px 4px 10px rgba(0,0,0,0.25))',
+              }}
             />
           </div>
         )}
@@ -41,7 +49,7 @@ export default function StoryCard({ item, onClose }: Props) {
           style={{
             fontFamily: "'Barlow Condensed', sans-serif",
             fontWeight: 700,
-            fontSize: 'clamp(18px, 2.4vw, 22px)',
+            fontSize: 'clamp(22px, 3vw, 28px)',
             letterSpacing: '0.04em',
             color: 'var(--tb-fg)',
             lineHeight: 1.1,
@@ -57,7 +65,7 @@ export default function StoryCard({ item, onClose }: Props) {
             style={{
               fontFamily: "'Inconsolata', monospace",
               fontWeight: 400,
-              fontSize: 'clamp(12px, 1.5vw, 14px)',
+              fontSize: 'clamp(14px, 1.8vw, 17px)',
               lineHeight: 1.75,
               letterSpacing: '0.01em',
               color: 'var(--tb-fg-muted)',
@@ -67,28 +75,38 @@ export default function StoryCard({ item, onClose }: Props) {
           </div>
         )}
 
-        {/* Link */}
+        {/* Link — styled as a visible button */}
         {item.link && (
           <div
-            className="text-center pt-4"
+            className="text-center pt-5"
             style={{ borderTop: '1px solid var(--tb-border-subtle)' }}
           >
             <a
               href={item.link}
               target="_blank"
               rel="noopener noreferrer"
-              className="no-underline uppercase transition-colors"
+              className="no-underline uppercase transition-colors inline-block"
               style={{
                 fontFamily: "'Inconsolata', monospace",
                 fontWeight: 600,
-                fontSize: '12px',
+                fontSize: '14px',
                 letterSpacing: '0.1em',
                 color: 'var(--tb-accent)',
+                background: 'var(--tb-bg-muted)',
+                border: '1px solid var(--tb-border)',
+                padding: '10px 24px',
+                borderRadius: '2px',
               }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--tb-accent-hover)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--tb-accent)')}
+              onMouseEnter={e => {
+                e.currentTarget.style.color = 'var(--tb-accent-hover)';
+                e.currentTarget.style.borderColor = 'var(--tb-accent)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.color = 'var(--tb-accent)';
+                e.currentTarget.style.borderColor = 'var(--tb-border)';
+              }}
             >
-              Visit Link →
+              Visit Link &rarr;
             </a>
           </div>
         )}
@@ -99,7 +117,7 @@ export default function StoryCard({ item, onClose }: Props) {
           style={{
             fontFamily: "'Inconsolata', monospace",
             fontWeight: 400,
-            fontSize: '10px',
+            fontSize: '12px',
             letterSpacing: '0.08em',
             color: 'var(--tb-fg-faint)',
           }}
