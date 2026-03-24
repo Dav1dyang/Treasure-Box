@@ -1713,7 +1713,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   return (
     <div
       ref={sceneRef}
-      className={`relative w-full h-full select-none ${embedded ? '' : 'min-h-[400px]'} overflow-hidden`}
+      className={`relative w-full h-full select-none ${embedded || overlayPreview ? '' : 'min-h-[400px]'} overflow-hidden`}
       style={{ background: isTransparent ? 'transparent' : bg }}
     >
       {/* Drawer area — below canvas when open so items render on top */}

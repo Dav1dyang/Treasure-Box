@@ -343,7 +343,7 @@ export default function EditorPage() {
 
       <div className="flex-1 flex flex-col lg:grid lg:grid-cols-2 min-h-0 overflow-hidden">
         {/* Mobile: compact preview at top */}
-        <div className="lg:hidden shrink-0 h-[40vh] min-h-[200px] max-h-[320px] relative overflow-hidden" style={{ background: '#cccccc', borderBottom: '0.5px solid var(--tb-border)' }}>
+        <div className="lg:hidden shrink-0 h-[40vh] min-h-[200px] max-h-[320px] relative overflow-hidden isolate" style={{ background: '#cccccc', borderBottom: '0.5px solid var(--tb-border)' }}>
           {config && (
             <UnifiedPreview config={config} items={items} useEmbedPosition={tab === 'share'} />
           )}
@@ -732,7 +732,7 @@ export default function EditorPage() {
             <span className="uppercase" style={{ fontFamily: MONO, fontWeight: 600, fontSize: '13px', letterSpacing: '0.08em', ...S.faint }}>Live Preview</span>
             <span className="uppercase px-2 py-[2px]" style={{ fontFamily: MONO, fontWeight: 400, fontSize: '10px', letterSpacing: '0.12em', ...S.ghost, border: '0.5px solid var(--tb-border)' }}>live</span>
           </div>
-          <div className="flex-1 flex items-center justify-center relative overflow-hidden"
+          <div className="flex-1 flex items-center justify-center relative overflow-hidden isolate"
             style={{ background: '#cccccc' }}>
             {config && (
               <UnifiedPreview
