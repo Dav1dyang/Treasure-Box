@@ -113,3 +113,30 @@ body:has([data-embed]) {
 .tb-link:hover {
   color: var(--tb-fg) !important;
 }
+
+/* ═══ TOUCH DEVICE OVERRIDES ═══ */
+@media (pointer: coarse) {
+  .tb-slider {
+    height: 8px;
+    border-radius: 4px;
+  }
+  .tb-slider::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+  }
+  .tb-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+  }
+  .tb-slider::-moz-range-track {
+    height: 8px;
+    border-radius: 4px;
+  }
+  .tb-pill,
+  .tb-pill-material {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

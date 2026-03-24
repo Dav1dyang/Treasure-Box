@@ -15,11 +15,11 @@ export default function StoryCard({ item, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="rounded-sm max-w-[420px] w-full mx-5"
+        className="rounded-sm max-w-[420px] w-full mx-5 max-h-[85vh] overflow-y-auto"
         style={{
           background: 'var(--tb-bg)',
           border: '1px solid var(--tb-border)',
-          padding: '32px 36px 28px',
+          padding: 'clamp(20px, 4vw, 32px) clamp(20px, 5vw, 36px) clamp(16px, 3vw, 28px)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -84,6 +84,8 @@ export default function StoryCard({ item, onClose }: Props) {
                 fontSize: '12px',
                 letterSpacing: '0.1em',
                 color: 'var(--tb-accent)',
+                display: 'inline-block',
+                padding: '8px 16px',
               }}
               onMouseEnter={e => (e.currentTarget.style.color = 'var(--tb-accent-hover)')}
               onMouseLeave={e => (e.currentTarget.style.color = 'var(--tb-accent)')}
@@ -104,7 +106,7 @@ export default function StoryCard({ item, onClose }: Props) {
             color: 'var(--tb-fg-faint)',
           }}
         >
-          click anywhere to close
+          tap anywhere to close
         </div>
       </div>
     </div>

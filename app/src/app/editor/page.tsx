@@ -332,18 +332,18 @@ export default function EditorPage() {
             <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: '16px', letterSpacing: '0.02em', color: 'var(--tb-fg-faint)', whiteSpace: 'nowrap' }}>&rsquo;s Drawer</span>
           </div>
         )}
-        <div className="flex items-center gap-3 sm:gap-5">
-          <button onClick={toggleTheme} className="cursor-pointer" style={S.faint} title="Toggle theme">
+        <div className="flex items-center gap-4 sm:gap-5">
+          <button onClick={toggleTheme} className="cursor-pointer min-h-[44px] inline-flex items-center" style={S.faint} title="Toggle theme">
             {theme === 'dark' ? '○' : '●'}
           </button>
-          <a href="/" className="no-underline" style={S.muted}>Home</a>
-          <button onClick={logOut} className="cursor-pointer uppercase" style={S.faint}>Sign Out</button>
+          <a href="/" className="no-underline min-h-[44px] inline-flex items-center" style={S.muted}>Home</a>
+          <button onClick={logOut} className="cursor-pointer uppercase min-h-[44px] inline-flex items-center" style={S.faint}>Sign Out</button>
         </div>
       </header>
 
       <div className="flex-1 flex flex-col lg:grid lg:grid-cols-2 min-h-0 overflow-hidden">
         {/* Mobile: compact preview at top */}
-        <div className="lg:hidden shrink-0 h-[200px] relative" style={{ background: '#cccccc', borderBottom: '0.5px solid var(--tb-border)' }}>
+        <div className="lg:hidden shrink-0 h-[40vh] min-h-[200px] max-h-[320px] relative" style={{ background: '#cccccc', borderBottom: '0.5px solid var(--tb-border)' }}>
           {config && (
             <UnifiedPreview config={config} items={items} useEmbedPosition={tab === 'share'} />
           )}
@@ -417,7 +417,7 @@ export default function EditorPage() {
                             onClick={() => setSelectedItemId(isSelected ? null : item.id)}
                           >
                             {/* Specimen label — top left, "01 — name" */}
-                            <span className="absolute top-2.5 left-3 right-3 leading-none truncate select-none z-10 uppercase" style={{ fontFamily: MONO, fontWeight: 500, fontSize: '11px', letterSpacing: '0.08em', color: 'var(--tb-fg-faint)', fontVariantNumeric: 'tabular-nums' }}>
+                            <span className="absolute top-2.5 left-3 right-3 leading-none truncate select-none z-10 uppercase" style={{ fontFamily: MONO, fontWeight: 500, fontSize: 'clamp(11px, 2.5vw, 13px)', letterSpacing: '0.08em', color: 'var(--tb-fg-faint)', fontVariantNumeric: 'tabular-nums' }}>
                               {String(idx + 1).padStart(2, '0')}&ensp;—&ensp;{item.label || 'untitled'}
                             </span>
                             {/* Item image */}
@@ -438,7 +438,7 @@ export default function EditorPage() {
                           style={{ borderRight: '0.5px solid var(--tb-border)', borderBottom: '0.5px solid var(--tb-border)' }}
                         >
                           <span className="text-lg leading-none mb-1" style={S.ghost}>+</span>
-                          <span className="uppercase" style={{ fontFamily: MONO, fontWeight: 500, fontSize: '11px', letterSpacing: '0.08em', ...S.ghost }}>Upload</span>
+                          <span className="uppercase" style={{ fontFamily: MONO, fontWeight: 500, fontSize: 'clamp(11px, 2.5vw, 13px)', letterSpacing: '0.08em', ...S.ghost }}>Upload</span>
                           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUpload} className="hidden" />
                         </label>
                       )}
@@ -488,7 +488,7 @@ export default function EditorPage() {
                             <button
                               onClick={() => { handleDeleteItem(item.id); setSelectedItemId(null); }}
                               className="cursor-pointer uppercase shrink-0 ml-3"
-                              style={{ fontFamily: MONO, fontWeight: 600, fontSize: '11px', letterSpacing: '0.08em', border: '1px solid #c44', color: '#c44', background: 'transparent', padding: '4px 10px' }}
+                              style={{ fontFamily: MONO, fontWeight: 600, fontSize: '12px', letterSpacing: '0.08em', border: '1px solid #c44', color: '#c44', background: 'transparent', padding: '6px 14px' }}
                             >
                               Delete
                             </button>
@@ -496,7 +496,7 @@ export default function EditorPage() {
 
                           {/* Row 2: Link */}
                           <div>
-                            <label className="block mb-1 uppercase" style={{ fontFamily: MONO, fontWeight: 700, fontSize: '11px', letterSpacing: '0.08em', color: 'var(--tb-fg-muted)' }}>Link <span style={{ fontWeight: 400, color: 'var(--tb-fg-ghost)' }}>— optional</span></label>
+                            <label className="block mb-1 uppercase" style={{ fontFamily: MONO, fontWeight: 700, fontSize: '12px', letterSpacing: '0.08em', color: 'var(--tb-fg-muted)' }}>Link <span style={{ fontWeight: 400, color: 'var(--tb-fg-ghost)' }}>— optional</span></label>
                             <input value={item.link || ''} onChange={e => handleUpdateItem(item.id, { link: e.target.value })} placeholder="Where does this link to?"
                               className="w-full bg-transparent outline-none"
                               style={{ fontFamily: MONO, fontSize: '13px', fontWeight: 400, letterSpacing: '0.02em', border: '0.5px solid var(--tb-border)', padding: '6px 8px', color: 'var(--tb-fg)' }} />
@@ -504,29 +504,31 @@ export default function EditorPage() {
 
                           {/* Row 3: Story */}
                           <div>
-                            <label className="block mb-1 uppercase" style={{ fontFamily: MONO, fontWeight: 700, fontSize: '11px', letterSpacing: '0.08em', color: 'var(--tb-fg-muted)' }}>Story <span style={{ fontWeight: 400, color: 'var(--tb-fg-ghost)' }}>— optional</span></label>
+                            <label className="block mb-1 uppercase" style={{ fontFamily: MONO, fontWeight: 700, fontSize: '12px', letterSpacing: '0.08em', color: 'var(--tb-fg-muted)' }}>Story <span style={{ fontWeight: 400, color: 'var(--tb-fg-ghost)' }}>— optional</span></label>
                             <textarea value={item.story || ''} onChange={e => handleUpdateItem(item.id, { story: e.target.value })} placeholder="What makes this special?" rows={2}
                               className="w-full bg-transparent outline-none resize-none"
                               style={{ fontFamily: MONO, fontSize: '13px', fontWeight: 400, letterSpacing: '0.02em', border: '0.5px solid var(--tb-border)', padding: '6px 8px', color: 'var(--tb-fg)' }} />
                           </div>
 
-                          {/* Row 4: Sliders + BG toggle — single row */}
-                          <div className="flex items-center gap-3 pt-2" style={{ borderTop: '0.5px solid var(--tb-border)' }}>
-                            <div className="flex-1">
-                              <Slider value={item.rotation ?? 0} min={0} max={360} step={1}
-                                label="ROT" format={v => `${v}°`}
-                                snap={v => { const n = Math.round(v / 90) * 90; return Math.abs(v - n) < 8 ? n % 360 : v; }}
-                                onChange={v => handleUpdateItem(item.id, { rotation: v })} />
-                            </div>
-                            <div className="flex-1">
-                              <Slider value={item.scale ?? 1} min={0.3} max={5} step={0.1}
-                                label="SIZE" format={v => `${v.toFixed(1)}×`}
-                                onChange={v => handleUpdateItem(item.id, { scale: v })} />
+                          {/* Row 4: Sliders + BG toggle — stacks on mobile */}
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2" style={{ borderTop: '0.5px solid var(--tb-border)' }}>
+                            <div className="flex items-center gap-3 w-full sm:flex-1">
+                              <div className="flex-1">
+                                <Slider value={item.rotation ?? 0} min={0} max={360} step={1}
+                                  label="ROT" format={v => `${v}°`}
+                                  snap={v => { const n = Math.round(v / 90) * 90; return Math.abs(v - n) < 8 ? n % 360 : v; }}
+                                  onChange={v => handleUpdateItem(item.id, { rotation: v })} />
+                              </div>
+                              <div className="flex-1">
+                                <Slider value={item.scale ?? 1} min={0.3} max={5} step={0.1}
+                                  label="SIZE" format={v => `${v.toFixed(1)}×`}
+                                  onChange={v => handleUpdateItem(item.id, { scale: v })} />
+                              </div>
                             </div>
                             <button
                               onClick={() => handleToggleBgRemoval(item.id, item.bgRemoved === false)}
                               disabled={removingBg === item.id}
-                              className="cursor-pointer uppercase shrink-0"
+                              className="cursor-pointer uppercase shrink-0 w-full sm:w-auto"
                               style={{
                                 fontFamily: MONO, fontWeight: 600, fontSize: '11px', letterSpacing: '0.06em',
                                 padding: '5px 12px',

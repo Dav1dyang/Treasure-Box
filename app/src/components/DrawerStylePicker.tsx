@@ -437,7 +437,7 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
       {/* ── 1. Material — themed pills ─────────────────── */}
       <div>
         <label style={sectionLabel}>material{changedDot('preset')}</label>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(0, 1fr))', gap: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
           {PRESET_MATERIALS.map(m => (
             <button
               key={m.id}
@@ -552,7 +552,7 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
               </button>
             </div>
             {optionsError && <div style={{ fontFamily: MONO, fontSize: 12, color: '#f87171', marginBottom: 8 }}>failed to load options — using defaults</div>}
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(styleOptions.length, 5)}, 1fr)`, gap: 6, opacity: optionsLoading ? 0.4 : 1, transition: 'opacity 0.3s' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 6, opacity: optionsLoading ? 0.4 : 1, transition: 'opacity 0.3s' }}>
               {styleOptions.map(s => (
                 <button
                   key={s.id}
@@ -568,7 +568,7 @@ export default function DrawerStylePicker({ userId, currentImages, boxDimensions
           </div>
           <div>
             <label style={sectionLabel}>features{changedDot('decor')}{changedDot('customDecor')} <span style={{ color: 'var(--tb-fg-ghost)', textTransform: 'none', fontWeight: 400 }}>— select any</span></label>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(featureOptions.length, 5)}, 1fr)`, gap: 6, marginBottom: 10, opacity: optionsLoading ? 0.4 : 1, transition: 'opacity 0.3s' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 6, marginBottom: 10, opacity: optionsLoading ? 0.4 : 1, transition: 'opacity 0.3s' }}>
               {featureOptions.map(d => (
                 <button
                   key={d.id}

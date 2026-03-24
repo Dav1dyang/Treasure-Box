@@ -93,7 +93,7 @@ export default function Home() {
     <div className="font-mono" style={{ background: 'var(--tb-bg)', color: 'var(--tb-fg)' }}>
       {/* ═══ NAV ═══ */}
       <nav
-        className={`fixed top-0 right-0 z-50 flex items-center gap-5 px-5 py-4 uppercase transition-opacity duration-500 ${
+        className={`fixed top-0 right-0 z-50 flex items-center gap-3 sm:gap-5 px-3 sm:px-5 py-4 uppercase transition-opacity duration-500 ${
           hasInteracted ? 'opacity-100' : 'opacity-0 hover:opacity-100'
         }`}
         style={{
@@ -103,7 +103,7 @@ export default function Home() {
           letterSpacing: '0.08em',
         }}
       >
-        <a href="#gallery" className="no-underline transition-colors" style={{ color: 'var(--tb-fg-muted)' }}
+        <a href="#gallery" className="no-underline transition-colors min-h-[44px] inline-flex items-center" style={{ color: 'var(--tb-fg-muted)' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--tb-fg)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--tb-fg-muted)'}
         >
@@ -111,21 +111,21 @@ export default function Home() {
         </a>
         {authLoading ? null : user ? (
           <>
-            <Link href="/editor" className="no-underline" style={{ color: 'var(--tb-accent)' }}>
+            <Link href="/editor" className="no-underline min-h-[44px] inline-flex items-center" style={{ color: 'var(--tb-accent)' }}>
               My Box
             </Link>
-            <button onClick={logOut} className="cursor-pointer" style={{ color: 'var(--tb-fg-muted)' }}>
+            <button onClick={logOut} className="cursor-pointer min-h-[44px] inline-flex items-center" style={{ color: 'var(--tb-fg-muted)' }}>
               Sign Out
             </button>
           </>
         ) : (
-          <button onClick={signIn} className="cursor-pointer uppercase" style={{ color: 'var(--tb-accent)' }}>
+          <button onClick={signIn} className="cursor-pointer uppercase min-h-[44px] inline-flex items-center" style={{ color: 'var(--tb-accent)' }}>
             Sign In
           </button>
         )}
         <button
           onClick={toggleTheme}
-          className="cursor-pointer"
+          className="cursor-pointer min-h-[44px] inline-flex items-center"
           style={{ color: 'var(--tb-fg-faint)', fontSize: 'inherit' }}
           title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
         >
@@ -296,7 +296,7 @@ function InstructionsCell({ index }: { index: number }) {
           <span style={{ color: 'var(--tb-fg)' }}>pull</span>&ensp;the drawer to open
         </p>
         <p style={{ margin: '0 0 4px 0' }}>
-          <span style={{ color: 'var(--tb-fg)' }}>double-click</span>&ensp;an item to visit its link
+          <span style={{ color: 'var(--tb-fg)' }}>double-tap</span>&ensp;an item to visit its link
         </p>
         <p style={{ margin: '0 0 4px 0' }}>
           <span style={{ color: 'var(--tb-fg)' }}>hold</span>&ensp;an item to read its story
