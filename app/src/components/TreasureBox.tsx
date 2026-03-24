@@ -1703,6 +1703,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           // This prevents the 420×420 layout box from overflowing the iframe.
           width: scaledDrawerW,
           height: scaledDrawerH,
+          overflow: 'hidden',
           zIndex: isOpen ? 10 : 20,
           cursor: effectiveOverlay?.onDrag ? (isDraggingDrawer.current ? 'grabbing' : 'grab') : 'pointer',
         }}
@@ -1713,7 +1714,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         onPointerMove={effectiveOverlay?.onDrag ? handleDrawerPointerMove : undefined}
         onPointerUp={effectiveOverlay?.onDrag ? handleDrawerPointerUp : undefined}
       >
-        <div style={{ transform: `scale(${boxScale})`, transformOrigin: 'top left' }}>
+        <div style={{ width: drawerBaseW, height: drawerBaseH, transform: `scale(${boxScale})`, transformOrigin: 'top left' }}>
           <div style={config.drawerFlipped ? { transform: 'scaleX(-1)' } : undefined}>
             {hasGeneratedImages ? (
               // === AI-Generated Image Drawer ===
