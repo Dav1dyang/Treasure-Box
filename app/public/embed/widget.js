@@ -646,7 +646,7 @@
     if (body.story) {
       var storyEl = document.createElement('div');
       storyEl.style.cssText = 'text-align:center;font-family:"Inconsolata",monospace;font-weight:400;' +
-        'font-size:clamp(14px,1.8vw,17px);line-height:1.75;letter-spacing:0.01em;margin:12px 0 20px;color:var(--tbs-fg-muted)';
+        'font-size:clamp(15px,2vw,18px);line-height:1.75;letter-spacing:0.01em;margin:12px 0 20px;color:var(--tbs-fg-muted)';
       storyEl.textContent = '\u201c' + body.story + '\u201d';
       card.appendChild(storyEl);
     }
