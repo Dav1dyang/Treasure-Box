@@ -454,6 +454,16 @@
     // Send mouse-up to iframe
     sendMouseUpToIframe(e.clientX, e.clientY);
 
+    // Drag-to-return: if item was dragged near the drawer, return it
+    if (canvasDragBody && canvasDidDrag && !canvasLongPressFired && isInsideDrawerRect(e.clientX, e.clientY)) {
+      console.log('[TB:host] drag-to-return triggered, itemId:', canvasDragBody.id);
+      boxIframe.contentWindow.postMessage({
+        type: 'treasure-box-host',
+        action: 'return-item',
+        itemId: canvasDragBody.id,
+      }, '*');
+    }
+
     // Interaction resolution (only for canvas-initiated, not iframe-initiated)
     if (canvasDragBody && !canvasDidDrag && !canvasLongPressFired) {
       var bodyId = canvasDragBody.id;
@@ -516,6 +526,16 @@
     }
 
     sendMouseUpToIframe(clientX, clientY);
+
+    // Drag-to-return: if item was dragged near the drawer, return it
+    if (canvasDragBody && canvasDidDrag && !canvasLongPressFired && isInsideDrawerRect(clientX, clientY)) {
+      console.log('[TB:host] drag-to-return triggered (touch), itemId:', canvasDragBody.id);
+      boxIframe.contentWindow.postMessage({
+        type: 'treasure-box-host',
+        action: 'return-item',
+        itemId: canvasDragBody.id,
+      }, '*');
+    }
 
     // Interaction resolution (only for canvas-initiated touch)
     if (canvasDragBody && !canvasDidDrag && !canvasLongPressFired) {

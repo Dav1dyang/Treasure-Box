@@ -73,6 +73,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const didDragRef = useRef(false);
   const longPressFiredRef = useRef(false);
   const hostInitiatedRef = useRef(false);
+  const hostMouseUpPendingRef = useRef(false);
   const handleDrawerClickRef = useRef<() => void>(() => {});
   const handleDrawerMouseEnterRef = useRef<() => void>(() => {});
   const handleDrawerMouseLeaveRef = useRef<() => void>(() => {});
@@ -802,8 +803,14 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       }
       // Tap-to-close: if no body was tapped/dragged, check if tap is near drawer → close
       // This handles mobile where Matter.js preventDefault() blocks synthetic click events
-      console.log('[TB] mouseConstraint mouseup', { hasBody: !!body?.itemData, didDrag: didDragRef.current, longPress: longPressFiredRef.current });
-      if (!body?.itemData && !didDragRef.current) {
+      const isHostMouseUp = hostMouseUpPendingRef.current;
+      hostMouseUpPendingRef.current = false;
+      console.log('[TB] mouseConstraint mouseup', { hasBody: !!body?.itemData, didDrag: didDragRef.current, longPress: longPressFiredRef.current, isHostMouseUp });
+      // In overlay mode, skip tap-to-close for host-forwarded mouseups — the host handles
+      // drawer clicks separately via the 'drawer-click' message. Without this guard, a host
+      // item drag ending near the drawer triggers tap-to-close (because the iframe's
+      // MouseConstraint never grabbed the body, so hasBody=false and didDrag=false).
+      if (!body?.itemData && !didDragRef.current && !isHostMouseUp) {
         const drawerEl = drawerElRef.current;
         const sceneEl = sceneRef.current;
         if (drawerEl && sceneEl) {
@@ -879,6 +886,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       }
       if (event.data.action === 'mouse-up') {
         mouse.button = -1;
+        hostMouseUpPendingRef.current = true;
         const cvs = canvasRef.current;
         if (cvs) {
           cvs.dispatchEvent(new MouseEvent('mouseup', {
