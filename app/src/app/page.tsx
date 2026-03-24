@@ -19,8 +19,8 @@ export default function Home() {
   const [demoLoading, setDemoLoading] = useState(true);
   const [heroReady, setHeroReady] = useState(false);
   const [userHasBox, setUserHasBox] = useState(false);
-  const [galleryBoxes, setGalleryBoxes] = useState<{ config: BoxConfig; items: TreasureItem[] }[]>([]);
-  const [galleryError, setGalleryError] = useState<string | null>(null);
+  const [shelfBoxes, setShelfBoxes] = useState<{ config: BoxConfig; items: TreasureItem[] }[]>([]);
+  const [shelfError, setGalleryError] = useState<string | null>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
 
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -65,14 +65,14 @@ export default function Home() {
     })();
   }, [user, authLoading]);
 
-  // Load gallery
+  // Load junk shelf
   useEffect(() => {
     (async () => {
       try {
         const boxes = await getPublicBoxesWithItems(20);
-        setGalleryBoxes(boxes);
+        setShelfBoxes(boxes);
       } catch (err) {
-        console.error('Gallery fetch failed:', err);
+        console.error('Shelf fetch failed:', err);
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes('index')) {
           setGalleryError('Firestore composite index required — check the browser console for the creation link.');
@@ -103,11 +103,11 @@ export default function Home() {
           letterSpacing: '0.08em',
         }}
       >
-        <a href="#gallery" className="no-underline transition-colors" style={{ color: 'var(--tb-fg-muted)' }}
+        <a href="#junk-shelf" className="no-underline transition-colors" style={{ color: 'var(--tb-fg-muted)' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--tb-fg)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--tb-fg-muted)'}
         >
-          Public Gallery
+          Junk Shelf
         </a>
         {authLoading ? null : user ? (
           <>
@@ -197,7 +197,7 @@ export default function Home() {
       </section>
 
       {/* ═══ CATALOG GRID ═══ */}
-      <section id="gallery">
+      <section id="junk-shelf">
         {/* Section label */}
         <div
           className="uppercase text-center"
@@ -212,13 +212,13 @@ export default function Home() {
             marginTop: '8px',
           }}
         >
-          Public Gallery
+          Junk Shelf
         </div>
-        {galleryError ? (
+        {shelfError ? (
           <div className="text-center py-16 text-[10px]" style={{ color: '#f87171' }}>
-            {galleryError}
+            {shelfError}
           </div>
-        ) : galleryBoxes.length === 0 ? (
+        ) : shelfBoxes.length === 0 ? (
           <div className="text-center py-16" style={{
             color: 'var(--tb-fg-faint)',
             fontFamily: "'Inconsolata', monospace",
@@ -233,14 +233,14 @@ export default function Home() {
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
             style={{ borderTop: '0.5px solid var(--tb-border)', borderLeft: '0.5px solid var(--tb-border)' }}
           >
-            {galleryBoxes.map((entry, i) => (
-              <GalleryBox key={entry.config.id} config={entry.config} items={entry.items} index={i + 1} />
+            {shelfBoxes.map((entry, i) => (
+              <ShelfBox key={entry.config.id} config={entry.config} items={entry.items} index={i + 1} />
             ))}
             {/* Instructions cell — are.na style */}
-            <InstructionsCell index={galleryBoxes.length + 1} />
+            <InstructionsCell index={shelfBoxes.length + 1} />
             {/* CTA cell — only if no box yet */}
             {(!user || !userHasBox) && (
-              <CreateYoursCell index={galleryBoxes.length + 2} user={user} signIn={signIn} />
+              <CreateYoursCell index={shelfBoxes.length + 2} user={user} signIn={signIn} />
             )}
           </div>
         )}
@@ -365,7 +365,7 @@ function CreateYoursCell({ index, user, signIn }: { index: number; user: any; si
   );
 }
 
-function GalleryBox({ config, items, index }: { config: BoxConfig; items: TreasureItem[]; index: number }) {
+function ShelfBox({ config, items, index }: { config: BoxConfig; items: TreasureItem[]; index: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [boxReady, setBoxReady] = useState(false);
@@ -395,7 +395,7 @@ function GalleryBox({ config, items, index }: { config: BoxConfig; items: Treasu
   }, []);
 
   // Scale drawer proportionally to cell size
-  const galleryConfig = useMemo(() => {
+  const shelfConfig = useMemo(() => {
     if (!cellSize) return config;
     const drawerSize = Math.min(Math.round(cellSize * 0.7), 420);
     return {
@@ -419,7 +419,7 @@ function GalleryBox({ config, items, index }: { config: BoxConfig; items: Treasu
         style={{ opacity: boxReady ? 1 : 0 }}
       >
         {isVisible && (
-          <TreasureBox items={items} config={galleryConfig} backgroundColor="transparent" onReady={() => setBoxReady(true)} />
+          <TreasureBox items={items} config={shelfConfig} backgroundColor="transparent" onReady={() => setBoxReady(true)} />
         )}
       </div>
       {/* Specimen label — top left, "01 — Name" — links to share page */}

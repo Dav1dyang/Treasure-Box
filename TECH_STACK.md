@@ -104,7 +104,7 @@ Treasure Box is a Next.js 16 web app where users create physics-driven "treasure
 
 | File | Lines | Role | Key imports |
 |------|------:|------|-------------|
-| `src/app/page.tsx` | 284 | Landing: hero demo box, public gallery, auth UI | TreasureBox (dynamic), firestore, AuthProvider, ThemeProvider |
+| `src/app/page.tsx` | 284 | Landing: hero demo box, junk shelf, auth UI | TreasureBox (dynamic), firestore, AuthProvider, ThemeProvider |
 | `src/app/editor/page.tsx` | 1,048 | Authenticated editor: 3 tabs (items, config, embed), autosave | TreasureBox (dynamic), DrawerStylePicker, EmbedConfigurator, LoadingAnimation, firestore, contour, config |
 | `src/app/embed/page.tsx` | 187 | Embeddable viewer: loads public box, postMessage frame sync | TreasureBox (dynamic), firestore, embedPosition |
 | `src/app/layout.tsx` | 40 | Root layout: fonts, meta, theme flash-prevention script | providers, globals.css |
@@ -332,7 +332,7 @@ Only pursue after Phases 1-3 are complete and stable:
 | `soundEnabled` | boolean | `true` | Toggle collision sounds |
 | `soundVolume` | number | `0.5` | 0-1 volume |
 | `soundPreset` | SoundPreset | `"wooden"` | One of: metallic, wooden, glass, paper, pixel, clay, silent |
-| `isPublic` | boolean | `false` | Show in public gallery |
+| `isPublic` | boolean | `false` | Show on junk shelf |
 | `ownerName` | string? | — | Display name on box |
 | `drawerImages` | DrawerImages? | — | AI-generated sprites (undefined = ASCII fallback) |
 | `boxDimensions` | BoxDimensions? | — | Custom box proportions |

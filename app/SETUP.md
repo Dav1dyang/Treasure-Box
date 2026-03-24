@@ -62,9 +62,9 @@ Firebase Storage blocks cross-origin requests by default. You must set CORS head
 
 3. If you deploy to a custom domain, update `cors.json` to include that origin.
 
-### Firestore Composite Index (Required for public gallery)
+### Firestore Composite Index (Required for junk shelf)
 
-The public gallery query requires a composite index on the `boxes` collection:
+The junk shelf query requires a composite index on the `boxes` collection:
 - Field 1: `isPublic` — Ascending
 - Field 2: `updatedAt` — Descending
 

@@ -133,7 +133,7 @@ function SharedBoxContent() {
             letterSpacing: '0.1em', color: 'var(--tb-accent)',
           }}
         >
-          ← Back to Gallery
+          ← Back to Junk Shelf
         </Link>
       </div>
     );
@@ -167,7 +167,7 @@ function SharedBoxContent() {
         className="flex items-center justify-between px-3 sm:px-5 py-3 z-30 flex-shrink-0"
         style={{ borderBottom: '0.5px solid var(--tb-border)' }}
       >
-        {/* Left: back to gallery */}
+        {/* Left: back to junk shelf */}
         <Link
           href="/"
           className="no-underline uppercase transition-colors"

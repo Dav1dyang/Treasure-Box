@@ -14,7 +14,7 @@ The Next.js app lives in the `app/` subdirectory (not the repo root). All comman
 app/                        ← Next.js root (set as Vercel root directory)
   src/
     app/                    ← App Router pages
-      page.tsx              ← Landing page with hero demo box + public gallery
+      page.tsx              ← Landing page with hero demo box + junk shelf
       editor/page.tsx       ← Authenticated editor (items, config, embed codes)
       embed/page.tsx        ← Embeddable viewer (loaded via iframe/script)
       api/
