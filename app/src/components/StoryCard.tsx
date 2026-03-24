@@ -12,18 +12,23 @@ export default function StoryCard({ item, onClose }: Props) {
   const imgScale = Math.max(0.7, Math.min(item.scale ?? 1, 1.8));
   const imgMaxSize = Math.round(140 * imgScale);
 
+  // Render with absolute positioning so the overlay fills the TreasureBox
+  // container (which has position:relative + overflow:hidden). This keeps
+  // the popup within the live preview in the editor, and within the box
+  // viewport on other pages. z-50 is above drawer (z-20) and canvas (z-15).
   return (
     <div
-      className="fixed inset-0 z-[300] flex items-center justify-center cursor-pointer"
+      className="absolute inset-0 z-50 flex items-center justify-center cursor-pointer"
       style={{ background: 'rgba(0,0,0,0.82)' }}
       onClick={onClose}
     >
       <div
-        className="rounded-sm max-w-[420px] w-full mx-5 max-h-[85vh] overflow-y-auto"
+        className="rounded-sm max-w-[480px] w-full mx-5 overflow-y-auto"
         style={{
           background: 'var(--tb-bg)',
           border: '1px solid var(--tb-border)',
-          padding: 'clamp(20px, 4vw, 32px) clamp(20px, 5vw, 36px) clamp(16px, 3vw, 28px)',
+          padding: 'clamp(20px, 4vw, 36px) clamp(20px, 5vw, 40px) clamp(16px, 3vw, 32px)',
+          maxHeight: '90%',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -92,8 +97,18 @@ export default function StoryCard({ item, onClose }: Props) {
                 fontSize: '14px',
                 letterSpacing: '0.1em',
                 color: 'var(--tb-accent)',
-                display: 'inline-block',
-                padding: '8px 16px',
+                background: 'var(--tb-bg-muted)',
+                border: '1px solid var(--tb-border)',
+                padding: '10px 24px',
+                borderRadius: '2px',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.color = 'var(--tb-accent-hover)';
+                e.currentTarget.style.borderColor = 'var(--tb-accent)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.color = 'var(--tb-accent)';
+                e.currentTarget.style.borderColor = 'var(--tb-border)';
               }}
             >
               Visit Link &rarr;

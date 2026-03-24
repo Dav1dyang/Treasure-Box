@@ -579,10 +579,10 @@
     var style = document.createElement('style');
     style.setAttribute('data-tb-story-vars', '1');
 
-    var darkVars = '--tbs-bg:#0e0e0e;--tbs-border:#3a3a34;--tbs-border-subtle:#2a2a26;' +
+    var darkVars = '--tbs-bg:#0e0e0e;--tbs-bg-muted:#222220;--tbs-border:#3a3a34;--tbs-border-subtle:#2a2a26;' +
       '--tbs-fg:#b8b8a8;--tbs-fg-muted:#8a8a7a;--tbs-fg-faint:#5e5e52;' +
       '--tbs-accent:#d0b888;--tbs-accent-hover:#e0c898;';
-    var lightVars = '--tbs-bg:#f5f2ec;--tbs-border:#d0ccc2;--tbs-border-subtle:#ddd9d0;' +
+    var lightVars = '--tbs-bg:#f5f2ec;--tbs-bg-muted:#e4e0d8;--tbs-border:#d0ccc2;--tbs-border-subtle:#ddd9d0;' +
       '--tbs-fg:#3a3832;--tbs-fg-muted:#6a685e;--tbs-fg-faint:#9a9888;' +
       '--tbs-accent:#8a6a3a;--tbs-accent-hover:#7a5a2a;';
 
@@ -619,51 +619,56 @@
       'align-items:center;justify-content:center;background:rgba(0,0,0,0.82);cursor:pointer;';
 
     var card = document.createElement('div');
-    card.style.cssText = 'background:var(--tbs-bg);border:1px solid var(--tbs-border);padding:32px 36px 28px;' +
-      'border-radius:2px;max-width:420px;width:calc(100% - 40px);';
+    card.style.cssText = 'background:var(--tbs-bg);border:1px solid var(--tbs-border);padding:36px 40px 32px;' +
+      'border-radius:2px;max-width:480px;width:calc(100% - 40px);';
     card.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    // Scale popup image proportionally to item.scale, clamped to a usable range
+    var imgScale = Math.max(0.7, Math.min(body.scale || 1, 1.8));
+    var imgMaxSize = Math.round(140 * imgScale);
 
     if (body.imageUrl) {
       var imgWrap = document.createElement('div');
       imgWrap.style.cssText = 'text-align:center;margin-bottom:20px';
       var img = document.createElement('img');
       img.src = body.imageUrl;
-      img.style.cssText = 'max-width:140px;max-height:140px;object-fit:contain;filter:drop-shadow(2px 4px 10px rgba(0,0,0,0.25))';
+      img.style.cssText = 'max-width:' + imgMaxSize + 'px;max-height:' + imgMaxSize + 'px;object-fit:contain;filter:drop-shadow(2px 4px 10px rgba(0,0,0,0.25))';
       imgWrap.appendChild(img);
       card.appendChild(imgWrap);
     }
     if (body.label) {
       var labelEl = document.createElement('div');
       labelEl.style.cssText = 'text-align:center;font-family:"Barlow Condensed",sans-serif;font-weight:700;' +
-        'font-size:20px;letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;margin-bottom:8px;color:var(--tbs-fg)';
+        'font-size:clamp(22px,3vw,28px);letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;margin-bottom:8px;color:var(--tbs-fg)';
       labelEl.textContent = body.label;
       card.appendChild(labelEl);
     }
     if (body.story) {
       var storyEl = document.createElement('div');
       storyEl.style.cssText = 'text-align:center;font-family:"Inconsolata",monospace;font-weight:400;' +
-        'font-size:13px;line-height:1.75;letter-spacing:0.01em;margin:12px 0 20px;color:var(--tbs-fg-muted)';
+        'font-size:clamp(15px,2vw,18px);line-height:1.75;letter-spacing:0.01em;margin:12px 0 20px;color:var(--tbs-fg-muted)';
       storyEl.textContent = '\u201c' + body.story + '\u201d';
       card.appendChild(storyEl);
     }
     if (body.link) {
       var linkWrap = document.createElement('div');
-      linkWrap.style.cssText = 'text-align:center;padding-top:16px;border-top:1px solid var(--tbs-border-subtle)';
+      linkWrap.style.cssText = 'text-align:center;padding-top:20px;border-top:1px solid var(--tbs-border-subtle)';
       var linkEl = document.createElement('a');
       linkEl.href = body.link;
       linkEl.target = '_blank';
       linkEl.rel = 'noopener noreferrer';
-      linkEl.style.cssText = 'font-family:"Inconsolata",monospace;font-weight:600;font-size:12px;' +
-        'letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;color:var(--tbs-accent)';
+      linkEl.style.cssText = 'display:inline-block;font-family:"Inconsolata",monospace;font-weight:600;font-size:14px;' +
+        'letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;color:var(--tbs-accent);' +
+        'background:var(--tbs-bg-muted,rgba(128,128,128,0.1));border:1px solid var(--tbs-border);padding:10px 24px;border-radius:2px';
       linkEl.textContent = 'Visit Link \u2192';
-      linkEl.addEventListener('mouseenter', function () { linkEl.style.color = 'var(--tbs-accent-hover)'; });
-      linkEl.addEventListener('mouseleave', function () { linkEl.style.color = 'var(--tbs-accent)'; });
+      linkEl.addEventListener('mouseenter', function () { linkEl.style.color = 'var(--tbs-accent-hover)'; linkEl.style.borderColor = 'var(--tbs-accent)'; });
+      linkEl.addEventListener('mouseleave', function () { linkEl.style.color = 'var(--tbs-accent)'; linkEl.style.borderColor = 'var(--tbs-border)'; });
       linkWrap.appendChild(linkEl);
       card.appendChild(linkWrap);
     }
     var hint = document.createElement('div');
     hint.style.cssText = 'text-align:center;margin-top:20px;font-family:"Inconsolata",monospace;' +
-      'font-weight:400;font-size:10px;letter-spacing:0.08em;color:var(--tbs-fg-faint)';
+      'font-weight:400;font-size:12px;letter-spacing:0.08em;color:var(--tbs-fg-faint)';
     hint.textContent = 'click anywhere to close';
     card.appendChild(hint);
 

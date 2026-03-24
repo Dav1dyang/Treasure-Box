@@ -30,6 +30,7 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "@types/chroma-js": "^3.1.2"
+    "@types/chroma-js": "^3.1.2",
+    "@types/react-dom": "^19.2.3"
   }
 }
