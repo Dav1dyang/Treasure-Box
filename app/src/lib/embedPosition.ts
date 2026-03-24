@@ -1,7 +1,7 @@
 import type { AnchorCorner } from './types';
 
 /** Padding (px) between the drawer edge and the container edge when anchored */
-const ANCHOR_PAD = 8;
+const ANCHOR_PAD = 0;
 
 /**
  * Compute drawer CSS position within an iframe/container based on the anchor corner.
