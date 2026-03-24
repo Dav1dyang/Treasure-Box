@@ -94,6 +94,22 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
     setTimeout(() => setCopied(null), 2000);
   };
 
+  const getIframeCode = () => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const bg = config.backgroundColor || 'transparent';
+    const w = Math.round(420 * embedScale);
+    const h = Math.round(420 * embedScale);
+    let src = `${baseUrl}/embed?box=${userId}&bg=${encodeURIComponent(bg)}`;
+    if (embedScale !== 1) src += `&scale=${embedScale}`;
+    return `<iframe src="${src}"\n  width="${w}" height="${h}"\n  style="border:none;overflow:hidden;background:transparent"\n  allowtransparency="true" loading="lazy"\n  allow="accelerometer" title="Treasure Box">\n</iframe>`;
+  };
+
+  const handleCopyIframe = () => {
+    navigator.clipboard.writeText(getIframeCode());
+    setCopied('iframe');
+    setTimeout(() => setCopied(null), 2000);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
@@ -225,7 +241,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
       </div>
 
       {/* Embed Code */}
-      <div>
+      <div className="pb-4" style={{ borderBottom: '0.5px solid var(--tb-border)' }}>
         <div className="flex items-center justify-between mb-2">
           <span style={label}>Embed Code</span>
           <button
@@ -254,6 +270,39 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
         >
           {getEmbedCode()}
         </pre>
+      </div>
+
+      {/* Iframe Embed */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span style={label}>Iframe Embed</span>
+          <button
+            onClick={handleCopyIframe}
+            className="tb-pill cursor-pointer uppercase"
+            style={{
+              fontFamily: MONO, fontSize: 12, fontWeight: 600, letterSpacing: '0.08em',
+              padding: '5px 14px',
+              border: `1px solid ${copied === 'iframe' ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
+              color: copied === 'iframe' ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
+              background: 'transparent', transition: 'all 0.15s',
+            }}
+          >
+            {copied === 'iframe' ? 'Copied ✓' : 'Copy'}
+          </button>
+        </div>
+        <pre
+          onClick={handleCopyIframe}
+          style={{
+            fontFamily: MONO, fontSize: 11, lineHeight: 1.5, padding: 12,
+            background: 'var(--tb-bg-muted)', color: 'var(--tb-fg-muted)',
+            border: `0.5px solid ${copied === 'iframe' ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
+            whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflow: 'auto', maxHeight: 200, margin: 0,
+            cursor: 'pointer', transition: 'border-color 0.15s',
+          }}
+        >
+          {getIframeCode()}
+        </pre>
+        <p style={hint}>Embed the drawer inline — no script needed, works anywhere iframes are supported</p>
       </div>
     </div>
   );
