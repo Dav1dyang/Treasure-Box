@@ -9,8 +9,8 @@
     HEIGHT: 420,
     SCALE: 1,
     ANCHOR: 'bottom-right',
-    OFFSET_X: 16,
-    OFFSET_Y: 16,
+    OFFSET_X: 0,
+    OFFSET_Y: 0,
     Z_INDEX_BOX: 999998,
     Z_INDEX_CANVAS: 999999,
     RESIZE_DEBOUNCE_MS: 200,
@@ -300,7 +300,7 @@
     var r = probe.getBoundingClientRect();
     document.body.removeChild(probe);
     if (Math.abs(r.left) > 1 || Math.abs(r.top) > 1 ||
-        Math.abs(r.width - window.innerWidth) > 2 || Math.abs(r.height - window.innerHeight) > 2) {
+      Math.abs(r.width - window.innerWidth) > 2 || Math.abs(r.height - window.innerHeight) > 2) {
       // position:fixed is broken inside <body> — use <html> instead
       fixedParent = document.documentElement;
     }
@@ -546,24 +546,24 @@
     style.setAttribute('data-tb-story-vars', '1');
     style.textContent =
       ':root {' +
-        '--tbs-bg:#0e0e0e;--tbs-border:#3a3a34;--tbs-border-subtle:#2a2a26;' +
-        '--tbs-fg:#b8b8a8;--tbs-fg-muted:#8a8a7a;--tbs-fg-faint:#5e5e52;' +
-        '--tbs-accent:#d0b888;--tbs-accent-hover:#e0c898;' +
+      '--tbs-bg:#0e0e0e;--tbs-border:#3a3a34;--tbs-border-subtle:#2a2a26;' +
+      '--tbs-fg:#b8b8a8;--tbs-fg-muted:#8a8a7a;--tbs-fg-faint:#5e5e52;' +
+      '--tbs-accent:#d0b888;--tbs-accent-hover:#e0c898;' +
       '}' +
       '@media(prefers-color-scheme:light){:root{' +
-        '--tbs-bg:#f5f2ec;--tbs-border:#d0ccc2;--tbs-border-subtle:#ddd9d0;' +
-        '--tbs-fg:#3a3832;--tbs-fg-muted:#6a685e;--tbs-fg-faint:#9a9888;' +
-        '--tbs-accent:#8a6a3a;--tbs-accent-hover:#7a5a2a;' +
+      '--tbs-bg:#f5f2ec;--tbs-border:#d0ccc2;--tbs-border-subtle:#ddd9d0;' +
+      '--tbs-fg:#3a3832;--tbs-fg-muted:#6a685e;--tbs-fg-faint:#9a9888;' +
+      '--tbs-accent:#8a6a3a;--tbs-accent-hover:#7a5a2a;' +
       '}}' +
       '[data-theme="light"]{' +
-        '--tbs-bg:#f5f2ec;--tbs-border:#d0ccc2;--tbs-border-subtle:#ddd9d0;' +
-        '--tbs-fg:#3a3832;--tbs-fg-muted:#6a685e;--tbs-fg-faint:#9a9888;' +
-        '--tbs-accent:#8a6a3a;--tbs-accent-hover:#7a5a2a;' +
+      '--tbs-bg:#f5f2ec;--tbs-border:#d0ccc2;--tbs-border-subtle:#ddd9d0;' +
+      '--tbs-fg:#3a3832;--tbs-fg-muted:#6a685e;--tbs-fg-faint:#9a9888;' +
+      '--tbs-accent:#8a6a3a;--tbs-accent-hover:#7a5a2a;' +
       '}' +
       '[data-theme="dark"]{' +
-        '--tbs-bg:#0e0e0e;--tbs-border:#3a3a34;--tbs-border-subtle:#2a2a26;' +
-        '--tbs-fg:#b8b8a8;--tbs-fg-muted:#8a8a7a;--tbs-fg-faint:#5e5e52;' +
-        '--tbs-accent:#d0b888;--tbs-accent-hover:#e0c898;' +
+      '--tbs-bg:#0e0e0e;--tbs-border:#3a3a34;--tbs-border-subtle:#2a2a26;' +
+      '--tbs-fg:#b8b8a8;--tbs-fg-muted:#8a8a7a;--tbs-fg-faint:#5e5e52;' +
+      '--tbs-accent:#d0b888;--tbs-accent-hover:#e0c898;' +
       '}';
     document.head.appendChild(style);
   }
