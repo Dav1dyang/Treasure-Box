@@ -42,6 +42,16 @@
   var scale = parseFloat(cfg.scale) || DEFAULTS.SCALE;
   var width = cfg.width ? parseInt(cfg.width, 10) : Math.round(DEFAULTS.WIDTH * scale);
   var height = cfg.height ? parseInt(cfg.height, 10) : Math.round(DEFAULTS.HEIGHT * scale);
+
+  // When custom width/height are provided without explicit scale, derive the
+  // implicit scale so the drawer inside the iframe scales to fit the smaller
+  // dimensions.  Without this, the 420×420 drawer overflows a tiny iframe.
+  if (!cfg.scale && (cfg.width || cfg.height)) {
+    var scaleFromW = width / DEFAULTS.WIDTH;
+    var scaleFromH = height / DEFAULTS.HEIGHT;
+    scale = Math.min(scaleFromW, scaleFromH);
+  }
+
   var mode = cfg.mode || 'overlay';
 
   // ===== Shared: create embed iframe =====
@@ -402,14 +412,18 @@
     }, '*');
   }
 
-  // Helper: check if a point (in client coords) is inside the drawer rect
+  // Helper: check if a point (in client coords) is inside the visible drawer rect
+  // (clamped to container bounds so overflowing drawers don't create ghost hit areas)
   function isInsideDrawerRect(clientX, clientY) {
     if (!drawerRect) return false;
     var containerRect = boxContainer.getBoundingClientRect();
     var dx = clientX - containerRect.left;
     var dy = clientY - containerRect.top;
-    return dx >= drawerRect.x && dx <= drawerRect.x + drawerRect.width &&
-      dy >= drawerRect.y && dy <= drawerRect.y + drawerRect.height;
+    var visL = Math.max(0, drawerRect.x);
+    var visT = Math.max(0, drawerRect.y);
+    var visR = Math.min(overlayW, drawerRect.x + drawerRect.width);
+    var visB = Math.min(overlayH, drawerRect.y + drawerRect.height);
+    return dx >= visL && dx <= visR && dy >= visT && dy <= visB;
   }
 
 
@@ -882,10 +896,16 @@
     if (event.data.action === 'drawer-rect' && event.data.rect) {
       drawerRect = event.data.rect;
       var rect = event.data.rect;
-      hitZone.style.left = rect.x + 'px';
-      hitZone.style.top = rect.y + 'px';
-      hitZone.style.width = rect.width + 'px';
-      hitZone.style.height = rect.height + 'px';
+      // Clamp hit zone to the visible container bounds so it doesn't extend
+      // outside the iframe area when the drawer overflows (e.g. scale mismatch)
+      var clampL = Math.max(0, rect.x);
+      var clampT = Math.max(0, rect.y);
+      var clampR = Math.min(overlayW, rect.x + rect.width);
+      var clampB = Math.min(overlayH, rect.y + rect.height);
+      hitZone.style.left = clampL + 'px';
+      hitZone.style.top = clampT + 'px';
+      hitZone.style.width = Math.max(0, clampR - clampL) + 'px';
+      hitZone.style.height = Math.max(0, clampB - clampT) + 'px';
       if (boxIframe.style.pointerEvents === 'none') {
         hitZone.style.display = 'block';
       }
