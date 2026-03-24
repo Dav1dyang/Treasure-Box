@@ -399,7 +399,7 @@ export default function EditorPage() {
                   <div className="text-center py-12 uppercase" style={{ fontFamily: MONO, fontSize: '12px', letterSpacing: '0.08em', ...S.faint }}>no items yet — upload your first treasure</div>
                 ) : (
                   <>
-                    {/* Specimen grid — matches front page gallery style */}
+                    {/* Specimen grid — matches front page shelf style */}
                     <div className="grid grid-cols-3 sm:grid-cols-4" style={{ borderTop: '0.5px solid var(--tb-border)', borderLeft: '0.5px solid var(--tb-border)' }}>
                       {items.map((item, idx) => {
                         const isSelected = selectedItemId === item.id;
@@ -637,7 +637,7 @@ export default function EditorPage() {
                       <CfgToggle active={!config.isPublic} onClick={() => setConfig({ ...config, isPublic: false })}>private</CfgToggle>
                       <CfgToggle active={config.isPublic} onClick={() => setConfig({ ...config, isPublic: true })}>public</CfgToggle>
                     </div>
-                    <CfgHint>public boxes appear in the gallery on the landing page</CfgHint>
+                    <CfgHint>public boxes appear on the junk shelf on the landing page</CfgHint>
                   </CfgSection>
 
                   {isAdmin && (

@@ -86,7 +86,7 @@ export interface BoxConfig {
   soundEnabled: boolean;
   soundVolume: number;        // 0-1
   soundPreset: SoundPreset;
-  isPublic: boolean;          // show in public gallery on landing page
+  isPublic: boolean;          // show on junk shelf on landing page
   ownerName?: string;         // optional display name shown on box
   createdAt: number;
   updatedAt: number;
