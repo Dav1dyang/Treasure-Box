@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Matter from 'matter-js';
+import * as decomp from 'poly-decomp-es';
 import { soundEngine } from '@/lib/sounds';
 import { contourToVertices, extractFrameFromSprite, extractDrawerWallPath } from '@/lib/contour';
 import { computeCenteredDrawerPosition, computeCenteredSpawnOrigin } from '@/lib/embedPosition';
@@ -633,6 +634,9 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       Matter.Engine.clear(engineRef.current);
     }
 
+    // Register poly-decomp so Matter.js can decompose concave polygons from fromVertices
+    Matter.Common.setDecomp(decomp);
+
     const engine = Matter.Engine.create({ gravity: { x: 0, y: 2 } });
     engine.positionIterations = 10;  // better at resolving overlaps
     engine.velocityIterations = 8;   // smoother collision response
@@ -1047,9 +1051,19 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       if (item.contourPoints && item.contourPoints.length >= 4) {
         try {
           const verts = contourToVertices(item.contourPoints, physW, physH);
-          body = Matter.Bodies.fromVertices(x, spawnY, [verts], {
-            restitution: 0.45, friction: 0.4, density: 0.003, chamfer: { radius: 2 },
-          }) as any;
+          const contourBody = Matter.Bodies.fromVertices(x, spawnY, [verts], {
+            restitution: 0.45, friction: 0.4, density: 0.003, chamfer: { radius: 1.5 },
+          });
+          // fromVertices can return undefined if decomposition fails
+          if (contourBody) {
+            // Reposition to desired spawn point (fromVertices may offset the center of mass)
+            Matter.Body.setPosition(contourBody, { x, y: spawnY });
+            body = contourBody as PhysicsBody;
+          } else {
+            body = Matter.Bodies.rectangle(x, spawnY, physW, physH, {
+              restitution: 0.45, friction: 0.4, density: 0.003, chamfer: { radius: 4 },
+            }) as any;
+          }
         } catch {
           body = Matter.Bodies.rectangle(x, spawnY, physW, physH, {
             restitution: 0.45, friction: 0.4, density: 0.003, chamfer: { radius: 4 },
