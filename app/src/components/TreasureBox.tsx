@@ -1631,7 +1631,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       window.parent.postMessage({
         type: 'treasure-box',
         action: 'show-story',
-        item: { label: activeStory.label, story: activeStory.story, imageUrl: activeStory.imageUrl, link: activeStory.link },
+        item: { label: activeStory.label, story: activeStory.story, imageUrl: activeStory.imageUrl, link: activeStory.link, scale: activeStory.scale },
       }, '*');
     } else {
       window.parent.postMessage({ type: 'treasure-box', action: 'dismiss-story' }, '*');
