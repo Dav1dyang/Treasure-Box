@@ -69,6 +69,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
 
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mouseDownBodyRef = useRef<any>(null);
+  const mouseVelBufferRef = useRef<{ x: number; y: number }[]>([]);
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
   const didDragRef = useRef(false);
   const longPressFiredRef = useRef(false);
@@ -850,6 +851,23 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         }
       }
 
+      // Apply throw velocity from tracked mouse positions
+      if (body?.itemData && didDragRef.current) {
+        const buf = mouseVelBufferRef.current;
+        if (buf.length >= 3) {
+          const n = buf.length;
+          const vx = (buf[n - 1].x - buf[0].x) / (n - 1);
+          const vy = (buf[n - 1].y - buf[0].y) / (n - 1);
+          const speed = Math.sqrt(vx * vx + vy * vy);
+          if (speed > 1) {
+            const cap = 18;
+            const scale = speed > cap ? cap / speed : 1;
+            Matter.Body.setVelocity(body, { x: vx * scale, y: vy * scale });
+          }
+        }
+        mouseVelBufferRef.current = [];
+      }
+
       mouseDownBodyRef.current = null;
       mouseDownPosRef.current = null;
     });
@@ -941,6 +959,14 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     // Stuck-detection safety net: nudge items embedded in drawer walls
     const stuckFrames = new Map<number, number>();
     Matter.Events.on(engine, 'beforeUpdate', () => {
+      // Track mouse position during drag for throw velocity
+      if (mouseConstraint.body) {
+        mouseVelBufferRef.current.push({ x: mouse.position.x, y: mouse.position.y });
+        if (mouseVelBufferRef.current.length > 6) mouseVelBufferRef.current.shift();
+      } else {
+        if (mouseVelBufferRef.current.length > 0) mouseVelBufferRef.current = [];
+      }
+
       if (closingAnimRef.current) return;
       bodiesRef.current.forEach(body => {
         if (body.isStatic || body.returningToDrawer) return;
