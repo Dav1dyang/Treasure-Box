@@ -88,8 +88,8 @@
   // body positions are streamed via postMessage and rendered on a host-page canvas.
 
   var anchor = cfg.anchor || DEFAULTS.ANCHOR;
-  var offsetX = parseInt(cfg.ox, 10) || DEFAULTS.OFFSET_X;
-  var offsetY = parseInt(cfg.oy, 10) || DEFAULTS.OFFSET_Y;
+  var offsetX = cfg.ox != null ? parseInt(cfg.ox, 10) : DEFAULTS.OFFSET_X;
+  var offsetY = cfg.oy != null ? parseInt(cfg.oy, 10) : DEFAULTS.OFFSET_Y;
 
   // Container-relative mode: position inside a specific div instead of viewport
   var containerEl = cfg.container
@@ -889,10 +889,13 @@
       if (boxIframe.style.pointerEvents === 'none') {
         hitZone.style.display = 'block';
       }
-      // Ensure container is tall enough for the drawer
-      var neededH = Math.ceil(rect.y + rect.height + 20);
+      // Ensure container is tall enough for the drawer (only grow once, cap growth
+      // to prevent infinite loop with bottom-anchored drawers where each resize
+      // pushes the drawer up, increasing rect.y and triggering more growth)
+      var neededH = Math.ceil(rect.y + rect.height + 10);
       var currentH = parseInt(boxContainer.style.height, 10) || 0;
-      if (neededH > currentH) {
+      var maxGrowth = Math.round(height * 0.3); // cap at 30% above initial height
+      if (neededH > currentH && neededH <= height + maxGrowth) {
         boxContainer.style.height = neededH + 'px';
         boxIframe.height = neededH;
         boxIframe.style.height = neededH + 'px';
