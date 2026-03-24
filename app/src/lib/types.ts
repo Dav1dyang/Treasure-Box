@@ -105,6 +105,8 @@ export type SoundPreset = 'metallic' | 'wooden' | 'glass' | 'paper' | 'pixel' | 
 
 export type AnchorCorner = 'top-left' | 'top-center' | 'top-right' | 'middle-left' | 'middle-center' | 'middle-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
 
+export type EmbedTheme = 'light' | 'dark' | 'system';
+
 export interface EmbedPosition {
   anchor: AnchorCorner;       // 3x3 grid position
   offsetX: number;            // px from anchor X edge
@@ -117,6 +119,7 @@ export interface EmbedSettings {
   previewUrl?: string;        // optional: user's website URL for preview background
   previewImageUrl?: string;   // optional: Firebase Storage URL for uploaded screenshot
   previewMode?: 'url' | 'screenshot'; // which preview source is active
+  theme?: EmbedTheme;         // 'light' | 'dark' | 'system' (default: 'system')
 }
 
 // ===== Frame Sync (postMessage position streaming) =====

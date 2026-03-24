@@ -1,8 +1,14 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import type { BoxConfig, EmbedSettings, AnchorCorner } from '@/lib/types';
+import type { BoxConfig, EmbedSettings, AnchorCorner, EmbedTheme } from '@/lib/types';
 import { DEFAULT_EMBED_SETTINGS } from '@/lib/config';
+
+const THEME_OPTIONS: { value: EmbedTheme; label: string }[] = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: 'System' },
+];
 
 const GRID_POSITIONS: { anchor: AnchorCorner; label: string }[] = [
   { anchor: 'top-left', label: '↖' },
@@ -83,8 +89,20 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
         ? `    domCollide: "${settings.domCollide}"`
         : `    domCollide: true`);
     }
+    const embedTheme = settings.theme || 'system';
+    if (embedTheme !== 'system') {
+      cfgLines.push(`    theme: "${embedTheme}"`);
+    }
 
     return `<script>\n(function(){\n  window.__TB = {\n${cfgLines.join(',\n')}\n  };\n  var s = document.createElement("script");\n  s.src = window.__TB.origin + "/embed/widget.js";\n  s.async = true;\n  document.head.appendChild(s);\n})();\n</script>`;
+  };
+
+  const getShareUrl = () => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const theme = settings.theme || 'system';
+    return theme !== 'system'
+      ? `${baseUrl}/box/${userId}?theme=${theme}`
+      : `${baseUrl}/box/${userId}`;
   };
 
   const handleCopy = () => {
@@ -180,15 +198,42 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
         )}
       </div>
 
+      {/* Theme */}
+      <div className="pb-4" style={{ borderBottom: '0.5px solid var(--tb-border)' }}>
+        <span style={label}>Theme</span>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {THEME_OPTIONS.map(opt => {
+            const active = (settings.theme || 'system') === opt.value;
+            return (
+              <button
+                key={opt.value}
+                className="tb-pill"
+                onClick={() => update({ theme: opt.value })}
+                style={{
+                  fontFamily: MONO, fontSize: 13, fontWeight: active ? 700 : 400,
+                  letterSpacing: '0.06em', textTransform: 'uppercase',
+                  padding: '7px 14px', flex: 1, textAlign: 'center',
+                  border: `1px solid ${active ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
+                  color: active ? 'var(--tb-accent)' : 'var(--tb-fg-ghost)',
+                  background: active ? 'var(--tb-bg-muted)' : 'transparent',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <p style={hint}>Choose how your box appears to viewers</p>
+      </div>
+
       {/* Share Link */}
       <div className="pb-4" style={{ borderBottom: '0.5px solid var(--tb-border)' }}>
         <div className="flex items-center justify-between mb-2">
           <span style={label}>Share Link</span>
           <button
             onClick={() => {
-              const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-              const url = `${baseUrl}/box/${userId}`;
-              navigator.clipboard.writeText(url);
+              navigator.clipboard.writeText(getShareUrl());
               setCopied('link');
               setTimeout(() => setCopied(null), 2000);
             }}
@@ -206,9 +251,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
         </div>
         <div
           onClick={() => {
-            const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-            const url = `${baseUrl}/box/${userId}`;
-            navigator.clipboard.writeText(url);
+            navigator.clipboard.writeText(getShareUrl());
             setCopied('link');
             setTimeout(() => setCopied(null), 2000);
           }}
@@ -219,7 +262,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
             wordBreak: 'break-all', cursor: 'pointer', transition: 'border-color 0.15s',
           }}
         >
-          {typeof window !== 'undefined' ? window.location.origin : ''}/box/{userId}
+          {getShareUrl()}
         </div>
         <p style={hint}>Anyone can view your drawer at this link — no embed needed</p>
       </div>

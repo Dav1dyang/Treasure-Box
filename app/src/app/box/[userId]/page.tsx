@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
 import { getPublicBoxConfig, getPublicItems } from '@/lib/firestore';
 import { useTheme } from '@/components/ThemeProvider';
 import type { TreasureItem, BoxConfig } from '@/lib/types';
@@ -12,9 +13,11 @@ const TreasureBox = dynamic(() => import('@/components/TreasureBox'), { ssr: fal
 
 const MONO = "'Inconsolata', monospace";
 
-export default function SharedBoxPage() {
+function SharedBoxContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const userId = params.userId as string;
+  const themeParam = searchParams.get('theme'); // from ?theme=dark or ?theme=light
   const { theme, toggleTheme } = useTheme();
 
   const [config, setConfig] = useState<BoxConfig | null>(null);
@@ -25,6 +28,22 @@ export default function SharedBoxPage() {
   const [copied, setCopied] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+
+  // Determine owner's forced theme: URL param > config embedSettings > null (system)
+  const ownerTheme = themeParam || config?.embedSettings?.theme || null;
+  const isThemeForced = ownerTheme === 'light' || ownerTheme === 'dark';
+
+  // Apply owner's forced theme
+  useEffect(() => {
+    if (!isThemeForced) return;
+    const previous = document.documentElement.getAttribute('data-theme');
+    document.documentElement.setAttribute('data-theme', ownerTheme as string);
+    return () => {
+      if (previous) {
+        document.documentElement.setAttribute('data-theme', previous);
+      }
+    };
+  }, [ownerTheme, isThemeForced]);
 
   useEffect(() => {
     if (!userId) return;
@@ -182,19 +201,21 @@ export default function SharedBoxPage() {
           >
             {copied ? 'Copied!' : 'Share'}
           </button>
-          <button
-            onClick={toggleTheme}
-            className="cursor-pointer"
-            style={{
-              fontFamily: MONO,
-              fontSize: 'clamp(12px, 1.6vw, 16px)',
-              color: 'var(--tb-fg-faint)',
-              background: 'none', border: 'none',
-            }}
-            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          >
-            {theme === 'dark' ? '○' : '●'}
-          </button>
+          {!isThemeForced && (
+            <button
+              onClick={toggleTheme}
+              className="cursor-pointer"
+              style={{
+                fontFamily: MONO,
+                fontSize: 'clamp(12px, 1.6vw, 16px)',
+                color: 'var(--tb-fg-faint)',
+                background: 'none', border: 'none',
+              }}
+              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            >
+              {theme === 'dark' ? '○' : '●'}
+            </button>
+          )}
         </div>
       </header>
 
@@ -261,5 +282,17 @@ export default function SharedBoxPage() {
         </span>
       </footer>
     </div>
+  );
+}
+
+export default function SharedBoxPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--tb-bg)' }}>
+        <div className="animate-pulse" style={{ width: 120, height: 120, border: '0.5px solid var(--tb-border)' }} />
+      </div>
+    }>
+      <SharedBoxContent />
+    </Suspense>
   );
 }

@@ -24,8 +24,16 @@ function EmbedContent() {
   const [error, setError] = useState<string | null>(null);
   const [hostViewport, setHostViewport] = useState<HostViewport | null>(null);
   const [domColliderRects, setDomColliderRects] = useState<DomColliderRect[]>([]);
+  const themeParam = searchParams.get('theme');
   const [ready, setReady] = useState(false);
   const sceneRef = useRef<HTMLDivElement>(null);
+
+  // Apply forced theme from embed config
+  useEffect(() => {
+    if (themeParam === 'light' || themeParam === 'dark') {
+      document.documentElement.setAttribute('data-theme', themeParam);
+    }
+  }, [themeParam]);
 
   useEffect(() => {
     if (!boxId) {

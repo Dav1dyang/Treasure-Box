@@ -53,11 +53,13 @@
   }
 
   var mode = cfg.mode || 'overlay';
+  var theme = cfg.theme || 'system'; // 'light', 'dark', or 'system'
 
   // ===== Shared: create embed iframe =====
   function createIframe(w, h, extraParams) {
     var params = 'box=' + encodeURIComponent(boxId) + '&bg=' + encodeURIComponent(bg);
     if (scale !== 1) params += '&scale=' + scale;
+    if (theme !== 'system') params += '&theme=' + theme;
     if (extraParams) params += '&' + extraParams;
     var iframe = document.createElement('iframe');
     iframe.src = origin + '/embed?' + params;
@@ -576,27 +578,25 @@
     if (document.querySelector('style[data-tb-story-vars]')) return;
     var style = document.createElement('style');
     style.setAttribute('data-tb-story-vars', '1');
-    style.textContent =
-      ':root {' +
-      '--tbs-bg:#0e0e0e;--tbs-border:#3a3a34;--tbs-border-subtle:#2a2a26;' +
+
+    var darkVars = '--tbs-bg:#0e0e0e;--tbs-border:#3a3a34;--tbs-border-subtle:#2a2a26;' +
       '--tbs-fg:#b8b8a8;--tbs-fg-muted:#8a8a7a;--tbs-fg-faint:#5e5e52;' +
-      '--tbs-accent:#d0b888;--tbs-accent-hover:#e0c898;' +
-      '}' +
-      '@media(prefers-color-scheme:light){:root{' +
-      '--tbs-bg:#f5f2ec;--tbs-border:#d0ccc2;--tbs-border-subtle:#ddd9d0;' +
+      '--tbs-accent:#d0b888;--tbs-accent-hover:#e0c898;';
+    var lightVars = '--tbs-bg:#f5f2ec;--tbs-border:#d0ccc2;--tbs-border-subtle:#ddd9d0;' +
       '--tbs-fg:#3a3832;--tbs-fg-muted:#6a685e;--tbs-fg-faint:#9a9888;' +
-      '--tbs-accent:#8a6a3a;--tbs-accent-hover:#7a5a2a;' +
-      '}}' +
-      '[data-theme="light"]{' +
-      '--tbs-bg:#f5f2ec;--tbs-border:#d0ccc2;--tbs-border-subtle:#ddd9d0;' +
-      '--tbs-fg:#3a3832;--tbs-fg-muted:#6a685e;--tbs-fg-faint:#9a9888;' +
-      '--tbs-accent:#8a6a3a;--tbs-accent-hover:#7a5a2a;' +
-      '}' +
-      '[data-theme="dark"]{' +
-      '--tbs-bg:#0e0e0e;--tbs-border:#3a3a34;--tbs-border-subtle:#2a2a26;' +
-      '--tbs-fg:#b8b8a8;--tbs-fg-muted:#8a8a7a;--tbs-fg-faint:#5e5e52;' +
-      '--tbs-accent:#d0b888;--tbs-accent-hover:#e0c898;' +
-      '}';
+      '--tbs-accent:#8a6a3a;--tbs-accent-hover:#7a5a2a;';
+
+    if (theme === 'light') {
+      style.textContent = ':root{' + lightVars + '}';
+    } else if (theme === 'dark') {
+      style.textContent = ':root{' + darkVars + '}';
+    } else {
+      // system: responsive to OS preference + host page data-theme
+      style.textContent = ':root{' + darkVars + '}' +
+        '@media(prefers-color-scheme:light){:root{' + lightVars + '}}' +
+        '[data-theme="light"]{' + lightVars + '}' +
+        '[data-theme="dark"]{' + darkVars + '}';
+    }
     document.head.appendChild(style);
   }
 
