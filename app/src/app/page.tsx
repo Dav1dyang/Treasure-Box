@@ -114,7 +114,7 @@ export default function Home() {
             <Link href="/editor" className="no-underline min-h-[44px] inline-flex items-center" style={{ color: 'var(--tb-accent)' }}>
               My Box
             </Link>
-            <button onClick={logOut} className="cursor-pointer min-h-[44px] inline-flex items-center" style={{ color: 'var(--tb-fg-muted)' }}>
+            <button onClick={logOut} className="cursor-pointer uppercase min-h-[44px] inline-flex items-center" style={{ color: 'var(--tb-fg-muted)' }}>
               Sign Out
             </button>
           </>
