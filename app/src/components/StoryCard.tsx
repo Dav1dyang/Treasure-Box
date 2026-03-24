@@ -1,5 +1,6 @@
 'use client';
 
+import { createPortal } from 'react-dom';
 import type { TreasureItem } from '@/lib/types';
 
 interface Props {
@@ -12,7 +13,11 @@ export default function StoryCard({ item, onClose }: Props) {
   const imgScale = Math.max(0.7, Math.min(item.scale ?? 1, 1.8));
   const imgMaxSize = Math.round(140 * imgScale);
 
-  return (
+  // Use a portal to render at document.body level, escaping any CSS
+  // containment (transforms, overflow:hidden) from parent components
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[300] flex items-center justify-center cursor-pointer"
       style={{ background: 'rgba(0,0,0,0.82)' }}
@@ -115,6 +120,7 @@ export default function StoryCard({ item, onClose }: Props) {
           tap anywhere to close
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
