@@ -11,30 +11,34 @@ Treasure Box is an interactive web app where users create personalized "treasure
 The Next.js app lives in the `app/` subdirectory (not the repo root). All commands must be run from `app/`.
 
 ```
-app/                        ← Next.js root (set as Vercel root directory)
+app/                            ← Next.js root (set as Vercel root directory)
   src/
-    app/                    ← App Router pages
-      page.tsx              ← Landing page with hero demo box + junk shelf
-      editor/page.tsx       ← Authenticated editor (items, config, embed codes)
-      embed/page.tsx        ← Embeddable viewer (loaded via iframe/script)
+    app/                        ← App Router pages
+      page.tsx                  ← Landing page with hero demo box + junk shelf
+      editor/page.tsx           ← Authenticated editor (items, config, embed codes)
+      embed/page.tsx            ← Embeddable viewer (loaded via iframe/script)
+      box/[userId]/page.tsx     ← Public box viewer
       api/
-        generate-box/       ← Gemini AI sprite sheet generation + bg removal
-        remove-bg/          ← Server-side background removal + Vision API contours
+        generate-box/           ← Gemini sprite sheet generation + bg removal
+        generate-options/       ← Gemini-powered style/feature suggestions
     components/
-      TreasureBox.tsx       ← Core widget: Matter.js physics, canvas rendering, drawer state machine
-      DrawerStylePicker.tsx ← AI drawer style configuration UI
-      StoryCard.tsx         ← Long-press story overlay
-      AuthProvider.tsx      ← Firebase Google Auth context
-      ThemeProvider.tsx      ← Dark/light theme context
+      TreasureBox.tsx           ← Core widget: Matter.js physics, canvas rendering, drawer state machine
+      DrawerStylePicker.tsx     ← AI drawer style configuration UI
+      EmbedConfigurator.tsx     ← Embed mode/size/position settings + code generation
+      LoadingAnimation.tsx      ← Matter.js loading overlay for AI generation
+      StoryCard.tsx             ← Long-press story overlay
+      AuthProvider.tsx          ← Firebase Google Auth context
+      ThemeProvider.tsx         ← Dark/light theme context
     lib/
-      firebase.ts           ← Firebase lazy init (Auth, Firestore, Storage)
-      firestore.ts          ← All Firestore/Storage CRUD operations
-      types.ts              ← Shared types (BoxConfig, TreasureItem, DrawerStyle, etc.)
-      boxStyles.ts          ← Gemini prompt builder for sprite sheet generation
-      contour.ts            ← Alpha-channel contour extraction for physics shapes
-      sounds.ts             ← Web Audio API collision sound engine
-  public/embed/widget.js    ← Embeddable script tag loader
-  prototypes/               ← Static HTML design explorations (not part of the app)
+      firebase.ts              ← Firebase lazy init (Auth, Firestore, Storage)
+      firestore.ts             ← All Firestore/Storage CRUD operations
+      types.ts                 ← Shared types (BoxConfig, TreasureItem, DrawerStyle, etc.)
+      config.ts                ← Default values, presets, tunable constants
+      boxStyles.ts             ← Gemini prompt builder for sprite sheet generation
+      contour.ts               ← Alpha-channel contour extraction for physics shapes
+      sounds.ts                ← Web Audio API collision sound engine
+      embedPosition.ts         ← Overlay positioning math for embed modes
+  public/embed/widget.js       ← Embeddable script tag loader
 ```
 
 ## Development Commands
@@ -51,14 +55,16 @@ npm run lint         # ESLint
 
 **All pages are client-side** (`'use client'`). The app uses Firebase client SDK directly from components — there is no server-side data fetching layer for reads. Firestore security rules enforce auth at the database level.
 
-**TreasureBox component** is the centerpiece — a ~790-line component containing:
-- A 5-state drawer state machine: `IDLE → HOVER_PEEK → OPEN → HOVER_CLOSE → SLAMMING`
+**TreasureBox component** is the centerpiece — a ~2,185-line component containing:
+- A 6-state drawer state machine: `IDLE → HOVER_PEEK → OPEN → HOVER_CLOSE → CLOSING → SLAMMING`
 - Matter.js physics engine with custom canvas rendering (not Matter's built-in renderer)
 - Image preloading via blob URLs to avoid CORS canvas tainting
 - Mobile accelerometer support for gravity changes
 - Two drawer renderers: AI-generated image sprites OR dynamic ASCII art fallback (`DynamicASCIIBox`)
 
-**AI drawer generation** (`/api/generate-box`) generates a 5-frame horizontal sprite sheet via Gemini, splits it with Sharp, and removes backgrounds with `@imgly/background-removal-node`. The `maxDuration` is set to 120s.
+**Gemini AI integration** powers two server-side endpoints:
+- `/api/generate-box` — generates a 5-frame horizontal sprite sheet via Gemini, splits it with Sharp, and removes backgrounds with `@imgly/background-removal`. The `maxDuration` is set to 120s. Prompt building is handled by `boxStyles.ts` with 6 material presets (clay, metal, wood, pixel, paper, glass) and configurable styles, colors, and decorations.
+- `/api/generate-options` — uses Gemini 2.5 Flash to dynamically generate unique drawer aesthetic styles and decorative features for the customizer UI.
 
 **Data model**: Each user has one box (`boxes/{userId}`) with a subcollection of items (`boxes/{userId}/items/{itemId}`). Box configs store drawer images as base64-uploaded PNGs in Firebase Storage.
 
@@ -70,15 +76,15 @@ Required Firebase config (see `.env.local.example`):
 - `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`
 
 Server-side API keys:
-- `GOOGLE_AI_STUDIO_KEY` — Gemini API for drawer sprite generation
+- `GOOGLE_AI_STUDIO_KEY` — Gemini API for drawer sprite generation and style suggestions
 - `GOOGLE_CLOUD_VISION_API_KEY` — (optional) object contour detection for physics shapes
 
 ## Key Dependencies
 
+- **@google/genai** — Gemini API client (sprite generation + style suggestions)
 - **Matter.js** — 2D physics engine (dynamically imported, SSR disabled)
 - **Sharp** — server-side image processing (sprite sheet slicing)
-- **@imgly/background-removal-node** — ML-based bg removal (WASM, server-side)
-- **@google/generative-ai** — Gemini API client
+- **@imgly/background-removal** — ML-based bg removal (WASM, client-side)
 - **Firebase** v12 — Auth (Google), Firestore, Storage
 
 ## Firestore Index
