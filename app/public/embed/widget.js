@@ -132,7 +132,7 @@
   // ═══════════════════════════════════════════════════════════════
   // DOM Collision scanning — reads host DOM rects, sends to iframe
   // ═══════════════════════════════════════════════════════════════
-  var DOM_COLLIDE_DEFAULTS = 'h1,h2,h3,h4,h5,h6,img,video,[data-tb-collide],article,.card,gallery-slideshow,a,br,.flier';
+  var DOM_COLLIDE_DEFAULTS = 'h1,h2,h3,h4,h5,h6,img,video,[data-tb-collide],article,.card,gallery-slideshow,a,br,.flier,media-item';
   var DOM_COLLIDE_MAX = 30;
   var domCollideSelector = '';
   var domCollidePrevRects = [];
@@ -446,6 +446,7 @@
   }
 
   function onHostMouseUp(e) {
+    console.log('[TB:host] onHostMouseUp', { isDraggingItem: isDraggingItem, canvasDidDrag: canvasDidDrag, bodyId: canvasDragBody ? canvasDragBody.id : null });
     if (!isDraggingItem) return;
     // Cancel long-press timer
     if (canvasLongPressTimer) { clearTimeout(canvasLongPressTimer); canvasLongPressTimer = null; }
@@ -714,6 +715,7 @@
       startHostCanvasDrag(e.clientX, e.clientY);
     } else if (isInsideDrawerRect(e.clientX, e.clientY)) {
       e.stopPropagation();
+      console.log('[TB:host] drawer-click sent (mouse), isDraggingItem:', isDraggingItem);
       boxIframe.contentWindow.postMessage({
         type: 'treasure-box-host', action: 'drawer-click',
       }, '*');

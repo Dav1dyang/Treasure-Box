@@ -600,6 +600,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   }, []);
 
   const clearPhysics = useCallback(() => {
+    console.log('[TB] clearPhysics called', new Error().stack?.split('\n').slice(1, 4).join(' | '));
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     if (runnerRef.current) Matter.Runner.stop(runnerRef.current);
     if (engineRef.current) {
@@ -801,6 +802,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       }
       // Tap-to-close: if no body was tapped/dragged, check if tap is near drawer → close
       // This handles mobile where Matter.js preventDefault() blocks synthetic click events
+      console.log('[TB] mouseConstraint mouseup', { hasBody: !!body?.itemData, didDrag: didDragRef.current, longPress: longPressFiredRef.current });
       if (!body?.itemData && !didDragRef.current) {
         const drawerEl = drawerElRef.current;
         const sceneEl = sceneRef.current;
@@ -900,6 +902,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       }
       // Host canvas drawer interaction forwarding (overlay embed)
       if (event.data.action === 'drawer-click') {
+        console.log('[TB] host drawer-click received');
         handleDrawerClickRef.current();
       }
       if (event.data.action === 'drawer-hover-enter') {
@@ -1254,8 +1257,15 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   }, [isOpen, initPhysics, spawnItems, renderLoop, clearPhysics, clearAllTimeouts, managedTimeout, onItemsEscaped, items]);
 
   const closeDrawer = useCallback(() => {
+    console.log('[TB] closeDrawer called', { isOpen, bodies: bodiesRef.current.length, returning: bodiesRef.current.filter(b => (b as PhysicsBody).returningToDrawer).length });
     // Guard: only close from open states
     if (!isOpen) return;
+
+    // Guard: don't close while any item is in a return-to-drawer animation
+    if (bodiesRef.current.some(b => (b as PhysicsBody).returningToDrawer)) {
+      console.log('[TB] closeDrawer BLOCKED — return animation in progress');
+      return;
+    }
 
     // Reset any in-progress gulp animation from single-item returns
     setGulpState(null);
@@ -1376,6 +1386,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     const scene = sceneRef.current;
     const drawerEl = drawerElRef.current;
     if (!engine || !body.itemData) return;
+    console.log('[TB] returnItemToDrawer', body.itemData.id, 'bodies:', bodiesRef.current.length, 'returning:', bodiesRef.current.filter(b => b.returningToDrawer).length);
     // Guard: only when drawer is open and not already closing
     if (closingAnimRef.current) return;
     if (body.returningToDrawer) return;
@@ -1440,6 +1451,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           Matter.Composite.remove(engineRef.current.world, body);
         }
         bodiesRef.current = bodiesRef.current.filter(b => b !== body);
+        console.log('[TB] returnItemToDrawer complete', itemId, 'remaining:', bodiesRef.current.length, 'returning:', bodiesRef.current.filter(b => b.returningToDrawer).length);
 
         // Notify overlay mode
         if (window.parent !== window) {
