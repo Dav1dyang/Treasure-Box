@@ -25,7 +25,7 @@ import type {
 // ADMIN
 // ═══════════════════════════════════════════════════════════════
 
-export const ADMIN_EMAIL = 'davidyanggeneral@gmail.com';
+export const ADMIN_EMAIL = 'davidyangemail@gmail.com';
 
 // ═══════════════════════════════════════════════════════════════
 // BOX DEFAULTS
