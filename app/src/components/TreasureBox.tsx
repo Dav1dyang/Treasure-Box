@@ -234,14 +234,15 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       if (walls.left) Matter.Body.setPosition(walls.left, { x: -hvOx - 7, y: wallH / 2 - hvOy });
       if (walls.right) Matter.Body.setPosition(walls.right, { x: wallW - hvOx + 7, y: wallH / 2 - hvOy });
 
-      // Reposition drawer collision body (scale-aware, contour-based wall segments if available)
+      // Reposition drawer collision body (contour-based wall segments if available).
+      // drawerElRef has explicit scaled dimensions, so getBoundingClientRect = visual size.
       if (drawerElRef.current) {
         const sceneRect = scene.getBoundingClientRect();
         const drawerRect = drawerElRef.current.getBoundingClientRect();
-        const scaledW = drawerRect.width * cs;
-        const scaledH = drawerRect.height * cs;
-        const centerX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
-        const centerY = drawerRect.top - sceneRect.top + drawerRect.height / 2;
+        const scaledW = drawerRect.width;
+        const scaledH = drawerRect.height;
+        const centerX = drawerRect.left - sceneRect.left + scaledW / 2;
+        const centerY = drawerRect.top - sceneRect.top + scaledH / 2;
         // Remove old drawer bodies
         if (walls.drawerBody) Matter.Composite.remove(engine.world, walls.drawerBody);
         if (walls.drawerBodies) walls.drawerBodies.forEach(b => Matter.Composite.remove(engine.world, b));
@@ -283,15 +284,14 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         }
       }
     } else if (drawerElRef.current) {
-      // Normal mode: reposition walls + drawer collision body around the scaled drawer
+      // Normal mode: reposition walls + drawer collision body.
+      // drawerElRef has explicit scaled dimensions → rect = visual size.
       const sceneRect = scene.getBoundingClientRect();
       const drawerRect = drawerElRef.current.getBoundingClientRect();
-      const dw = drawerRect.width;
-      const dh = drawerRect.height;
-      const scaledW = dw * cs;
-      const scaledH = dh * cs;
-      const centerX = drawerRect.left - sceneRect.left + dw / 2;
-      const centerY = drawerRect.top - sceneRect.top + dh / 2;
+      const scaledW = drawerRect.width;
+      const scaledH = drawerRect.height;
+      const centerX = drawerRect.left - sceneRect.left + scaledW / 2;
+      const centerY = drawerRect.top - sceneRect.top + scaledH / 2;
       const floorY = centerY - scaledH * 0.25;
       const boxW = Math.max(scaledW, 200 * cs);
 
@@ -398,6 +398,12 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   }, [config.boxScale, scheduleRepositionBoundaries]);
 
   const boxScale = config.boxScale ?? 1;
+  // Compute the drawer's visual (scaled) dimensions — used for explicit sizing
+  // so that layout matches visual and getBoundingClientRect returns correct values.
+  const drawerBaseW = config.drawerDisplaySize?.width || DEFAULT_DRAWER_DISPLAY_SIZE.width;
+  const drawerBaseH = config.drawerDisplaySize?.height || DEFAULT_DRAWER_DISPLAY_SIZE.height;
+  const scaledDrawerW = Math.round(drawerBaseW * boxScale);
+  const scaledDrawerH = Math.round(drawerBaseH * boxScale);
   const hasGeneratedImages = !!(config.drawerImages && (config.drawerImages.spriteUrl || config.drawerImages.urls?.IDLE));
   const bg = backgroundColor || config.backgroundColor || '#0e0e0e';
   const isTransparent = bg === 'transparent' || bg === 'rgba(0,0,0,0)';
@@ -653,18 +659,14 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     wallsRef.current = { floor, ceiling, left, right };
 
     // Drawer collision body — uses contour-based wall segments if available, else rectangle fallback.
-    // drawerElRef rect is UNSCALED (CSS transform is on inner child),
-    // so multiply by boxScale and account for transform-origin: center center.
+    // drawerElRef has explicit scaled dimensions, so getBoundingClientRect = visual size.
     if (drawerElRef.current && sceneRef.current) {
       const sceneRect = sceneRef.current.getBoundingClientRect();
       const drawerRect = drawerElRef.current.getBoundingClientRect();
-      const dw = drawerRect.width;
-      const dh = drawerRect.height;
-      const scaledW = dw * cs;
-      const scaledH = dh * cs;
-      const centerX = drawerRect.left - sceneRect.left + dw / 2;
-      // transform-origin: center center — center stays fixed
-      const centerY = drawerRect.top - sceneRect.top + dh / 2;
+      const scaledW = drawerRect.width;
+      const scaledH = drawerRect.height;
+      const centerX = drawerRect.left - sceneRect.left + scaledW / 2;
+      const centerY = drawerRect.top - sceneRect.top + scaledH / 2;
       const wallPath = drawerWallPathRef.current;
 
       if (wallPath && wallPath.length >= 4) {
@@ -807,16 +809,13 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           const drawerRect = drawerEl.getBoundingClientRect();
           const mx = mouse.position.x;
           const my = mouse.position.y;
-          const cs = boxScaleRef.current;
-          // Shrink the hit zone to match the visual (scaled) drawer, not the layout rect
-          const insetX = drawerRect.width * (1 - cs) / 2;
-          const insetY = drawerRect.height * (1 - cs) / 2;
+          // drawerRect is already the visual (scaled) size — no inset needed
           const margin = 5;
           const insideDrawer = (
-            mx >= (drawerRect.left - sceneRect.left + insetX - margin) &&
-            mx <= (drawerRect.right - sceneRect.left - insetX + margin) &&
-            my >= (drawerRect.top - sceneRect.top + insetY - margin) &&
-            my <= (drawerRect.bottom - sceneRect.top - insetY + margin)
+            mx >= (drawerRect.left - sceneRect.left - margin) &&
+            mx <= (drawerRect.right - sceneRect.left + margin) &&
+            my >= (drawerRect.top - sceneRect.top - margin) &&
+            my <= (drawerRect.bottom - sceneRect.top + margin)
           );
           if (insideDrawer) {
             closeDrawerRef.current();
@@ -830,20 +829,11 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         if (drawerEl && sceneEl) {
           const sceneRect = sceneEl.getBoundingClientRect();
           const dRect = drawerEl.getBoundingClientRect();
-          // Use scaled drawer bounds (transform: scale(boxScale) is on inner child,
-          // so getBoundingClientRect returns unscaled size). Match physics body calc.
-          const cs = boxScaleRef.current;
-          const dw = dRect.width;
-          const dh = dRect.height;
-          const scaledW = dw * cs;
-          const scaledH = dh * cs;
-          // transform-origin: center center — scaling is symmetric around center
-          const centerX = dRect.left - sceneRect.left + dw / 2;
-          const centerY = dRect.top - sceneRect.top + dh / 2;
-          const dLeft = centerX - scaledW / 2;
-          const dRight = centerX + scaledW / 2;
-          const dTop = centerY - scaledH / 2;
-          const dBottom = centerY + scaledH / 2;
+          // drawerRect is already the visual (scaled) size
+          const dLeft = dRect.left - sceneRect.left;
+          const dRight = dRect.right - sceneRect.left;
+          const dTop = dRect.top - sceneRect.top;
+          const dBottom = dRect.bottom - sceneRect.top;
           const bx = body.position.x;
           const by = body.position.y;
           if (bx >= dLeft && bx <= dRight && by >= dTop && by <= dBottom) {
@@ -1004,10 +994,9 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       const sceneRect = scene.getBoundingClientRect();
       const drawerRect = drawerElRef.current.getBoundingClientRect();
       centerX = drawerRect.left - sceneRect.left + drawerRect.width / 2;
-      const centerY = drawerRect.top - sceneRect.top + drawerRect.height / 2;
-      const scaledH = drawerRect.height * cs;
-      const visualTop = centerY - scaledH / 2;
-      spawnY = visualTop - Math.max(20, scaledH * 0.15);
+      // drawerRect is already the visual (scaled) size
+      const visualTop = drawerRect.top - sceneRect.top;
+      spawnY = visualTop - Math.max(20, drawerRect.height * 0.15);
     } else if (op) {
       spawnY = op.spawnOrigin.y * h;
       centerX = op.spawnOrigin.x * w;
@@ -1565,16 +1554,14 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       // Only close if click is on/near the drawer itself, not random whitespace
       const drawerEl = drawerElRef.current;
       if (drawerEl) {
+        // drawerRect is already the visual (scaled) size — no inset needed
         const drawerRect = drawerEl.getBoundingClientRect();
-        const cs = boxScaleRef.current;
-        const insetX = drawerRect.width * (1 - cs) / 2;
-        const insetY = drawerRect.height * (1 - cs) / 2;
         const margin = 5;
         const insideDrawer = (
-          e.clientX >= drawerRect.left + insetX - margin &&
-          e.clientX <= drawerRect.right - insetX + margin &&
-          e.clientY >= drawerRect.top + insetY - margin &&
-          e.clientY <= drawerRect.bottom - insetY + margin
+          e.clientX >= drawerRect.left - margin &&
+          e.clientX <= drawerRect.right + margin &&
+          e.clientY >= drawerRect.top - margin &&
+          e.clientY <= drawerRect.bottom + margin
         );
         if (!insideDrawer) return;
       }
@@ -1635,23 +1622,12 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     if (!el) return;
     const sendRect = () => {
       const r = el.getBoundingClientRect();
-      // The scale transform is on an inner child div, so getBoundingClientRect
-      // returns the outer div's layout box (unscaled). Compute the visual
-      // (scaled) rect centered within the layout box to match what users see.
-      const s = boxScaleRef.current;
-      const scaledW = r.width * s;
-      const scaledH = r.height * s;
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height / 2;
+      // drawerElRef has explicit scaled dimensions → rect = visual size directly
+      console.log('[TB] drawer-rect', { x: r.left, y: r.top, w: r.width, h: r.height, scale: boxScaleRef.current });
       window.parent.postMessage({
         type: 'treasure-box',
         action: 'drawer-rect',
-        rect: {
-          x: cx - scaledW / 2,
-          y: cy - scaledH / 2,
-          width: scaledW,
-          height: scaledH,
-        },
+        rect: { x: r.left, y: r.top, width: r.width, height: r.height },
       }, '*');
     };
     sendRect();
@@ -1722,6 +1698,10 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         className="absolute cursor-pointer touch-none"
         style={{
           ...(effectiveOverlay?.drawerStyle || {}),
+          // Explicit scaled dimensions so layout matches visual size.
+          // This prevents the 420×420 layout box from overflowing the iframe.
+          width: scaledDrawerW,
+          height: scaledDrawerH,
           zIndex: isOpen ? 10 : 20,
           cursor: effectiveOverlay?.onDrag ? (isDraggingDrawer.current ? 'grabbing' : 'grab') : 'pointer',
         }}
@@ -1732,7 +1712,7 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
         onPointerMove={effectiveOverlay?.onDrag ? handleDrawerPointerMove : undefined}
         onPointerUp={effectiveOverlay?.onDrag ? handleDrawerPointerUp : undefined}
       >
-        <div style={{ transform: `scale(${boxScale})`, transformOrigin: 'center center' }}>
+        <div style={{ transform: `scale(${boxScale})`, transformOrigin: 'top left' }}>
           <div style={config.drawerFlipped ? { transform: 'scaleX(-1)' } : undefined}>
             {hasGeneratedImages ? (
               // === AI-Generated Image Drawer ===

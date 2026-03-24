@@ -5,7 +5,7 @@
   // DEFAULTS — all tunable constants in one place
   // ═══════════════════════════════════════════════════════════════
   var DEFAULTS = {
-    WIDTH: 350,
+    WIDTH: 420,
     HEIGHT: 420,
     SCALE: 1,
     ANCHOR: 'bottom-right',
@@ -893,6 +893,7 @@
     if (event.data.action === 'drawer-rect' && event.data.rect) {
       drawerRect = event.data.rect;
       var rect = event.data.rect;
+      console.log('[TB widget] drawer-rect', rect, 'container:', overlayW + 'x' + overlayH);
       hitZone.style.left = rect.x + 'px';
       hitZone.style.top = rect.y + 'px';
       hitZone.style.width = rect.width + 'px';
@@ -900,17 +901,26 @@
       if (boxIframe.style.pointerEvents === 'none') {
         hitZone.style.display = 'block';
       }
-      // Grow container once if the drawer overflows the top edge (negative y).
-      // Compute exact overflow to avoid a feedback loop where each resize
-      // shifts the drawer rect and triggers further growth.
-      if (!boxContainerGrew && rect.y < 0) {
-        var extraH = Math.ceil(Math.abs(rect.y));
-        var newH = (parseInt(boxContainer.style.height, 10) || 0) + extraH;
-        boxContainer.style.height = newH + 'px';
-        boxIframe.height = newH;
-        boxIframe.style.height = newH + 'px';
-        boxContainerGrew = true;
-        sendViewportInfo();
+      // Grow container once if the drawer overflows any edge.
+      // Compute exact overflow to avoid a feedback loop.
+      if (!boxContainerGrew) {
+        var curW = parseInt(boxContainer.style.width, 10) || overlayW;
+        var curH = parseInt(boxContainer.style.height, 10) || overlayH;
+        var extraL = rect.x < 0 ? Math.ceil(Math.abs(rect.x)) : 0;
+        var extraT = rect.y < 0 ? Math.ceil(Math.abs(rect.y)) : 0;
+        if (extraL > 0 || extraT > 0) {
+          var newW = curW + extraL;
+          var newH = curH + extraT;
+          console.log('[TB widget] growing container', curW + 'x' + curH, '->', newW + 'x' + newH);
+          boxContainer.style.width = newW + 'px';
+          boxContainer.style.height = newH + 'px';
+          boxIframe.width = newW;
+          boxIframe.height = newH;
+          boxIframe.style.width = newW + 'px';
+          boxIframe.style.height = newH + 'px';
+          boxContainerGrew = true;
+          sendViewportInfo();
+        }
       }
     }
 
