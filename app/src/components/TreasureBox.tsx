@@ -381,7 +381,8 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   const prevDrawerStyleKey = useRef('');
   useEffect(() => {
     if (!effectiveOverlay?.drawerStyle) return;
-    const key = JSON.stringify(effectiveOverlay.drawerStyle);
+    const s = effectiveOverlay.drawerStyle;
+    const key = `${s.top ?? ''}|${s.bottom ?? ''}|${s.left ?? ''}|${s.right ?? ''}|${s.transform ?? ''}`;
     if (key === prevDrawerStyleKey.current) return;
     prevDrawerStyleKey.current = key;
     scheduleRepositionBoundaries();
@@ -601,7 +602,6 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   }, []);
 
   const clearPhysics = useCallback(() => {
-    console.log('[TB] clearPhysics called', new Error().stack?.split('\n').slice(1, 4).join(' | '));
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     if (runnerRef.current) Matter.Runner.stop(runnerRef.current);
     if (engineRef.current) {
@@ -805,7 +805,6 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       // This handles mobile where Matter.js preventDefault() blocks synthetic click events
       const isHostMouseUp = hostMouseUpPendingRef.current;
       hostMouseUpPendingRef.current = false;
-      console.log('[TB] mouseConstraint mouseup', { hasBody: !!body?.itemData, didDrag: didDragRef.current, longPress: longPressFiredRef.current, isHostMouseUp });
       // In overlay mode, skip tap-to-close for host-forwarded mouseups — the host handles
       // drawer clicks separately via the 'drawer-click' message. Without this guard, a host
       // item drag ending near the drawer triggers tap-to-close (because the iframe's
@@ -910,7 +909,6 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       }
       // Host canvas drawer interaction forwarding (overlay embed)
       if (event.data.action === 'drawer-click') {
-        console.log('[TB] host drawer-click received');
         handleDrawerClickRef.current();
       }
       if (event.data.action === 'drawer-hover-enter') {
@@ -1265,13 +1263,11 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
   }, [isOpen, initPhysics, spawnItems, renderLoop, clearPhysics, clearAllTimeouts, managedTimeout, onItemsEscaped, items]);
 
   const closeDrawer = useCallback(() => {
-    console.log('[TB] closeDrawer called', { isOpen, bodies: bodiesRef.current.length, returning: bodiesRef.current.filter(b => (b as PhysicsBody).returningToDrawer).length });
     // Guard: only close from open states
     if (!isOpen) return;
 
     // Guard: don't close while any item is in a return-to-drawer animation
     if (bodiesRef.current.some(b => (b as PhysicsBody).returningToDrawer)) {
-      console.log('[TB] closeDrawer BLOCKED — return animation in progress');
       return;
     }
 
@@ -1394,7 +1390,6 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     const scene = sceneRef.current;
     const drawerEl = drawerElRef.current;
     if (!engine || !body.itemData) return;
-    console.log('[TB] returnItemToDrawer', body.itemData.id, 'bodies:', bodiesRef.current.length, 'returning:', bodiesRef.current.filter(b => b.returningToDrawer).length);
     // Guard: only when drawer is open and not already closing
     if (closingAnimRef.current) return;
     if (body.returningToDrawer) return;
@@ -1459,7 +1454,6 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
           Matter.Composite.remove(engineRef.current.world, body);
         }
         bodiesRef.current = bodiesRef.current.filter(b => b !== body);
-        console.log('[TB] returnItemToDrawer complete', itemId, 'remaining:', bodiesRef.current.length, 'returning:', bodiesRef.current.filter(b => b.returningToDrawer).length);
 
         // Notify overlay mode
         if (window.parent !== window) {
@@ -1645,8 +1639,6 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     if (!el) return;
     const sendRect = () => {
       const r = el.getBoundingClientRect();
-      // drawerElRef has explicit scaled dimensions → rect = visual size directly
-      console.log('[TB] drawer-rect', { x: r.left, y: r.top, w: r.width, h: r.height, scale: boxScaleRef.current });
       window.parent.postMessage({
         type: 'treasure-box',
         action: 'drawer-rect',

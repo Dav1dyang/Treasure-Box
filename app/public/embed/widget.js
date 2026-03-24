@@ -448,7 +448,6 @@
   }
 
   function onHostMouseUp(e) {
-    console.log('[TB:host] onHostMouseUp', { isDraggingItem: isDraggingItem, canvasDidDrag: canvasDidDrag, bodyId: canvasDragBody ? canvasDragBody.id : null });
     if (!isDraggingItem) return;
     // Cancel long-press timer
     if (canvasLongPressTimer) { clearTimeout(canvasLongPressTimer); canvasLongPressTimer = null; }
@@ -458,7 +457,6 @@
 
     // Drag-to-return: if item was dragged near the drawer, return it
     if (canvasDragBody && canvasDidDrag && !canvasLongPressFired && isInsideDrawerRect(e.clientX, e.clientY)) {
-      console.log('[TB:host] drag-to-return triggered, itemId:', canvasDragBody.id);
       boxIframe.contentWindow.postMessage({
         type: 'treasure-box-host',
         action: 'return-item',
@@ -531,7 +529,6 @@
 
     // Drag-to-return: if item was dragged near the drawer, return it
     if (canvasDragBody && canvasDidDrag && !canvasLongPressFired && isInsideDrawerRect(clientX, clientY)) {
-      console.log('[TB:host] drag-to-return triggered (touch), itemId:', canvasDragBody.id);
       boxIframe.contentWindow.postMessage({
         type: 'treasure-box-host',
         action: 'return-item',
@@ -740,7 +737,6 @@
       startHostCanvasDrag(e.clientX, e.clientY);
     } else if (isInsideDrawerRect(e.clientX, e.clientY)) {
       e.stopPropagation();
-      console.log('[TB:host] drawer-click sent (mouse), isDraggingItem:', isDraggingItem);
       boxIframe.contentWindow.postMessage({
         type: 'treasure-box-host', action: 'drawer-click',
       }, '*');
@@ -920,7 +916,6 @@
     if (event.data.action === 'drawer-rect' && event.data.rect) {
       drawerRect = event.data.rect;
       var rect = event.data.rect;
-      console.log('[TB widget] drawer-rect', rect, 'container:', overlayW + 'x' + overlayH);
       hitZone.style.left = rect.x + 'px';
       hitZone.style.top = rect.y + 'px';
       hitZone.style.width = rect.width + 'px';

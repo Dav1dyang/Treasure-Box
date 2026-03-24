@@ -6,7 +6,9 @@ class SoundEngine {
   private volume = 0.3;
   private preset: SoundPreset = 'metallic';
   private lastPlayTime = 0;
-  private minInterval = 50; // ms between sounds to avoid spam
+  private minInterval = 50;
+  private noiseCache: Map<string, AudioBuffer> = new Map();
+  private noiseCacheCtx: AudioContext | null = null;
 
   init() {
     // No-op: context is created lazily on first user interaction via ensureContext()
@@ -26,6 +28,22 @@ class SoundEngine {
     } catch {
       return null;
     }
+  }
+
+  private getNoiseBuffer(ctx: AudioContext, duration: number, decayFactor: number, envelope: 'exp' | 'sin' = 'exp'): AudioBuffer {
+    if (this.noiseCacheCtx !== ctx) { this.noiseCache.clear(); this.noiseCacheCtx = ctx; }
+    const key = `${duration}-${decayFactor}-${envelope}`;
+    const cached = this.noiseCache.get(key);
+    if (cached) return cached;
+    const bufLen = Math.round(ctx.sampleRate * duration);
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) {
+      const env = envelope === 'sin' ? Math.sin((i / bufLen) * Math.PI) : Math.exp(-i / (bufLen * decayFactor));
+      ch[i] = (Math.random() * 2 - 1) * env;
+    }
+    this.noiseCache.set(key, buf);
+    return buf;
   }
 
   setEnabled(enabled: boolean) { this.enabled = enabled; }
@@ -89,7 +107,7 @@ class SoundEngine {
     }
   }
 
-  // ─── Collision presets ──────────────────────────────────────────
+  // Collision presets
 
   private playMetallicCollision(ctx: AudioContext, vol: number) {
     const osc = ctx.createOscillator();
@@ -149,19 +167,11 @@ class SoundEngine {
   }
 
   private playPaperCollision(ctx: AudioContext, vol: number) {
-    const bufferSize = ctx.sampleRate * 0.03;
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
-    }
-
     const source = ctx.createBufferSource();
     const gain = ctx.createGain();
     const filter = ctx.createBiquadFilter();
 
-    source.buffer = buffer;
+    source.buffer = this.getNoiseBuffer(ctx, 0.03, 0.3);
     filter.type = 'highpass';
     filter.frequency.value = 4000;
 
@@ -210,17 +220,10 @@ class SoundEngine {
     osc.start(t);
     osc.stop(t + 0.05);
 
-    // Filtered noise for soft texture
-    const bufLen = ctx.sampleRate * 0.05;
-    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-    const ch = buf.getChannelData(0);
-    for (let i = 0; i < bufLen; i++) {
-      ch[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufLen * 0.2));
-    }
     const src = ctx.createBufferSource();
     const nGain = ctx.createGain();
     const lpf = ctx.createBiquadFilter();
-    src.buffer = buf;
+    src.buffer = this.getNoiseBuffer(ctx, 0.05, 0.2);
     lpf.type = 'lowpass';
     lpf.frequency.value = 500;
     nGain.gain.setValueAtTime(vol * 0.3, t);
@@ -230,7 +233,7 @@ class SoundEngine {
     src.start(t);
   }
 
-  // ─── Drawer open presets ────────────────────────────────────────
+  // Drawer open presets
 
   private playMetallicOpen(ctx: AudioContext, vol: number) {
     const t = ctx.currentTime;
@@ -273,18 +276,10 @@ class SoundEngine {
     osc.start(t);
     osc.stop(t + 0.35);
 
-    // Bandpass noise for friction
-    const bufLen = ctx.sampleRate * 0.35;
-    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-    const ch = buf.getChannelData(0);
-    for (let i = 0; i < bufLen; i++) {
-      const env = Math.sin((i / bufLen) * Math.PI); // fade in/out
-      ch[i] = (Math.random() * 2 - 1) * env;
-    }
     const src = ctx.createBufferSource();
     const nGain = ctx.createGain();
     const bpf = ctx.createBiquadFilter();
-    src.buffer = buf;
+    src.buffer = this.getNoiseBuffer(ctx, 0.35, 0, 'sin');
     bpf.type = 'bandpass';
     bpf.frequency.value = 800;
     bpf.Q.value = 2;
@@ -327,17 +322,10 @@ class SoundEngine {
 
   private playPaperOpen(ctx: AudioContext, vol: number) {
     const t = ctx.currentTime;
-    const bufLen = ctx.sampleRate * 0.3;
-    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-    const ch = buf.getChannelData(0);
-    for (let i = 0; i < bufLen; i++) {
-      const env = Math.sin((i / bufLen) * Math.PI); // smooth fade in/out
-      ch[i] = (Math.random() * 2 - 1) * env;
-    }
     const src = ctx.createBufferSource();
     const gain = ctx.createGain();
     const bpf = ctx.createBiquadFilter();
-    src.buffer = buf;
+    src.buffer = this.getNoiseBuffer(ctx, 0.3, 0, 'sin');
     bpf.type = 'bandpass';
     bpf.frequency.value = 4000;
     bpf.Q.value = 1;
@@ -384,17 +372,10 @@ class SoundEngine {
     osc.start(t);
     osc.stop(t + 0.3);
 
-    // Muted noise
-    const bufLen = ctx.sampleRate * 0.25;
-    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-    const ch = buf.getChannelData(0);
-    for (let i = 0; i < bufLen; i++) {
-      ch[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufLen * 0.3));
-    }
     const src = ctx.createBufferSource();
     const nGain = ctx.createGain();
     const lpf = ctx.createBiquadFilter();
-    src.buffer = buf;
+    src.buffer = this.getNoiseBuffer(ctx, 0.25, 0.3);
     lpf.type = 'lowpass';
     lpf.frequency.value = 400;
     nGain.gain.setValueAtTime(vol * 0.15, t);
@@ -404,7 +385,7 @@ class SoundEngine {
     src.start(t);
   }
 
-  // ─── Drawer close presets ───────────────────────────────────────
+  // Drawer close presets
 
   private playMetallicClose(ctx: AudioContext, vol: number) {
     const t = ctx.currentTime;
@@ -449,16 +430,9 @@ class SoundEngine {
     osc.start(t);
     osc.stop(t + 0.1);
 
-    // Brief noise rattle
-    const bufLen = ctx.sampleRate * 0.06;
-    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-    const ch = buf.getChannelData(0);
-    for (let i = 0; i < bufLen; i++) {
-      ch[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufLen * 0.15));
-    }
     const src = ctx.createBufferSource();
     const nGain = ctx.createGain();
-    src.buffer = buf;
+    src.buffer = this.getNoiseBuffer(ctx, 0.06, 0.15);
     nGain.gain.setValueAtTime(vol * 0.25, t);
     src.connect(nGain);
     nGain.connect(ctx.destination);
@@ -495,16 +469,10 @@ class SoundEngine {
 
   private playPaperClose(ctx: AudioContext, vol: number) {
     const t = ctx.currentTime;
-    const bufLen = ctx.sampleRate * 0.04;
-    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-    const ch = buf.getChannelData(0);
-    for (let i = 0; i < bufLen; i++) {
-      ch[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufLen * 0.15));
-    }
     const src = ctx.createBufferSource();
     const gain = ctx.createGain();
     const hpf = ctx.createBiquadFilter();
-    src.buffer = buf;
+    src.buffer = this.getNoiseBuffer(ctx, 0.04, 0.15);
     hpf.type = 'highpass';
     hpf.frequency.value = 3000;
     gain.gain.setValueAtTime(vol * 0.4, t);

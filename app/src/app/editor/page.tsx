@@ -20,6 +20,25 @@ import { extractContourFromImage } from '@/lib/contour';
 import EmbedConfigurator from '@/components/EmbedConfigurator';
 import { computeCenteredDrawerPosition, computeCenteredSpawnOrigin } from '@/lib/embedPosition';
 
+async function resizeForUpload(file: File, maxDim = 1600): Promise<File> {
+  if (file.size < 500 * 1024) return file;
+  const bitmap = await createImageBitmap(file);
+  const { width, height } = bitmap;
+  if (width <= maxDim && height <= maxDim) { bitmap.close(); return file; }
+
+  const scale = maxDim / Math.max(width, height);
+  const newW = Math.round(width * scale);
+  const newH = Math.round(height * scale);
+
+  const canvas = new OffscreenCanvas(newW, newH);
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(bitmap, 0, 0, newW, newH);
+  bitmap.close();
+
+  const blob = await canvas.convertToBlob({ type: 'image/png' });
+  return new File([blob], file.name.replace(/\.[^.]+$/, '.png'), { type: 'image/png' });
+}
+
 function Slider({ value, min, max, step, label, format, onChange, snap }: {
   value: number; min: number; max: number; step: number;
   label: string; format: (v: number) => string;
@@ -123,17 +142,18 @@ export default function EditorPage() {
     if (!user || !e.target.files?.length) return;
     if (items.length >= (config?.maxItems || 100)) return;
     const file = e.target.files[0];
+    const resized = await resizeForUpload(file);
     const id = `item_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
     setSaving(true);
     setBgError(null);
-    const originalUrl = await uploadImage(user.uid, file, `${id}_original`);
+    const originalUrl = await uploadImage(user.uid, resized, `${id}_original`);
     let processedUrl = originalUrl;
     let contourPoints: { x: number; y: number }[] | undefined;
     try {
       setRemovingBg(id);
       // Client-side background removal via WASM (no server needed)
       const { removeBackground } = await import('@imgly/background-removal');
-      const resultBlob = await removeBackground(file, {
+      const resultBlob = await removeBackground(resized, {
         model: 'isnet_quint8',
         output: { format: 'image/png' },
       });
@@ -224,9 +244,10 @@ export default function EditorPage() {
           const response = await fetch(item.originalImageUrl);
           const originalBlob = await response.blob();
           const file = new File([originalBlob], 'image.png', { type: originalBlob.type });
+          const resized = await resizeForUpload(file);
 
           const { removeBackground } = await import('@imgly/background-removal');
-          const resultBlob = await removeBackground(file, {
+          const resultBlob = await removeBackground(resized, {
             model: 'isnet_quint8',
             output: { format: 'image/png' },
           });
