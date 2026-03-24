@@ -1635,10 +1635,23 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     if (!el) return;
     const sendRect = () => {
       const r = el.getBoundingClientRect();
+      // The scale transform is on an inner child div, so getBoundingClientRect
+      // returns the outer div's layout box (unscaled). Compute the visual
+      // (scaled) rect centered within the layout box to match what users see.
+      const s = boxScaleRef.current;
+      const scaledW = r.width * s;
+      const scaledH = r.height * s;
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
       window.parent.postMessage({
         type: 'treasure-box',
         action: 'drawer-rect',
-        rect: { x: r.left, y: r.top, width: r.width, height: r.height },
+        rect: {
+          x: cx - scaledW / 2,
+          y: cy - scaledH / 2,
+          width: scaledW,
+          height: scaledH,
+        },
       }, '*');
     };
     sendRect();
