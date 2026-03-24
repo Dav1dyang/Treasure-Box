@@ -1536,6 +1536,9 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
       pendingLinkRef.current = null;
       return;
     }
+    // After a drag, the click event is a side effect of mouseup — don't close the drawer.
+    // The drag-to-return logic in the mouseConstraint mouseup handler already handled it.
+    if (didDragRef.current) return;
     if (boxState !== 'OPEN' && boxState !== 'HOVER_CLOSE') return;
     const canvas = canvasRef.current;
     if (!canvas) return;
