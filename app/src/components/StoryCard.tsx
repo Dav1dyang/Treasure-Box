@@ -19,11 +19,11 @@ export default function StoryCard({ item, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="rounded-sm max-w-[480px] w-full mx-5"
+        className="rounded-sm max-w-[420px] w-full mx-5 max-h-[85vh] overflow-y-auto"
         style={{
           background: 'var(--tb-bg)',
           border: '1px solid var(--tb-border)',
-          padding: '36px 40px 32px',
+          padding: 'clamp(20px, 4vw, 32px) clamp(20px, 5vw, 36px) clamp(16px, 3vw, 28px)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -92,18 +92,8 @@ export default function StoryCard({ item, onClose }: Props) {
                 fontSize: '14px',
                 letterSpacing: '0.1em',
                 color: 'var(--tb-accent)',
-                background: 'var(--tb-bg-muted)',
-                border: '1px solid var(--tb-border)',
-                padding: '10px 24px',
-                borderRadius: '2px',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.color = 'var(--tb-accent-hover)';
-                e.currentTarget.style.borderColor = 'var(--tb-accent)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.color = 'var(--tb-accent)';
-                e.currentTarget.style.borderColor = 'var(--tb-border)';
+                display: 'inline-block',
+                padding: '8px 16px',
               }}
             >
               Visit Link &rarr;
@@ -122,7 +112,7 @@ export default function StoryCard({ item, onClose }: Props) {
             color: 'var(--tb-fg-faint)',
           }}
         >
-          click anywhere to close
+          tap anywhere to close
         </div>
       </div>
     </div>

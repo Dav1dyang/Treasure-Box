@@ -151,7 +151,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
       {/* Position */}
       <div className="pb-4" style={{ borderBottom: '0.5px solid var(--tb-border)' }}>
         <span style={label}>Position</span>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, maxWidth: 180 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, maxWidth: 220, width: '100%' }}>
           {GRID_POSITIONS.map(c => {
             const active = settings.position.anchor === c.anchor;
             return (
@@ -256,7 +256,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
             className="tb-pill cursor-pointer uppercase"
             style={{
               fontFamily: MONO, fontSize: 12, fontWeight: 600, letterSpacing: '0.08em',
-              padding: '5px 14px',
+              padding: '7px 14px', minHeight: 36,
               border: `1px solid ${copied === 'link' ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
               color: copied === 'link' ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
               background: 'transparent', transition: 'all 0.15s',
@@ -292,7 +292,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
             className="tb-pill cursor-pointer uppercase"
             style={{
               fontFamily: MONO, fontSize: 12, fontWeight: 600, letterSpacing: '0.08em',
-              padding: '5px 14px',
+              padding: '7px 14px', minHeight: 36,
               border: `1px solid ${copied === 'embed' ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
               color: copied === 'embed' ? 'var(--tb-accent)' : 'var(--tb-fg-faint)',
               background: 'transparent', transition: 'all 0.15s',
@@ -304,7 +304,7 @@ export default function EmbedConfigurator({ config, userId, onSettingsChange, on
         <pre
           onClick={handleCopy}
           style={{
-            fontFamily: MONO, fontSize: 11, lineHeight: 1.5, padding: 12,
+            fontFamily: MONO, fontSize: 'clamp(10px, 2.5vw, 12px)', lineHeight: 1.5, padding: 12,
             background: 'var(--tb-bg-muted)', color: 'var(--tb-fg-muted)',
             border: `0.5px solid ${copied === 'embed' ? 'var(--tb-accent)' : 'var(--tb-border)'}`,
             whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflow: 'auto', maxHeight: 200, margin: 0,
