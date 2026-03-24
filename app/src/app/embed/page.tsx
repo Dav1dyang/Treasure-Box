@@ -157,7 +157,7 @@ function EmbedContent() {
             backgroundColor="transparent"
             embedded
             overlayPreview={{
-              drawerStyle: computeAnchoredDrawerPosition(containerW, containerH, anchorParam),
+              drawerStyle: computeAnchoredDrawerPosition(containerW, containerH, anchorParam, 0),
               spawnOrigin: computeAnchoredSpawnOrigin(anchorParam),
             }}
             hostViewport={hostViewport}

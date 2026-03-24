@@ -11,29 +11,30 @@ export function computeAnchoredDrawerPosition(
   containerW: number,
   containerH: number,
   anchor: AnchorCorner = 'bottom-right',
+  padding: number = ANCHOR_PAD,
 ): React.CSSProperties {
   const style: React.CSSProperties = { position: 'absolute' };
 
   // Vertical
   if (anchor.startsWith('top')) {
-    style.top = ANCHOR_PAD;
+    style.top = padding;
   } else if (anchor.startsWith('middle')) {
     style.top = containerH / 2;
     style.transform = 'translateY(-50%)';
   } else {
     // bottom (default)
-    style.bottom = ANCHOR_PAD;
+    style.bottom = padding;
   }
 
   // Horizontal
   if (anchor.endsWith('left')) {
-    style.left = ANCHOR_PAD;
+    style.left = padding;
   } else if (anchor.endsWith('center')) {
     style.left = containerW / 2;
     style.transform = (style.transform || '') + ' translateX(-50%)';
   } else {
     // right (default)
-    style.right = ANCHOR_PAD;
+    style.right = padding;
   }
 
   return style;

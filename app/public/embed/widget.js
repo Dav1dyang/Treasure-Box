@@ -356,7 +356,7 @@
   // Drawer interaction state: track drawer rect + state from iframe for forwarding
   var drawerRect = null;
   var isHoveringDrawer = false;
-  var boxContainerGrew = false; // prevents growth feedback loop
+  // (growth logic removed — 0-padding in embed mode eliminates overflow)
 
   // Drag tracking: when the user drags an item, we forward host-page mouse events
   // into the iframe so the drag continues even when the cursor leaves the iframe boundary.
@@ -901,27 +901,7 @@
       if (boxIframe.style.pointerEvents === 'none') {
         hitZone.style.display = 'block';
       }
-      // Grow container once if the drawer overflows any edge.
-      // Compute exact overflow to avoid a feedback loop.
-      if (!boxContainerGrew) {
-        var curW = parseInt(boxContainer.style.width, 10) || overlayW;
-        var curH = parseInt(boxContainer.style.height, 10) || overlayH;
-        var extraL = rect.x < 0 ? Math.ceil(Math.abs(rect.x)) : 0;
-        var extraT = rect.y < 0 ? Math.ceil(Math.abs(rect.y)) : 0;
-        if (extraL > 0 || extraT > 0) {
-          var newW = curW + extraL;
-          var newH = curH + extraT;
-          console.log('[TB widget] growing container', curW + 'x' + curH, '->', newW + 'x' + newH);
-          boxContainer.style.width = newW + 'px';
-          boxContainer.style.height = newH + 'px';
-          boxIframe.width = newW;
-          boxIframe.height = newH;
-          boxIframe.style.width = newW + 'px';
-          boxIframe.style.height = newH + 'px';
-          boxContainerGrew = true;
-          sendViewportInfo();
-        }
-      }
+      // No growth logic needed — embed uses 0 padding so drawer fits exactly in iframe
     }
 
     // Item drag: forward host-page mouse events into iframe during drag

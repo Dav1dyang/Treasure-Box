@@ -1633,7 +1633,8 @@ export default function TreasureBox({ items, config, backgroundColor, onItemsEsc
     sendRect();
     const ro = new ResizeObserver(sendRect);
     ro.observe(el);
-    return () => ro.disconnect();
+    window.addEventListener('resize', sendRect);
+    return () => { ro.disconnect(); window.removeEventListener('resize', sendRect); };
   }, [boxState]);
 
   // Accelerometer for mobile
