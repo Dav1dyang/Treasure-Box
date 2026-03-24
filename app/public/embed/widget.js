@@ -356,6 +356,7 @@
   // Drawer interaction state: track drawer rect + state from iframe for forwarding
   var drawerRect = null;
   var isHoveringDrawer = false;
+  var boxContainerGrew = false; // prevents growth feedback loop
 
   // Drag tracking: when the user drags an item, we forward host-page mouse events
   // into the iframe so the drag continues even when the cursor leaves the iframe boundary.
@@ -412,18 +413,14 @@
     }, '*');
   }
 
-  // Helper: check if a point (in client coords) is inside the visible drawer rect
-  // (clamped to container bounds so overflowing drawers don't create ghost hit areas)
+  // Helper: check if a point (in client coords) is inside the drawer rect
   function isInsideDrawerRect(clientX, clientY) {
     if (!drawerRect) return false;
     var containerRect = boxContainer.getBoundingClientRect();
     var dx = clientX - containerRect.left;
     var dy = clientY - containerRect.top;
-    var visL = Math.max(0, drawerRect.x);
-    var visT = Math.max(0, drawerRect.y);
-    var visR = Math.min(overlayW, drawerRect.x + drawerRect.width);
-    var visB = Math.min(overlayH, drawerRect.y + drawerRect.height);
-    return dx >= visL && dx <= visR && dy >= visT && dy <= visB;
+    return dx >= drawerRect.x && dx <= drawerRect.x + drawerRect.width &&
+      dy >= drawerRect.y && dy <= drawerRect.y + drawerRect.height;
   }
 
 
@@ -896,29 +893,23 @@
     if (event.data.action === 'drawer-rect' && event.data.rect) {
       drawerRect = event.data.rect;
       var rect = event.data.rect;
-      // Clamp hit zone to the visible container bounds so it doesn't extend
-      // outside the iframe area when the drawer overflows (e.g. scale mismatch)
-      var clampL = Math.max(0, rect.x);
-      var clampT = Math.max(0, rect.y);
-      var clampR = Math.min(overlayW, rect.x + rect.width);
-      var clampB = Math.min(overlayH, rect.y + rect.height);
-      hitZone.style.left = clampL + 'px';
-      hitZone.style.top = clampT + 'px';
-      hitZone.style.width = Math.max(0, clampR - clampL) + 'px';
-      hitZone.style.height = Math.max(0, clampB - clampT) + 'px';
+      hitZone.style.left = rect.x + 'px';
+      hitZone.style.top = rect.y + 'px';
+      hitZone.style.width = rect.width + 'px';
+      hitZone.style.height = rect.height + 'px';
       if (boxIframe.style.pointerEvents === 'none') {
         hitZone.style.display = 'block';
       }
-      // Ensure container is tall enough for the drawer (only grow once, cap growth
-      // to prevent infinite loop with bottom-anchored drawers where each resize
-      // pushes the drawer up, increasing rect.y and triggering more growth)
-      var neededH = Math.ceil(rect.y + rect.height + 10);
-      var currentH = parseInt(boxContainer.style.height, 10) || 0;
-      var maxGrowth = Math.round(height * 0.3); // cap at 30% above initial height
-      if (neededH > currentH && neededH <= height + maxGrowth) {
-        boxContainer.style.height = neededH + 'px';
-        boxIframe.height = neededH;
-        boxIframe.style.height = neededH + 'px';
+      // Grow container once if the drawer overflows the top edge (negative y).
+      // Compute exact overflow to avoid a feedback loop where each resize
+      // shifts the drawer rect and triggers further growth.
+      if (!boxContainerGrew && rect.y < 0) {
+        var extraH = Math.ceil(Math.abs(rect.y));
+        var newH = (parseInt(boxContainer.style.height, 10) || 0) + extraH;
+        boxContainer.style.height = newH + 'px';
+        boxIframe.height = newH;
+        boxIframe.style.height = newH + 'px';
+        boxContainerGrew = true;
         sendViewportInfo();
       }
     }
