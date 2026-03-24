@@ -42,6 +42,7 @@ Treasure Box is a Next.js 16 web app where users create physics-driven "treasure
 |---------|---------|---------|---------|
 | `matter-js` | ^0.20.0 | 2D physics engine (dynamic import, SSR disabled) | TreasureBox.tsx, LoadingAnimation.tsx |
 | `@types/matter-js` | ^0.20.2 | TypeScript definitions for Matter.js | TreasureBox.tsx, LoadingAnimation.tsx |
+| `chroma-js` | ^3.2.0 | Color manipulation (OKLab mixing for animations) | LoadingAnimation.tsx |
 
 ### Backend
 
@@ -93,7 +94,7 @@ Treasure Box is a Next.js 16 web app where users create physics-driven "treasure
 |------|------:|------|-------------|-------------|
 | `src/components/TreasureBox.tsx` | 2,185 | Core widget: Matter.js physics, 6-state drawer state machine, canvas rendering, sprite + ASCII modes, long-press stories, frame sync | sounds, contour, embedPosition, config, types, StoryCard | landing, editor, embed, box/[userId] (dynamic import) |
 | `src/components/DrawerStylePicker.tsx` | 706 | AI drawer generation UI: material/style/color/decor pickers, ASCII preview, generation trigger | firestore, config, types | editor |
-| `src/components/LoadingAnimation.tsx` | 473 | Matter.js loading animation: spawning/draining colored boxes | — (matter-js only) | editor |
+| `src/components/LoadingAnimation.tsx` | 473 | Matter.js loading animation: spawning/draining colored boxes | matter-js, chroma-js | editor |
 | `src/components/EmbedConfigurator.tsx` | 352 | Embed settings UI: mode toggle, size presets, position drag, preview background, code generation | firestore, config, types | editor |
 | `src/components/StoryCard.tsx` | 135 | Modal overlay for item story display (image, label, story, link) | types | TreasureBox |
 | `src/components/AuthProvider.tsx` | 63 | Firebase auth context (Google sign-in/out, auth state) | firebase | providers, landing, editor |
