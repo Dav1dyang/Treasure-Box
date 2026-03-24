@@ -19,7 +19,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Owner can read/write their box
     match /boxes/{userId} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
@@ -59,7 +58,6 @@ Firebase Storage blocks cross-origin requests by default. You must set CORS head
    gsutil cors set cors.json gs://YOUR_BUCKET_NAME.appspot.com
    ```
    Replace `YOUR_BUCKET_NAME` with your Firebase project's storage bucket (found in Firebase Console > Storage).
-
 3. If you deploy to a custom domain, update `cors.json` to include that origin.
 
 ### Firestore Composite Index (Required for junk shelf)
@@ -77,13 +75,23 @@ Firebase will auto-prompt the index creation URL in the browser console on first
 
 ## 2. Environment Variables
 
-Copy `.env.local.example` to `.env.local` and fill in your Firebase values:
+Copy `.env.local.example` to `.env.local` and fill in your values:
 
 ```bash
 cp .env.local.example .env.local
 ```
 
-## 3. Google Cloud Vision (Optional — for background removal)
+## 3. Google AI Studio (Required — for Gemini AI features)
+
+The app uses Gemini for AI-generated drawer artwork and dynamic style suggestions.
+
+1. Go to [Google AI Studio](https://aistudio.google.com/)
+2. Create an API key
+3. Add it to `.env.local` as `GOOGLE_AI_STUDIO_KEY`
+
+## 4. Google Cloud Vision API (Optional — for contour detection)
+
+Used to detect object contours for more accurate physics shapes. Falls back to chroma key without it.
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Enable the **Cloud Vision API**
@@ -92,16 +100,17 @@ cp .env.local.example .env.local
 
 Free tier: 1,000 units/month
 
-## 4. Local Development
+## 5. Local Development
 
 ```bash
+cd app
 npm install
 npm run dev
 ```
 
 Open http://localhost:3000
 
-## 5. Deploy to Vercel
+## 6. Deploy to Vercel
 
 1. Push to GitHub
 2. Import in [Vercel](https://vercel.com/new)
@@ -109,9 +118,9 @@ Open http://localhost:3000
 4. Add all environment variables from `.env.local`
 5. Deploy
 
-## 6. Embed on Your Website
+## 7. Embed on Your Website
 
-After deploying, go to `/editor` → **embed** tab → copy the iframe or script code.
+After deploying, go to `/editor` → **Embed** tab → copy the iframe or script code.
 
 ### iframe
 ```html
@@ -119,7 +128,7 @@ After deploying, go to `/editor` → **embed** tab → copy the iframe or script
   width="700" height="700" style="border:none"></iframe>
 ```
 
-### Script
+### Script tag
 ```html
 <div id="treasure-box-embed"></div>
 <script src="https://your-app.vercel.app/embed/widget.js"
